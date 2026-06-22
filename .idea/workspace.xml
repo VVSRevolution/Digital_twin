@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="front(vue):teste" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/front" />
+    <option name="ROOT_SYNC" value="SYNC" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;VVSRevolution&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/VVSRevolution/Digital_twin.git&quot;,
+    &quot;accountId&quot;: &quot;0a2944b0-74e4-4856-9404-a6ac89c3e835&quot;
+  }
+}</component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.3099269249847465" />
+      <entry key="MS500" value="1.79113730118545" />
+      <entry key="S2" value="1.9431113367667137" />
+      <entry key="S5" value="1.9768439389005281" />
+      <entry key="S10" value="1.9883541566215848" />
+      <entry key="S30" value="1.9964052553911986" />
+      <entry key="S60" value="2.0387477485372787" />
+      <entry key="M2" value="2.678386715506738" />
+      <entry key="M5" value="6.680638175174243" />
+      <entry key="M10" value="12.011253478514321" />
+      <entry key="M15" value="15.206103148367072" />
+      <entry key="M30" value="19.668034166923704" />
+      <entry key="H1" value="22.551759786524865" />
+      <entry key="H2" value="24.198057071727824" />
+      <entry key="H4" value="25.07857772260421" />
+      <entry key="D1" value="25.843500320907953" />
+      <entry key="W1" value="25.97756997442052" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="1.2673882858475356" />
+      <entry key="MS500" value="1.7798549407906017" />
+      <entry key="S2" value="1.9400734452587793" />
+      <entry key="S5" value="1.9756095047503843" />
+      <entry key="S10" value="1.9877336511072707" />
+      <entry key="S30" value="1.9961974091198098" />
+      <entry key="S60" value="2.0386030879712407" />
+      <entry key="M2" value="2.6778516153841254" />
+      <entry key="M5" value="6.679257382852308" />
+      <entry key="M10" value="12.009927981181727" />
+      <entry key="M15" value="15.20500211942457" />
+      <entry key="M30" value="19.66734728941423" />
+      <entry key="H1" value="22.551375945628394" />
+      <entry key="H2" value="24.19785414519748" />
+      <entry key="H4" value="25.078473386408668" />
+      <entry key="D1" value="25.84348252181193" />
+      <entry key="W1" value="25.977567421515797" />
+    </decayedShown>
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3FVVoWTnvftlvKSMREla82tPfyY" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager" selected="npm.npm dev">
+    <configuration name="Debug Application" type="JavascriptDebugType" uri="http://localhost:5173">
+      <method v="2" />
+    </configuration>
+    <configuration name="npm dev" type="js.build_tools.npm">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="dev" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-WS-261.25134.101" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="" />
+      <created>1782160399083</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1782160399083</updated>
+      <workItem from="1782160400104" duration="482000" />
+      <workItem from="1782161637981" duration="1555000" />
+    </task>
+    <task id="LOCAL-00001" summary="front(vue)">
+      <option name="closed" value="true" />
+      <created>1782160634858</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1782160634858</updated>
+    </task>
+    <task id="LOCAL-00002" summary="front(vue)">
+      <option name="closed" value="true" />
+      <created>1782162343818</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1782162343818</updated>
+    </task>
+    <task id="LOCAL-00003" summary="front(vue)">
+      <option name="closed" value="true" />
+      <created>1782162474843</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1782162474843</updated>
+    </task>
+    <task id="LOCAL-00004" summary="front(vue):teste">
+      <option name="closed" value="true" />
+      <created>1782162615543</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1782162615543</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="front(vue)" />
+    <MESSAGE value="front(vue):teste" />
+    <option name="LAST_COMMIT_MESSAGE" value="front(vue):teste" />
+  </component>
+</project>
