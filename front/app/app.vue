@@ -1,6 +1,10 @@
+<script setup lang="ts">
+import MapView from "~/component/MapView.vue";
+</script>
 <template>
   <div>
-    <NuxtRouteAnnouncer />
-    <NuxtWelcome />
+    <client-only>
+      <MapView/>
+    </client-only>
   </div>
 </template>

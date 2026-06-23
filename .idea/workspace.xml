@@ -4,13 +4,25 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="front(vue):teste">
-      <change beforePath="$PROJECT_DIR$/front/front" beforeDir="false" />
+    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(map): mosstrando o mapa">
+      <change afterPath="$PROJECT_DIR$/front/app/component/MapView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/app/app.vue" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/app.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Vue Composition API Component" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
@@ -18,7 +30,7 @@
         <entry key="$PROJECT_DIR$/front" value="main" />
       </map>
     </option>
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/front" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="ROOT_SYNC" value="SYNC" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -29,67 +41,67 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/VVSRevolution/Digital_twin.git&quot;,
+    &quot;url&quot;: &quot;https://github.com/VVSRevolution/Digital_twin&quot;,
     &quot;accountId&quot;: &quot;0a2944b0-74e4-4856-9404-a6ac89c3e835&quot;
   }
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.36748017131037" />
-      <entry key="MS500" value="3.1410303466846505" />
-      <entry key="S2" value="4.940457449833692" />
-      <entry key="S5" value="5.536193662157462" />
-      <entry key="S10" value="5.761063841584905" />
-      <entry key="S30" value="5.982642350115098" />
-      <entry key="S60" value="6.2617402397581685" />
-      <entry key="M2" value="7.196430119186167" />
-      <entry key="M5" value="11.075718871075974" />
-      <entry key="M10" value="16.926354865504784" />
-      <entry key="M15" value="21.874564091747327" />
-      <entry key="M30" value="31.75078453764424" />
-      <entry key="H1" value="40.51629450246471" />
-      <entry key="H2" value="46.515666873672245" />
-      <entry key="H4" value="50.04851439618644" />
-      <entry key="D1" value="53.31007332877945" />
-      <entry key="W1" value="53.90063979094909" />
+      <entry key="MS100" value="1.1044967714186904" />
+      <entry key="MS500" value="1.8112232747346404" />
+      <entry key="S2" value="3.0927995561843624" />
+      <entry key="S5" value="4.847490207963517" />
+      <entry key="S10" value="6.5316196993488305" />
+      <entry key="S30" value="8.5597542254392" />
+      <entry key="S60" value="9.549518155048329" />
+      <entry key="M2" value="10.981548630203783" />
+      <entry key="M5" value="13.621603709670817" />
+      <entry key="M10" value="18.926909425486485" />
+      <entry key="M15" value="25.651291010576163" />
+      <entry key="M30" value="43.60834372680737" />
+      <entry key="H1" value="63.97117040258202" />
+      <entry key="H2" value="80.19704396557164" />
+      <entry key="H4" value="90.60859446925726" />
+      <entry key="D1" value="100.7799097406123" />
+      <entry key="W1" value="102.67880040549002" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="6.831889571985002E-302" />
-      <entry key="S2" value="5.112522231137136E-76" />
-      <entry key="S5" value="7.64634842408908E-31" />
-      <entry key="S10" value="8.74434012609818E-16" />
-      <entry key="S30" value="9.562593192993169E-6" />
-      <entry key="S60" value="0.0030923442875904292" />
-      <entry key="M2" value="0.055608850802641385" />
-      <entry key="M5" value="0.31481655926816154" />
-      <entry key="M10" value="0.5610851622242042" />
-      <entry key="M15" value="0.6802771068331616" />
-      <entry key="M30" value="0.824789128706945" />
-      <entry key="H1" value="0.9081790179843098" />
-      <entry key="H2" value="0.9529842695366539" />
-      <entry key="H4" value="0.976209132069893" />
-      <entry key="D1" value="0.9959949681417651" />
-      <entry key="W1" value="0.9994268680919016" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="8.432508246370628E-230" />
+      <entry key="S5" value="2.346295511669902E-92" />
+      <entry key="S10" value="1.531762224259988E-46" />
+      <entry key="S30" value="5.350597144645866E-16" />
+      <entry key="S60" value="2.3210767119654105E-8" />
+      <entry key="M2" value="1.6108754205953498E-4" />
+      <entry key="M5" value="0.04070426664709717" />
+      <entry key="M10" value="0.3081175850848831" />
+      <entry key="M15" value="0.6349673447029376" />
+      <entry key="M30" value="1.3534191057365725" />
+      <entry key="H1" value="2.0045888767670363" />
+      <entry key="H2" value="2.4490501775544926" />
+      <entry key="H4" value="2.7096562627948853" />
+      <entry key="D1" value="2.9493963043052283" />
+      <entry key="W1" value="2.992714656955515" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.2899664311014152" />
-      <entry key="MS500" value="3.069801512355164" />
-      <entry key="S2" value="4.91362653176889" />
-      <entry key="S5" value="5.524457704553532" />
-      <entry key="S10" value="5.755014436599659" />
-      <entry key="S30" value="5.980585106903937" />
-      <entry key="S60" value="6.263685895233038" />
-      <entry key="M2" value="7.250858279997652" />
-      <entry key="M5" value="11.388950264712125" />
-      <entry key="M10" value="17.485921310508914" />
-      <entry key="M15" value="22.553456402079725" />
-      <entry key="M30" value="32.574533361244285" />
-      <entry key="H1" value="41.423806824474916" />
-      <entry key="H2" value="47.46826910066772" />
-      <entry key="H4" value="51.024518393451686" />
-      <entry key="D1" value="54.30603195785166" />
-      <entry key="W1" value="54.90006141243102" />
+      <entry key="MS100" value="1.0188304242458628" />
+      <entry key="MS500" value="1.7766092635624535" />
+      <entry key="S2" value="3.073439500193355" />
+      <entry key="S5" value="4.833773392746723" />
+      <entry key="S10" value="6.522336295018811" />
+      <entry key="S30" value="8.555785350322424" />
+      <entry key="S60" value="9.547253427726055" />
+      <entry key="M2" value="10.980111152577054" />
+      <entry key="M5" value="13.660264261250527" />
+      <entry key="M10" value="19.231231693050642" />
+      <entry key="M15" value="26.2817651536359" />
+      <entry key="M30" value="44.95749100349121" />
+      <entry key="H1" value="65.9727160626929" />
+      <entry key="H2" value="82.64425811211089" />
+      <entry key="H4" value="93.31723908569188" />
+      <entry key="D1" value="103.72912289553707" />
+      <entry key="W1" value="105.67148851998269" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -101,34 +113,41 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;git.auto.fetch.suggestion.counter&quot;: &quot;3&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "master",
+    "git.auto.fetch.suggestion.counter": "3",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "npm.dev.executor": "Run",
+    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
+  },
+  "keyToStringList": {
+    "vue.recent.templates": [
+      "Vue Composition API Component"
+    ]
   }
-}</component>
-  <component name="RunManager" selected="npm.npm dev">
-    <configuration name="Debug Application" type="JavascriptDebugType" uri="http://localhost:5173">
+}]]></component>
+  <component name="RunManager" selected="npm.dev">
+    <configuration name="Debug Application" type="JavascriptDebugType" engineId="98ca6316-2f89-46d9-a9e5-fa9e2b0625b3" uri="http://localhost:5173">
       <method v="2" />
     </configuration>
-    <configuration name="npm dev" type="js.build_tools.npm">
-      <package-json value="$PROJECT_DIR$/package.json" />
+    <configuration name="dev" type="js.build_tools.npm" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/front/package.json" />
       <command value="run" />
       <scripts>
         <script value="dev" />
@@ -137,6 +156,10 @@
       <envs />
       <method v="2" />
     </configuration>
+    <list>
+      <item itemvalue="JavaScript Debug.Debug Application" />
+      <item itemvalue="npm.dev" />
+    </list>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -154,6 +177,8 @@
       <updated>1782160399083</updated>
       <workItem from="1782160400104" duration="482000" />
       <workItem from="1782161637981" duration="1555000" />
+      <workItem from="1782173521539" duration="98000" />
+      <workItem from="1782173638331" duration="2469000" />
     </task>
     <task id="LOCAL-00001" summary="front(vue)">
       <option name="closed" value="true" />
@@ -213,8 +238,12 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
+    <ignored-roots>
+      <path value="$PROJECT_DIR$/front" />
+    </ignored-roots>
     <MESSAGE value="front(vue)" />
     <MESSAGE value="front(vue):teste" />
-    <option name="LAST_COMMIT_MESSAGE" value="front(vue):teste" />
+    <MESSAGE value="feat(map): mosstrando o mapa" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(map): mosstrando o mapa" />
   </component>
 </project>
