@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(map): mosstrando o mapa">
+    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(map): mostrando mapa e pesquisa">
+      <change afterPath="$PROJECT_DIR$/front/app/services/geoService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/front/app/services/parkService.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/app/app.vue" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/app.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/app/component/MapView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/component/MapView.vue" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -18,8 +19,12 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Vue Composition API Component" />
+        <option value="TypeScript File" />
       </list>
     </option>
+  </component>
+  <component name="FormatOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
@@ -44,62 +49,65 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.1134398944146848" />
-      <entry key="MS500" value="1.6491857180353682" />
-      <entry key="S2" value="2.1816159300890035" />
-      <entry key="S5" value="2.843963101002249" />
-      <entry key="S10" value="3.3021000039041186" />
-      <entry key="S30" value="3.735548521139165" />
-      <entry key="S60" value="3.9182663832922136" />
-      <entry key="M2" value="4.476143864776417" />
-      <entry key="M5" value="8.075827854709445" />
-      <entry key="M10" value="14.742583464731032" />
-      <entry key="M15" value="21.717703406604137" />
-      <entry key="M30" value="40.598912181525456" />
-      <entry key="H1" value="63.51970440364215" />
-      <entry key="H2" value="82.76677139864762" />
-      <entry key="H4" value="95.50103376533454" />
-      <entry key="D1" value="108.19742711488874" />
-      <entry key="W1" value="110.59385727503829" />
+      <entry key="MS100" value="1.0000037361919312" />
+      <entry key="MS500" value="1.0821269766968358" />
+      <entry key="S2" value="1.5353298482544147" />
+      <entry key="S5" value="1.7788406015955638" />
+      <entry key="S10" value="1.882519462445766" />
+      <entry key="S30" value="1.9591976314693635" />
+      <entry key="S60" value="1.9794173658415029" />
+      <entry key="M2" value="1.9952236592969554" />
+      <entry key="M5" value="2.1562810804495767" />
+      <entry key="M10" value="3.3250648250210855" />
+      <entry key="M15" value="6.080624763887183" />
+      <entry key="M30" value="19.5073265903523" />
+      <entry key="H1" value="45.09184488655287" />
+      <entry key="H2" value="73.20184964539376" />
+      <entry key="H4" value="94.77735566679118" />
+      <entry key="D1" value="118.4836393800293" />
+      <entry key="W1" value="123.19435769726795" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
       <entry key="MS500" value="0.0" />
-      <entry key="S2" value="2.788721337981579E-82" />
-      <entry key="S5" value="2.3887024108872592E-33" />
-      <entry key="S10" value="4.887435330403115E-17" />
-      <entry key="S30" value="3.6561752799235196E-6" />
-      <entry key="S60" value="0.0019121127859017583" />
-      <entry key="M2" value="0.04373047329596761" />
-      <entry key="M5" value="0.2939616690621529" />
-      <entry key="M10" value="0.6713765882752423" />
-      <entry key="M15" value="1.0280501665067876" />
-      <entry key="M30" value="1.8437369291127164" />
-      <entry key="H1" value="2.6514289032299554" />
-      <entry key="H2" value="3.237752303679877" />
-      <entry key="H4" value="3.593634034901482" />
-      <entry key="D1" value="3.9284491647749817" />
-      <entry key="W1" value="3.9896803723052208" />
+      <entry key="S2" value="5.435842694228928E-292" />
+      <entry key="S5" value="3.119656319772658E-117" />
+      <entry key="S10" value="5.585388365881695E-59" />
+      <entry key="S30" value="3.822531961260615E-20" />
+      <entry key="S60" value="1.9551297055123952E-10" />
+      <entry key="M2" value="1.3984879966611073E-5" />
+      <entry key="M5" value="0.011794326165130644" />
+      <entry key="M10" value="0.13040815750104268" />
+      <entry key="M15" value="0.33521537580054434" />
+      <entry key="M30" value="1.0775382495530883" />
+      <entry key="H1" value="2.2051225951377265" />
+      <entry key="H2" value="3.2784056624323785" />
+      <entry key="H4" value="4.036067436257104" />
+      <entry key="D1" value="4.82261641450402" />
+      <entry key="W1" value="4.974214083691552" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.2852979365014482" />
-      <entry key="MS500" value="0.9398949610651849" />
-      <entry key="S2" value="1.8215619852084515" />
-      <entry key="S5" value="2.652044062158568" />
-      <entry key="S10" value="3.1925276207265" />
-      <entry key="S30" value="3.695057797540425" />
-      <entry key="S60" value="3.8989988415688033" />
-      <entry key="M2" value="4.506097939204805" />
-      <entry key="M5" value="8.357390158229178" />
-      <entry key="M10" value="15.403041879296433" />
-      <entry key="M15" value="22.735918387052514" />
-      <entry key="M30" value="42.43512718657265" />
-      <entry key="H1" value="66.16615359194975" />
-      <entry key="H2" value="86.00159558629697" />
-      <entry key="H4" value="99.09307034830356" />
-      <entry key="D1" value="112.12558901673643" />
-      <entry key="W1" value="114.58349605863378" />
+      <entry key="MS100" value="0.2735756011492987" />
+      <entry key="MS500" value="0.8453498745457935" />
+      <entry key="S2" value="1.458298481546615" />
+      <entry key="S5" value="1.7448737217001613" />
+      <entry key="S10" value="1.8648827444990321" />
+      <entry key="S30" value="1.9531592418557024" />
+      <entry key="S60" value="1.9763769978901795" />
+      <entry key="M2" value="1.9936875191264185" />
+      <entry key="M5" value="2.167134533515271" />
+      <entry key="M10" value="3.4540357949698492" />
+      <entry key="M15" value="6.41367498433646" />
+      <entry key="M30" value="20.5814454055708" />
+      <entry key="H1" value="47.29347285903721" />
+      <entry key="H2" value="76.47766331306771" />
+      <entry key="H4" value="98.8118296078864" />
+      <entry key="D1" value="123.30593875209581" />
+      <entry key="W1" value="128.16852507187983" />
     </decayedShown>
+  </component>
+  <component name="OptimizeOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6,
@@ -129,7 +137,8 @@
     "nodejs_interpreter_path": "node",
     "nodejs_package_manager_path": "npm",
     "npm.dev.executor": "Run",
-    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings",
+    "rearrange.code.on.save": "true",
+    "settings.editor.selected.configurable": "actions.on.save",
     "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
     "vue.rearranger.settings.migration": "true"
   },
@@ -175,7 +184,7 @@
       <workItem from="1782160400104" duration="482000" />
       <workItem from="1782161637981" duration="1555000" />
       <workItem from="1782173521539" duration="98000" />
-      <workItem from="1782173638331" duration="3154000" />
+      <workItem from="1782173638331" duration="6177000" />
     </task>
     <task id="LOCAL-00001" summary="front(vue)">
       <option name="closed" value="true" />
@@ -225,7 +234,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782176140115</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="feat(map): mostrando mapa e pesquisa">
+      <option name="closed" value="true" />
+      <created>1782176925485</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1782176925485</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -249,6 +266,7 @@
     <MESSAGE value="front(vue)" />
     <MESSAGE value="front(vue):teste" />
     <MESSAGE value="feat(map): mosstrando o mapa" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(map): mosstrando o mapa" />
+    <MESSAGE value="feat(map): mostrando mapa e pesquisa" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(map): mostrando mapa e pesquisa" />
   </component>
 </project>
