@@ -8,3 +8,9 @@ import MapView from "~/component/MapView.vue";
     </client-only>
   </div>
 </template>
+<style>
+  body {
+    display: block;
+    margin: 0;
+  }
+</style>
