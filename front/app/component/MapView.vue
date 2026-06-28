@@ -4,6 +4,8 @@ import {convertParkToFeature} from "@/services/geoService"
 import {searchPark} from "@/services/parkService"
 import Style from "ol/style/Style"
 import {Fill, Stroke} from "ol/style.d.ts";
+import {drawBuffers} from "~/utils/buffer"
+import {XYZ} from "ol/source.d.ts";
 
 const loading = ref(false)
 const mapEl = ref(null)
@@ -30,7 +32,7 @@ async function searchPlace() {
       feature.setStyle(
           new Style({
             fill: new Fill({
-              color: "rgba(150, 0 , 0, 0.35)"
+              color: "rgb(22 152 7 / 0.35)"
             }),
             stroke: new Stroke({
               color: "#00aa00",
@@ -42,6 +44,8 @@ async function searchPlace() {
 
       vectorSource.clear()
       vectorSource.addFeature(feature)
+
+      drawBuffers(feature, vectorSource)
 
 
       //  ZOOM AUTOMÁTICO NO PARQUE
@@ -75,8 +79,14 @@ onMounted(async () => {
   map = new Map({
     target: mapEl.value,
     layers: [
-      new TileLayer({source: new OSM()}),
-      new VectorLayer({source: vectorSource})
+      new TileLayer({
+        source: new XYZ({
+          url: "https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+        })
+      }),
+      new VectorLayer({
+        source: vectorSource
+      })
     ],
     view: new View({
       center: fromLonLat([-49.2648, -16.6869]),

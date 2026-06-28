@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf"
-import GeoJSON from "ol/format/GeoJSON"
+import GeoJSON from "ol/format/GeoJSON";
 
 export type OSMPlace = {
     lon: string
@@ -7,26 +7,39 @@ export type OSMPlace = {
     display_name: string
 }
 
+const format = new GeoJSON()
+
+
 export function convertParkToFeature(element: any) {
     const coords = element.geometry.map((p: any) => [
-        p.lon,
-        p.lat
+        Number(p.lon),
+        Number(p.lat)
     ])
 
-    const geojson = {
-        type: "Feature",
-        geometry: {
-            type: "Polygon",
-            coordinates: [coords]
-        },
-        properties: {
-            name: element.tags?.name
-        }
+    // garante que o polígono está fechado
+    const first = coords[0]
+    const last = coords[coords.length - 1]
+
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+        coords.push([...first])
     }
 
-    return new GeoJSON().readFeature(geojson, {
-        featureProjection: "EPSG:3857"
-    })
+    return format.readFeature(
+        {
+            type: "Feature",
+            geometry: {
+                type: "Polygon",
+                coordinates: [coords]
+            },
+            properties: {
+                name: element.tags?.name
+            }
+        },
+        {
+            dataProjection: "EPSG:4326",
+            featureProjection: "EPSG:3857"
+        }
+    )
 }
 
 // 🔎 busca OSM
