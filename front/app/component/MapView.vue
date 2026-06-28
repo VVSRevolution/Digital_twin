@@ -69,7 +69,6 @@ onMounted(async () => {
   const TileLayer = (await import("ol/layer/Tile")).default
   const VectorLayer = (await import("ol/layer/Vector")).default
   const VectorSource = (await import("ol/source/Vector")).default
-  const OSM = (await import("ol/source/OSM")).default
 
   const proj = await import("ol/proj")
   fromLonLat = proj.fromLonLat
@@ -106,9 +105,13 @@ onMounted(async () => {
       <!-- SEARCH -->
       <div class="search-bar">
         <div>
-          <input v-model="search" placeholder="Pesquisar parque..."/>
+          <input v-model="search" placeholder="Pesquisar parque..." @keydown.enter="searchPlace"
+          />
 
-          <button :disabled="loading" @click="searchPlace">
+          <button
+              :disabled="loading"
+              @click="searchPlace"
+          >
             {{ loading ? "Buscando..." : "Buscar" }}
           </button>
         </div>
