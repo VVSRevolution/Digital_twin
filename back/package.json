@@ -1,0 +1,10 @@
+{
+  "name": "earth-engine-backend",
+  "version": "1.0.0",
+  "description": "Earth Engine API Server",
+  "scripts": {
+    "start": "python server.py",
+    "start:win": "powershell -File run.ps1",
+    "install": "pip install -r requirements.txt"
+  }
+}
