@@ -4,17 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(map): buffer">
-      <change afterPath="$PROJECT_DIR$/back/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/requirements.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/run.ps1" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/server.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/setup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/start.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/front/app/services/eeService.ts" afterDir="false" />
+    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(back): adicionado google earth no back">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/back/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/back/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/back/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/back/server.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/app/component/MapView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/component/MapView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/app/services/eeService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/services/eeService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,61 +52,61 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.7731618436070808" />
-      <entry key="MS500" value="2.4244019782277473" />
-      <entry key="S2" value="2.81832510781992" />
-      <entry key="S5" value="2.923612813123059" />
-      <entry key="S10" value="2.961321381373657" />
-      <entry key="S30" value="3.1875018688577637" />
-      <entry key="S60" value="4.178592897085731" />
-      <entry key="M2" value="5.929618263622187" />
-      <entry key="M5" value="9.514352347177653" />
-      <entry key="M10" value="14.848840843772283" />
-      <entry key="M15" value="19.511623390797592" />
-      <entry key="M30" value="32.94720268377101" />
-      <entry key="H1" value="58.70613480579147" />
-      <entry key="H2" value="91.73185380038566" />
-      <entry key="H4" value="120.07289163795276" />
-      <entry key="D1" value="153.79832214079286" />
-      <entry key="W1" value="160.7942373490387" />
+      <entry key="MS100" value="2.3942452934611107E-4" />
+      <entry key="MS500" value="0.32035860895718615" />
+      <entry key="S2" value="1.2636650433331311" />
+      <entry key="S5" value="1.6725762027357696" />
+      <entry key="S10" value="1.9521696079397113" />
+      <entry key="S30" value="2.7376995124894385" />
+      <entry key="S60" value="3.232671325678956" />
+      <entry key="M2" value="3.5800510916699557" />
+      <entry key="M5" value="4.430500267484419" />
+      <entry key="M10" value="7.182858080870161" />
+      <entry key="M15" value="10.257096816199256" />
+      <entry key="M30" value="20.391880136404332" />
+      <entry key="H1" value="43.41804955588286" />
+      <entry key="H2" value="80.53230322345861" />
+      <entry key="H4" value="118.37922647561925" />
+      <entry key="D1" value="169.61643451160936" />
+      <entry key="W1" value="181.01091846675536" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="2.0729326446586924E-266" />
-      <entry key="S10" value="1.4397682607484752E-133" />
-      <entry key="S30" value="5.2412016026626225E-45" />
-      <entry key="S60" value="7.23961454950014E-23" />
-      <entry key="M2" value="8.509982717246937E-12" />
-      <entry key="M5" value="3.8492942215353885E-5" />
-      <entry key="M10" value="0.007450042425597836" />
-      <entry key="M15" value="0.04972329751280344" />
-      <entry key="M30" value="0.41500247903120735" />
-      <entry key="H1" value="1.3684903432974365" />
-      <entry key="H2" value="2.582659725295729" />
-      <entry key="H4" value="3.5822893626041137" />
-      <entry key="D1" value="4.727698381631147" />
-      <entry key="W1" value="4.960108687896885" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0" />
+      <entry key="S60" value="1.0" />
+      <entry key="M2" value="1.0" />
+      <entry key="M5" value="1.0000000029367824" />
+      <entry key="M10" value="1.0000650734855394" />
+      <entry key="M15" value="1.002108903970847" />
+      <entry key="M30" value="1.0854671322963203" />
+      <entry key="H1" value="1.621034830035927" />
+      <entry key="H2" value="2.7398199256475815" />
+      <entry key="H4" value="3.940215878224206" />
+      <entry key="D1" value="5.574597139772122" />
+      <entry key="W1" value="5.936836879058841" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.6314780401230449" />
-      <entry key="MS500" value="2.3837490709961338" />
-      <entry key="S2" value="2.806340992310278" />
-      <entry key="S5" value="2.9186246490200403" />
-      <entry key="S10" value="2.9587909153540024" />
-      <entry key="S30" value="3.1859225039015406" />
-      <entry key="S60" value="4.175985905229652" />
-      <entry key="M2" value="5.926731045710295" />
-      <entry key="M5" value="9.51232585747952" />
-      <entry key="M10" value="14.85457925396575" />
-      <entry key="M15" value="19.559555364310974" />
-      <entry key="M30" value="33.359763850602555" />
-      <entry key="H1" value="60.07172671242269" />
-      <entry key="H2" value="94.3120511848237" />
-      <entry key="H4" value="123.6535404040074" />
-      <entry key="D1" value="158.525669573342" />
-      <entry key="W1" value="165.75429366250592" />
+      <entry key="MS100" value="0.003132337551885215" />
+      <entry key="MS500" value="0.629374497111554" />
+      <entry key="S2" value="2.0085612431197992" />
+      <entry key="S5" value="2.5593584752371012" />
+      <entry key="S10" value="2.877608870779075" />
+      <entry key="S30" value="3.6791369159621023" />
+      <entry key="S60" value="4.191292201026205" />
+      <entry key="M2" value="4.555056337639329" />
+      <entry key="M5" value="5.419231143414967" />
+      <entry key="M10" value="8.177000111821892" />
+      <entry key="M15" value="11.255110773556662" />
+      <entry key="M30" value="21.47478371407988" />
+      <entry key="H1" value="45.036722508442125" />
+      <entry key="H2" value="83.26993650314078" />
+      <entry key="H4" value="122.31783063341908" />
+      <entry key="D1" value="175.19064769148088" />
+      <entry key="W1" value="186.94769687318876" />
     </decayedShown>
   </component>
   <component name="OptimizeOnSaveOptions">
@@ -193,7 +190,7 @@
       <workItem from="1782173521539" duration="98000" />
       <workItem from="1782173638331" duration="6396000" />
       <workItem from="1782683096103" duration="5856000" />
-      <workItem from="1782694607345" duration="3328000" />
+      <workItem from="1782694607345" duration="6181000" />
     </task>
     <task id="LOCAL-00001" summary="front(vue)">
       <option name="closed" value="true" />
@@ -275,7 +272,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782686476683</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="feat(back): adicionado google earth no back">
+      <option name="closed" value="true" />
+      <created>1782698213588</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1782698213588</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -303,6 +308,7 @@
     <MESSAGE value="feat(map): circulando o mapa" />
     <MESSAGE value="feat(map): desenahndo buffer" />
     <MESSAGE value="feat(map): comportamento pesquisa" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(map): comportamento pesquisa" />
+    <MESSAGE value="feat(back): adicionado google earth no back" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(back): adicionado google earth no back" />
   </component>
 </project>

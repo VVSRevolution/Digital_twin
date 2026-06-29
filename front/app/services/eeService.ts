@@ -4,19 +4,42 @@ const API_URL = 'http://localhost:3001'
 
 // ===== TIPOS =====
 
+export interface PixelTemperature {
+    lat: number | null
+    lon: number | null
+    temperature: number
+}
+
+export interface BufferStatistics {
+    count: number
+    mean: number | null
+    min: number | null
+    max: number | null
+    std: number | null
+}
+
 export interface BufferResult {
     distance: number
-    lst: number | null
-    area: number
+    distance_prev: number
+    buffer_index: number
+    pixels: PixelTemperature[]  // 🔥 TODOS OS PIXELS
+    statistics: BufferStatistics  // 🔥 ESTATÍSTICAS DO BUFFER
+    area_ha: number
 }
 
 export interface CoolingAnalysisResult {
     success: boolean
-    park_lst: number | null
+    park_lst: {
+        kelvin: number | null
+        celsius: number | null
+    } | null
     buffers: BufferResult[]
-    pci: number | null      // Park Cooling Intensity
+    pci: number | null      // Park Cooling Intensity (em Celsius)
     pcd: number | null      // Park Cooling Distance (metros)
-    pca: number | null      // Park Cooling Area (hectares)
+    pca: {
+        ha: number | null
+        m2: number | null
+    } | null
     timestamp: string
     error?: string
 }
@@ -50,6 +73,8 @@ export async function analyzeParkCooling(
     geometry: ParkGeometry
 ): Promise<CoolingAnalysisResult> {
     try {
+        console.log('📡 Enviando requisição para:', `${API_URL}/park-cooling`)
+
         const response = await fetch(`${API_URL}/park-cooling`, {
             method: 'POST',
             headers: {
@@ -66,7 +91,9 @@ export async function analyzeParkCooling(
         }
 
         const data = await response.json()
+        console.log('✅ Dados recebidos do backend:', data)
         return data as CoolingAnalysisResult
+
     } catch (error) {
         console.error('❌ Erro ao analisar park cooling:', error)
         return {
@@ -108,6 +135,7 @@ export async function getParkLSTTimeseries(
 
         const data = await response.json()
         return data as TimeseriesResult
+
     } catch (error) {
         console.error('❌ Erro ao obter série temporal:', error)
         return {
@@ -149,6 +177,7 @@ export async function getLSTAtPoint(
         }
 
         return await response.json()
+
     } catch (error) {
         console.error('❌ Erro ao obter LST no ponto:', error)
         return {
@@ -162,8 +191,8 @@ export async function getLSTAtPoint(
 
 /**
  * Calcula o PCI (Park Cooling Intensity) a partir dos dados de buffer
- * @param parkLST - LST interno do parque
- * @param buffers - Lista de buffers com LST
+ * @param parkLST - LST interno do parque (em Celsius)
+ * @param buffers - Lista de buffers com LST (em Celsius)
  * @returns PCI, PCD e PCA
  */
 export function calculatePCI(
@@ -172,58 +201,65 @@ export function calculatePCI(
 ): {
     pci: number | null
     pcd: number | null
-    pca: number | null
+    pca: { ha: number | null; m2: number | null } | null
 } {
-    // 🔥 VALIDAÇÃO INICIAL
+    // Validação inicial
     if (parkLST === null || parkLST === undefined || !buffers || buffers.length === 0) {
         return {pci: null, pcd: null, pca: null}
     }
 
-    // 🔥 FILTRA buffers com LST válido
-    const validBuffers = buffers.filter(b => b.lst !== null && b.lst !== undefined) as BufferResult[]
+    // Filtra buffers com LST válido (usa Celsius)
+    const validBuffers = buffers.filter(
+        (b): b is BufferResult & { lst_celsius: number } =>
+            b.lst_celsius !== null &&
+            b.lst_celsius !== undefined &&
+            typeof b.lst_celsius === 'number' &&
+            !isNaN(b.lst_celsius)
+    )
 
     if (validBuffers.length < 2) {
         return {pci: null, pcd: null, pca: null}
     }
 
-    // Encontra o primeiro ponto de inflexão (variação < 0.1°C)
     let pci: number | null = null
     let pcd: number | null = null
-    let pca: number | null = null
+    let pcaHa: number | null = null
+    let pcaM2: number | null = null
 
     for (let i = 1; i < validBuffers.length; i++) {
-        // 🔥 GARANTE QUE OS VALORES EXISTEM
         const current = validBuffers[i]
         const previous = validBuffers[i - 1]
 
         if (!current || !previous) continue
-        if (current.lst === null || current.lst === undefined) continue
-        if (previous.lst === null || previous.lst === undefined) continue
 
-        const diff = current.lst - previous.lst
+        const diff = current.lst_celsius - previous.lst_celsius
 
-        // Ponto de inflexão quando a variação é pequena
+        // Ponto de inflexão quando a variação é pequena (< 0.1°C)
         if (diff < 0.1) {
-            pci = previous.lst - parkLST
+            pci = previous.lst_celsius - parkLST
             pcd = previous.distance
-            pca = previous.area
+            pcaHa = previous.area_ha
+            pcaM2 = previous.area_m2
             break
         }
     }
 
-    // Se não encontrou, usa o último buffer válido
+    // Fallback: usa o último buffer válido
     if (pci === null && validBuffers.length > 0) {
         const last = validBuffers[validBuffers.length - 1]
-
-        // 🔥 VERIFICA SE O ÚLTIMO BUFFER É VÁLIDO
-        if (last && last.lst !== null && last.lst !== undefined) {
-            pci = last.lst - parkLST
+        if (last) {
+            pci = last.lst_celsius - parkLST
             pcd = last.distance
-            pca = last.area
+            pcaHa = last.area_ha
+            pcaM2 = last.area_m2
         }
     }
 
-    return {pci, pcd, pca}
+    return {
+        pci,
+        pcd,
+        pca: (pcaHa !== null && pcaM2 !== null) ? {ha: pcaHa, m2: pcaM2} : null
+    }
 }
 
 /**
@@ -234,27 +270,23 @@ export function calculatePCI(
 export function classifyCoolingIsland(
     buffers: BufferResult[]
 ): 'regular' | 'declined' | 'increased' | 'other' {
-    // 🔥 VALIDAÇÃO INICIAL
+    // Validação inicial
     if (!buffers || buffers.length < 3) return 'other'
 
-    // 🔥 FILTRA VALORES VÁLIDOS (garante que são números)
+    // Filtra valores válidos (usa Celsius)
     const lsts: number[] = buffers
-        .map(b => b.lst)
+        .map(b => b.lst_celsius)
         .filter((v): v is number => v !== null && v !== undefined && typeof v === 'number' && !isNaN(v))
 
     if (lsts.length < 3) return 'other'
 
-    // Verifica tendência geral
     let increases = 0
     let decreases = 0
 
-    // 🔥 PERCORRE COM ÍNDICE E VERIFICA CADA ACESSO
     for (let i = 1; i < lsts.length; i++) {
-        // 🔥 GARANTE QUE OS VALORES EXISTEM
         const current = lsts[i]
         const previous = lsts[i - 1]
 
-        // 🔥 VERIFICA SE EXISTEM ANTES DE USAR
         if (current === undefined || previous === undefined) continue
 
         const diff = current - previous
@@ -263,7 +295,6 @@ export function classifyCoolingIsland(
         else if (diff < -0.05) decreases++
     }
 
-    // Classifica
     const total = lsts.length - 1
     if (total === 0) return 'other'
 
@@ -285,7 +316,7 @@ export function formatCoolingStats(result: CoolingAnalysisResult): {
     value: string
     color: string
 }[] {
-    if (!result || !result.success || result.park_lst === null || result.park_lst === undefined) {
+    if (!result || !result.success || !result.park_lst) {
         return [
             {label: 'Status', value: '❌ Falha na análise', color: '#dc3545'},
         ]
@@ -303,7 +334,7 @@ export function formatCoolingStats(result: CoolingAnalysisResult): {
     return [
         {
             label: '🌡️ LST do Parque',
-            value: `${result.park_lst.toFixed(2)}°C`,
+            value: `${result.park_lst.celsius?.toFixed(2) ?? 'N/A'}°C`,
             color: '#17a2b8',
         },
         {
@@ -318,7 +349,7 @@ export function formatCoolingStats(result: CoolingAnalysisResult): {
         },
         {
             label: '📐 PCA (Área)',
-            value: `${result.pca?.toFixed(2) ?? 'N/A'} ha`,
+            value: `${result.pca?.ha?.toFixed(2) ?? 'N/A'} ha`,
             color: '#6f42c1',
         },
         {
@@ -337,24 +368,34 @@ export function isValidNumber(value: unknown): value is number {
 }
 
 /**
- * Utilitário para extrair LST de um buffer com segurança
+ * Utilitário para extrair LST (Celsius) de um buffer com segurança
  */
-export function getBufferLST(buffer: BufferResult): number | null {
+export function getBufferLSTCelsius(buffer: BufferResult): number | null {
     if (!buffer) return null
-    if (buffer.lst === null || buffer.lst === undefined) return null
-    if (!isValidNumber(buffer.lst)) return null
-    return buffer.lst
+    if (buffer.lst_celsius === null || buffer.lst_celsius === undefined) return null
+    if (!isValidNumber(buffer.lst_celsius)) return null
+    return buffer.lst_celsius
 }
 
 /**
- * Utilitário para obter o último buffer válido
+ * Utilitário para extrair LST (Kelvin) de um buffer com segurança
+ */
+export function getBufferLSTKelvin(buffer: BufferResult): number | null {
+    if (!buffer) return null
+    if (buffer.lst_kelvin === null || buffer.lst_kelvin === undefined) return null
+    if (!isValidNumber(buffer.lst_kelvin)) return null
+    return buffer.lst_kelvin
+}
+
+/**
+ * Utilitário para obter o último buffer válido (com LST em Celsius)
  */
 export function getLastValidBuffer(buffers: BufferResult[]): BufferResult | null {
     if (!buffers || buffers.length === 0) return null
 
     for (let i = buffers.length - 1; i >= 0; i--) {
         const buffer = buffers[i]
-        if (buffer && buffer.lst !== null && buffer.lst !== undefined) {
+        if (buffer && buffer.lst_celsius !== null && buffer.lst_celsius !== undefined) {
             return buffer
         }
     }
