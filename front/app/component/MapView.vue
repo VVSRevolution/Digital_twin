@@ -4,12 +4,10 @@ import {convertParkToFeature} from "@/services/geoService"
 import {searchPark} from "@/services/parkService"
 import {analyzeParkCooling, type CoolingAnalysisResult, formatCoolingStats} from "@/services/eeService"
 import Style from "ol/style/Style"
-import {Circle, Fill, Stroke} from "ol/style"
+import {Fill, Stroke} from "ol/style"
 import {drawBuffers} from "~/utils/buffer"
 import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
-import {Feature} from "ol"
-import {Point} from "ol/geom"
 
 // ===== TIPOS =====
 interface SearchResult {
@@ -89,7 +87,8 @@ function getGradientColor(t: number): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-// ===== FUNÇÃO PARA VISUALIZAR PIXELS COM GRADIENTE LOCAL =====
+
+// ===== FUNÇÃO PARA CRIAR RASTER CONTÍNUO COM TRANSPARÊNCIA =====
 async function addPixelLayer(buffers: any[]) {
   // Remove camada anterior
   if (pixelLayer) {
@@ -99,108 +98,138 @@ async function addPixelLayer(buffers: any[]) {
 
   if (!showPixels.value) return
 
-  const pixelFeatures: Feature[] = []
-
-  // 🔥 COLETA TODAS AS TEMPERATURAS DOS PIXELS
   const allTemps: number[] = []
+  const points: { lon: number; lat: number; temp: number }[] = []
 
   buffers.forEach((buffer) => {
     buffer.pixels?.forEach((pixel: any) => {
-      if (pixel.temperature !== null && pixel.temperature !== undefined) {
+      if (pixel.lat && pixel.lon && pixel.temperature !== null) {
+        points.push({
+          lon: pixel.lon,
+          lat: pixel.lat,
+          temp: pixel.temperature
+        })
         allTemps.push(pixel.temperature)
       }
     })
   })
 
-  // 🔥 CALCULA MÍNIMO E MÁXIMO LOCAL
-  let minTemp = Infinity
-  let maxTemp = -Infinity
+  if (points.length === 0) return
 
-  if (allTemps.length > 0) {
-    minTemp = Math.min(...allTemps)
-    maxTemp = Math.max(...allTemps)
-  } else {
-    // Fallback se não houver dados
-    minTemp = 25
-    maxTemp = 35
-  }
+  // 🔥 CALCULA EXTENSÃO DA ÁREA
+  const lons = points.map(p => p.lon)
+  const lats = points.map(p => p.lat)
 
-  // 🔥 ADICIONA UMA MARGEM PARA O GRADIENTE (5% de cada lado)
+  const margin = 0.0005
+  const minLon = Math.min(...lons) - margin
+  const maxLon = Math.max(...lons) + margin
+  const minLat = Math.min(...lats) - margin
+  const maxLat = Math.max(...lats) + margin
+
+  // 🔥 RESOLUÇÃO (15 metros)
+  const resolution = 0.00015
+  const cols = Math.ceil((maxLon - minLon) / resolution)
+  const rows = Math.ceil((maxLat - minLat) / resolution)
+
+  // 🔥 CALCULA GRADIENTE LOCAL
+  const minTemp = Math.min(...allTemps)
+  const maxTemp = Math.max(...allTemps)
   const range = maxTemp - minTemp
-  const margin = range * 0.05
-  const gradientMinVal = minTemp - margin
-  const gradientMaxVal = maxTemp + margin
+  const gradientMinVal = minTemp - range * 0.05
+  const gradientMaxVal = maxTemp + range * 0.05
   const gradientRange = gradientMaxVal - gradientMinVal
 
-  // Atualiza as refs para a legenda
   gradientMin.value = gradientMinVal
   gradientMax.value = gradientMaxVal
+  totalPixels.value = points.length
 
-  console.log(`📊 Gradiente local: ${gradientMinVal.toFixed(2)}°C → ${gradientMaxVal.toFixed(2)}°C (${allTemps.length} pixels)`)
+  console.log(`📊 Criando raster contínuo: ${cols}x${rows} = ${cols * rows} pixels`)
 
-  buffers.forEach((buffer) => {
-    buffer.pixels?.forEach((pixel: any) => {
-      if (pixel.lat && pixel.lon && pixel.temperature !== null) {
-        const coords = fromLonLat([pixel.lon, pixel.lat])
+  // 🔥 CRIA ARRAY DE CORES (RGBA) COM TRANSPARÊNCIA
+  const imageData = new Uint8ClampedArray(cols * rows * 4)
+  const radius = resolution * 4
+  const radiusSq = radius * radius
 
-        const feature = new Feature({
-          geometry: new Point(coords),
-          temperature: pixel.temperature,
-          bufferDistance: buffer.distance
-        })
+  // 🔥 DEFINE UM LIMITE MÍNIMO DE PESO PARA CONSIDERAR DADO VÁLIDO
+  const MIN_WEIGHT = 0.01
 
-        // 🔥 CALCULA A COR BASEADA NO GRADIENTE LOCAL
-        const temp = pixel.temperature
-        let normalized = 0
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const lon = minLon + col * resolution
+      const lat = minLat + row * resolution
 
-        if (gradientRange > 0) {
-          normalized = (temp - gradientMinVal) / gradientRange
-          // Garante que fique entre 0 e 1
-          normalized = Math.max(0, Math.min(1, normalized))
+      let weightedSum = 0
+      let weightSum = 0
+
+      for (const point of points) {
+        const dx = point.lon - lon
+        const dy = point.lat - lat
+        const distSq = dx * dx + dy * dy
+
+        if (distSq < radiusSq) {
+          const dist = Math.sqrt(distSq)
+          const weight = 1 / (dist + 0.001)
+          weightedSum += point.temp * weight
+          weightSum += weight
         }
-
-        // 🔥 COR DO GRADIENTE
-        const color = getGradientColor(normalized)
-
-        // Tamanho baseado na distância (pixels mais distantes são ligeiramente maiores)
-        const size = 4 + (buffer.distance / 990) * 4
-
-        feature.setStyle(
-            new Style({
-              image: new Circle({
-                radius: size,
-                fill: new Fill({color}),
-                stroke: new Stroke({
-                  color: 'rgba(255,255,255,0.15)',
-                  width: 0.5
-                })
-              })
-            })
-        )
-
-        pixelFeatures.push(feature)
       }
-    })
-  })
 
-  // 🔥 CRIA CAMADA DE PIXELS
-  const VectorLayer = (await import('ol/layer/Vector')).default
-  const VectorSource = (await import('ol/source/Vector')).default
+      const idx = (row * cols + col) * 4
 
-  const pixelSource = new VectorSource({
-    features: pixelFeatures
-  })
+      // 🔥 SE NÃO HOUVER DADOS SUFICIENTES, FAZ TRANSPARENTE
+      if (weightSum < MIN_WEIGHT) {
+        imageData[idx] = 0
+        imageData[idx + 1] = 0
+        imageData[idx + 2] = 0
+        imageData[idx + 3] = 0 // 🔥 COMPLETAMENTE TRANSPARENTE
+        continue
+      }
 
-  pixelLayer = new VectorLayer({
-    source: pixelSource,
-    zIndex: 10,
-    opacity: 0.85
+      const temp = weightedSum / weightSum
+      let normalized = (temp - gradientMinVal) / gradientRange
+      normalized = Math.max(0, Math.min(1, normalized))
+
+      const color = getGradientColor(normalized)
+      const rgb = color.match(/\d+/g)?.map(Number) || [0, 0, 0]
+
+      imageData[idx] = rgb[0]
+      imageData[idx + 1] = rgb[1]
+      imageData[idx + 2] = rgb[2]
+      imageData[idx + 3] = 220 // 🔥 SEMI-TRANSPARENTE (opaco)
+    }
+  }
+
+  // 🔥 CRIA IMAGEM
+  const canvas = document.createElement('canvas')
+  canvas.width = cols
+  canvas.height = rows
+  const ctx = canvas.getContext('2d')!
+  const imageDataObj = new ImageData(imageData, cols, rows)
+  ctx.putImageData(imageDataObj, 0, 0)
+  const imageUrl = canvas.toDataURL('image/png')
+
+  // 🔥 ADICIONA AO MAPA COMO RASTER
+  const ImageLayer = (await import('ol/layer/Image')).default
+  const ImageStatic = (await import('ol/source/ImageStatic')).default
+
+  const extent = [
+    fromLonLat([minLon, minLat])[0],
+    fromLonLat([minLon, minLat])[1],
+    fromLonLat([maxLon, maxLat])[0],
+    fromLonLat([maxLon, maxLat])[1]
+  ]
+
+  pixelLayer = new ImageLayer({
+    source: new ImageStatic({
+      url: imageUrl,
+      imageExtent: extent
+    }),
+    zIndex: 5,
+    opacity: 0.75
   })
 
   map.addLayer(pixelLayer)
-
-  // 🔥 RETORNA OS VALORES PARA A LEGENDA
-  return {min: gradientMinVal, max: gradientMaxVal}
+  console.log(`✅ Raster contínuo criado com ${cols * rows} pixels (áreas sem dados transparentes)`)
 }
 
 // ===== FUNÇÃO PRINCIPAL =====
@@ -350,7 +379,6 @@ async function selectPark(item: SearchResult['elements'][0]) {
     parkName.value = item.tags?.name || "Parque sem nome"
 
     drawBuffers(feature, vectorSource)
-    await analyzePark(feature)
 
     const extent = feature.getGeometry().getExtent()
     map.getView().fit(extent, {
@@ -358,6 +386,8 @@ async function selectPark(item: SearchResult['elements'][0]) {
       duration: 800
     })
 
+    await analyzePark(feature)
+    
     results.value = []
     search.value = ""
 

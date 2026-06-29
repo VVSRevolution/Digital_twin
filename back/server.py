@@ -1,15 +1,16 @@
-from flask import Flask, jsonify, request  # 👈 ADICIONE 'request' AQUI!
-from flask_cors import CORS
 import ee
-from datetime import datetime
-import traceback
-import os
 import json
+import os
+import traceback
+from datetime import datetime
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)  # Permite todas as origens (para desenvolvimento)
 
 PROJECT_ID = 'digital-twin-500823'
+
 
 # Inicializa o Earth Engine
 def init_earth_engine():
@@ -26,9 +27,11 @@ def init_earth_engine():
         print(f'❌ Erro ao inicializar Earth Engine: {e}')
         return False
 
+
 if not init_earth_engine():
     print('💥 Falha na inicializacao. Verifique suas credenciais.')
     exit(1)
+
 
 # ===== FUNÇÃO AUXILIAR =====
 def calculate_lst_in_geometry(geometry):
@@ -54,6 +57,7 @@ def calculate_lst_in_geometry(geometry):
     except Exception as e:
         print(f'Erro ao calcular LST: {e}')
         return None
+
 
 # ===== ENDPOINT: PARK COOLING =====
 @app.route('/park-cooling', methods=['POST'])
@@ -88,7 +92,7 @@ def analyze_park_cooling():
 
             # Remove o buffer anterior (cria anel)
             if i > 0:
-                prev_buffer = park_geom.buffer(buffer_distances[i-1])
+                prev_buffer = park_geom.buffer(buffer_distances[i - 1])
                 buffer_geom = buffer_geom.difference(prev_buffer)
 
             # 🔥 EXTRAI OS PIXELS DE LST DENTRO DO BUFFER
@@ -121,7 +125,7 @@ def analyze_park_cooling():
 
             results.append({
                 'distance': dist,
-                'distance_prev': buffer_distances[i-1] if i > 0 else 0,
+                'distance_prev': buffer_distances[i - 1] if i > 0 else 0,
                 'buffer_index': i + 1,
                 'pixels': pixel_temps,  # 🔥 TODOS OS PIXELS COM TEMPERATURA
                 'statistics': {
@@ -150,15 +154,15 @@ def analyze_park_cooling():
         pca_ha = None
 
         for i in range(1, len(results)):
-            prev_mean = results[i-1]['statistics']['mean']
+            prev_mean = results[i - 1]['statistics']['mean']
             curr_mean = results[i]['statistics']['mean']
             if prev_mean is not None and curr_mean is not None:
                 diff = curr_mean - prev_mean
                 if diff < 0.1:
                     if park_lst_celsius is not None:
                         pci = prev_mean - park_lst_celsius
-                    pcd = results[i-1]['distance']
-                    pca_ha = results[i-1]['area_ha']
+                    pcd = results[i - 1]['distance']
+                    pca_ha = results[i - 1]['area_ha']
                     break
 
         if pci is None and results:
@@ -189,6 +193,7 @@ def analyze_park_cooling():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 def calculate_std(values):
     """Calcula o desvio padrão de uma lista de valores"""
     if not values or len(values) < 2:
@@ -196,6 +201,7 @@ def calculate_std(values):
     mean = sum(values) / len(values)
     variance = sum((x - mean) ** 2 for x in values) / len(values)
     return variance ** 0.5
+
 
 # ===== ENDPOINT: LST =====
 @app.route('/lst', methods=['GET'])
@@ -237,6 +243,7 @@ def get_lst():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 # ===== ENDPOINT: HEALTH =====
 @app.route('/health', methods=['GET'])
 def health():
@@ -246,6 +253,7 @@ def health():
         'method': 'Python Flask',
         'timestamp': datetime.now().isoformat()
     })
+
 
 # ===== ENDPOINT: ROOT =====
 @app.route('/', methods=['GET'])
@@ -260,13 +268,14 @@ def root():
         }
     })
 
+
 # ===== INICIA SERVIDOR =====
 if __name__ == '__main__':
     print('')
-    print('='*50)
+    print('=' * 50)
     print('🚀 Iniciando servidor Python Flask...')
     print(f'📁 Projeto: {PROJECT_ID}')
-    print('='*50)
+    print('=' * 50)
     print('')
     print('✅ Servidor rodando em http://localhost:3001')
     print('')
@@ -277,7 +286,7 @@ if __name__ == '__main__':
     print('   - POST /park-cooling (analise de cooling island)')
     print('')
     print('🧪 Teste: http://localhost:3001/lst')
-    print('='*50)
+    print('=' * 50)
     print('')
 
     app.run(host='0.0.0.0', port=3001, debug=True)

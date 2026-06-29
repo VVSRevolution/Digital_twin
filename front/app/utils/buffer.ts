@@ -48,11 +48,13 @@ export function drawBuffers(feature: OLFeature, vectorSource: VectorSource) {
         olFeature.setStyle(
             new Style({
                 stroke: new Stroke({
-                    color: "#0066ff",
+                    color: "#000000",
                     width: 2
                 })
             })
         )
+
+        olFeature.set('zIndex', 9)
 
         vectorSource.addFeature(olFeature)
     }
