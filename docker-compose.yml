@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  back_api:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: digital_twin_api
+    ports:
+      - "3001:3001"
+    environment:
+      - PROJECT_ID=digital-twin-500823
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+    volumes:
+      - ./back:/app
+      - ./credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+    networks:
+      - digital_twin_network
+
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    container_name: digital_twin_front
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    restart: unless-stopped
+    depends_on:
+      - back_api
+    networks:
+      - digital_twin_network
+
+networks:
+  digital_twin_network:
+    driver: bridge
