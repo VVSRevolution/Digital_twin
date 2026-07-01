@@ -1,6 +1,12 @@
 // services/eeService.ts
 
-const API_URL = 'http://localhost:3001'
+const isProduction = import.meta.env.PROD || import.meta.env.NODE_ENV === 'production'
+
+const API_URL = isProduction
+    ? 'http://200.137.197.69:55235'  // Produção
+    : 'http://localhost:3001'         // Desenvolvimento
+
+console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvolvimento'})`)
 
 // ===== TIPOS =====
 

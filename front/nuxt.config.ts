@@ -1,5 +1,9 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  compatibilityDate: '2025-07-15',
-  devtools: { enabled: true }
+    runtimeConfig: {
+        public: {
+            apiUrl: process.env.NODE_ENV === 'production'
+                ? 'http://200.137.197.69:55235'
+                : 'http://localhost:3001'
+        }
+    }
 })
