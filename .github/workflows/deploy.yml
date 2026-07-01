@@ -37,6 +37,6 @@ jobs:
             cd ~/digital-twin
             docker-compose down
             docker-compose pull
-            docker-compose up -d
+            docker-compose up -d 
             docker system prune -f
           EOF
