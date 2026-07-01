@@ -5,14 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(calculos ): adicionado os calculo ao front">
+      <change afterPath="$PROJECT_DIR$/.github/workflows/deploy.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/back/Dockerfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/back/cloud2edge.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/front/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/app/component/MapView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/component/MapView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/app/utils/buffer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/front/app/utils/buffer.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/package-lock.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="24" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -28,6 +35,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
+        <entry key="$PROJECT_DIR$" value="master" />
         <entry key="$PROJECT_DIR$/front" value="main" />
       </map>
     </option>
@@ -43,66 +51,70 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/VVSRevolution/Digital_twin&quot;,
-    &quot;accountId&quot;: &quot;0a2944b0-74e4-4856-9404-a6ac89c3e835&quot;
+    &quot;accountId&quot;: &quot;924a05a7-6f76-442c-a1a2-c616781b9e93&quot;
   }
 }</component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0201982294899263" />
-      <entry key="MS500" value="1.7311454243594442" />
-      <entry key="S2" value="3.0002721927991978" />
-      <entry key="S5" value="3.9691096033142492" />
-      <entry key="S10" value="5.334303249268066" />
-      <entry key="S30" value="7.74188164972005" />
-      <entry key="S60" value="8.746038106124256" />
-      <entry key="M2" value="9.33956850819957" />
-      <entry key="M5" value="9.925357368842702" />
-      <entry key="M10" value="11.384174854255637" />
-      <entry key="M15" value="13.553902760092415" />
-      <entry key="M30" value="22.112127286436056" />
-      <entry key="H1" value="43.502856317691766" />
-      <entry key="H2" value="80.75468742678369" />
-      <entry key="H4" value="120.96371571118402" />
-      <entry key="D1" value="177.79800714273125" />
-      <entry key="W1" value="190.73242037200876" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0000000000120488" />
+      <entry key="S10" value="1.0000179244747185" />
+      <entry key="S30" value="1.2613951927432785" />
+      <entry key="S60" value="3.9253730235590605" />
+      <entry key="M2" value="10.81556843012046" />
+      <entry key="M5" value="21.89715258806236" />
+      <entry key="M10" value="41.750472181969585" />
+      <entry key="M15" value="74.79114993869455" />
+      <entry key="M30" value="176.93898891192072" />
+      <entry key="H1" value="303.4857009435701" />
+      <entry key="H2" value="423.3283124544732" />
+      <entry key="H4" value="520.7183326745012" />
+      <entry key="D1" value="642.6514336852887" />
+      <entry key="W1" value="669.3431506720714" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="7.652352129935759E-203" />
-      <entry key="S5" value="1.424026195902235E-81" />
-      <entry key="S10" value="3.773627162164056E-41" />
-      <entry key="S30" value="3.3541797274492804E-14" />
-      <entry key="S60" value="1.8314419803666392E-7" />
-      <entry key="M2" value="4.279534998532715E-4" />
-      <entry key="M5" value="0.044932298382928164" />
-      <entry key="M10" value="0.21198619352156223" />
-      <entry key="M15" value="0.3562606029731153" />
-      <entry key="M30" value="0.6472068668427291" />
-      <entry key="H1" value="1.2517153144095665" />
-      <entry key="H2" value="2.407568372587624" />
-      <entry key="H4" value="3.693586903428483" />
-      <entry key="D1" value="5.514864823356941" />
-      <entry key="W1" value="5.927707189514598" />
+      <entry key="MS500" value="2.1321261651547317E-135" />
+      <entry key="S2" value="2.148835770995972E-34" />
+      <entry key="S5" value="3.410996627225236E-14" />
+      <entry key="S10" value="1.846888363498247E-7" />
+      <entry key="S30" value="0.005694822798298482" />
+      <entry key="S60" value="0.07546404970783169" />
+      <entry key="M2" value="0.2747075288802495" />
+      <entry key="M5" value="0.6008291672527606" />
+      <entry key="M10" value="0.8956481428062559" />
+      <entry key="M15" value="1.23852771222138" />
+      <entry key="M30" value="2.2787533437429612" />
+      <entry key="H1" value="3.75275706428902" />
+      <entry key="H2" value="5.606862906060861" />
+      <entry key="H4" value="7.504201702531787" />
+      <entry key="D1" value="10.2477326837585" />
+      <entry key="W1" value="10.887280093081621" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.9785057253102748" />
-      <entry key="MS500" value="1.7159445038707475" />
-      <entry key="S2" value="2.993686591968987" />
-      <entry key="S5" value="3.9655911734285034" />
-      <entry key="S10" value="5.331798854846354" />
-      <entry key="S30" value="7.740569457435986" />
-      <entry key="S60" value="8.745279171930093" />
-      <entry key="M2" value="9.339575531525444" />
-      <entry key="M5" value="9.969611134829961" />
-      <entry key="M10" value="11.594818020130335" />
-      <entry key="M15" value="13.90864890846489" />
-      <entry key="M30" value="22.757776151554886" />
-      <entry key="H1" value="44.752733074899474" />
-      <entry key="H2" value="83.16032692018672" />
-      <entry key="H4" value="124.65578807234316" />
-      <entry key="D1" value="183.31249150268823" />
-      <entry key="W1" value="196.6600690905709" />
+      <entry key="MS100" value="0.9460576467255959" />
+      <entry key="MS500" value="0.9889709163809315" />
+      <entry key="S2" value="0.9972312513520695" />
+      <entry key="S5" value="0.9988915792757486" />
+      <entry key="S10" value="0.9994637199234017" />
+      <entry key="S30" value="1.2666706157923673" />
+      <entry key="S60" value="3.9992076119321216" />
+      <entry key="M2" value="11.087443675539939" />
+      <entry key="M5" value="22.495466869346355" />
+      <entry key="M10" value="42.643519403981465" />
+      <entry key="M15" value="76.02644723336118" />
+      <entry key="M30" value="179.2137312896654" />
+      <entry key="H1" value="307.2346026237034" />
+      <entry key="H2" value="428.93191949656716" />
+      <entry key="H4" value="528.2201805022356" />
+      <entry key="D1" value="652.8985940811604" />
+      <entry key="W1" value="680.2303429564874" />
     </decayedShown>
   </component>
   <component name="OptimizeOnSaveOptions">
@@ -120,37 +132,41 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;git.auto.fetch.suggestion.counter&quot;: &quot;3&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;npm.dev.executor&quot;: &quot;Run&quot;,
-    &quot;rearrange.code.on.save&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;proofread&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "feat/ditto",
+    "git.auto.fetch.suggestion.counter": "3",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "npm.dev.executor": "Run",
+    "rearrange.code.on.save": "true",
+    "settings.editor.selected.configurable": "ml.llm.AcpAgentsConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
   },
-  &quot;keyToStringList&quot;: {
-    &quot;vue.recent.templates&quot;: [
-      &quot;Vue Composition API Component&quot;
+  "keyToStringList": {
+    "vue.recent.templates": [
+      "Vue Composition API Component"
     ]
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="npm.dev">
     <configuration name="Debug Application" type="JavascriptDebugType" engineId="98ca6316-2f89-46d9-a9e5-fa9e2b0625b3" uri="http://localhost:5173">
       <method v="2" />
@@ -190,6 +206,8 @@
       <workItem from="1782173638331" duration="6396000" />
       <workItem from="1782683096103" duration="5856000" />
       <workItem from="1782694607345" duration="8496000" />
+      <workItem from="1782857980667" duration="904000" />
+      <workItem from="1782858899280" duration="3832000" />
     </task>
     <task id="LOCAL-00001" summary="front(vue)">
       <option name="closed" value="true" />
