@@ -1,5 +1,7 @@
-# Estágio 1: Build
-FROM node:18-alpine AS builder
+# front/Dockerfile
+
+# 🔥 Estágio 1: Build com Node.js 22
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -11,19 +13,15 @@ RUN npm ci --silent
 COPY . .
 RUN npm run build --silent
 
-# Estágio 2: Servidor de produção
-FROM node:18-alpine
+# 🔥 Estágio 2: Produção com Node.js 22
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copia o build
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
-
-# Instala o servidor vite
-RUN npm install -g vite
+# Copia o build do Nuxt
+COPY --from=builder /app/.output ./.output
 
 EXPOSE 3000
 
-# Serve o build
-CMD ["vite", "preview", "--host", "0.0.0.0", "--port", "3000"]
+# Comando para rodar NUXT em produção
+CMD ["node", ".output/server/index.mjs"]
