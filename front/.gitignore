@@ -1,5 +1,7 @@
 node_modules/
+front/node_modules/
 .nuxt/
 .output/
 dist/
 .idea/
+package-lock.json

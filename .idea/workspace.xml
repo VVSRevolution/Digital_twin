@@ -4,13 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="feat(calculos ): adicionado os calculo ao front">
-      <change afterPath="$PROJECT_DIR$/.github/workflows/deploy.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/back/cloud2edge.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/front/Dockerfile" afterDir="false" />
+    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="fix: add --build to docker-compose up">
+      <change beforePath="$PROJECT_DIR$/.github/workflows/deploy.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/deploy.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/front/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/package-lock.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -48,12 +45,23 @@
     &quot;assignee&quot;: &quot;VVSRevolution&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/VVSRevolution/Digital_twin&quot;,
-    &quot;accountId&quot;: &quot;924a05a7-6f76-442c-a1a2-c616781b9e93&quot;
-  }
-}</component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/VVSRevolution/Digital_twin",
+    "accountId": "0a2944b0-74e4-4856-9404-a6ac89c3e835"
+  },
+  "recentNewPullRequestHead": {
+    "server": {
+      "useHttp": false,
+      "host": "github.com",
+      "port": null,
+      "suffix": null
+    },
+    "owner": "VVSRevolution",
+    "repository": "Digital_twin"
+  },
+  "editorReviewEnabled": false
+}]]></component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -63,58 +71,58 @@
       <entry key="MS100" value="1.0" />
       <entry key="MS500" value="1.0" />
       <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0000000000120488" />
-      <entry key="S10" value="1.0000179244747185" />
-      <entry key="S30" value="1.2613951927432785" />
-      <entry key="S60" value="3.9253730235590605" />
-      <entry key="M2" value="10.81556843012046" />
-      <entry key="M5" value="21.89715258806236" />
-      <entry key="M10" value="41.750472181969585" />
-      <entry key="M15" value="74.79114993869455" />
-      <entry key="M30" value="176.93898891192072" />
-      <entry key="H1" value="303.4857009435701" />
-      <entry key="H2" value="423.3283124544732" />
-      <entry key="H4" value="520.7183326745012" />
-      <entry key="D1" value="642.6514336852887" />
-      <entry key="W1" value="669.3431506720714" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0" />
+      <entry key="S60" value="1.0000000000008984" />
+      <entry key="M2" value="1.000001772698382" />
+      <entry key="M5" value="1.0227118232096821" />
+      <entry key="M10" value="1.982787798021394" />
+      <entry key="M15" value="5.813637723596845" />
+      <entry key="M30" value="40.191943822010025" />
+      <entry key="H1" value="143.3017356675977" />
+      <entry key="H2" value="296.86263592542065" />
+      <entry key="H4" value="447.0377140262541" />
+      <entry key="D1" value="654.1811780590523" />
+      <entry key="W1" value="701.6499110043663" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="2.1321261651547317E-135" />
-      <entry key="S2" value="2.148835770995972E-34" />
-      <entry key="S5" value="3.410996627225236E-14" />
-      <entry key="S10" value="1.846888363498247E-7" />
-      <entry key="S30" value="0.005694822798298482" />
-      <entry key="S60" value="0.07546404970783169" />
-      <entry key="M2" value="0.2747075288802495" />
-      <entry key="M5" value="0.6008291672527606" />
-      <entry key="M10" value="0.8956481428062559" />
-      <entry key="M15" value="1.23852771222138" />
-      <entry key="M30" value="2.2787533437429612" />
-      <entry key="H1" value="3.75275706428902" />
-      <entry key="H2" value="5.606862906060861" />
-      <entry key="H4" value="7.504201702531787" />
-      <entry key="D1" value="10.2477326837585" />
-      <entry key="W1" value="10.887280093081621" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="9.137415365024837E-149" />
+      <entry key="S5" value="6.085963549746771E-60" />
+      <entry key="S10" value="2.4669745741994932E-30" />
+      <entry key="S30" value="1.3512059775398526E-10" />
+      <entry key="S60" value="1.1624138581158833E-5" />
+      <entry key="M2" value="0.003409419097907498" />
+      <entry key="M5" value="0.10306865400343973" />
+      <entry key="M10" value="0.325176439921542" />
+      <entry key="M15" value="0.5032814546462288" />
+      <entry key="M30" value="1.0647234491323683" />
+      <entry key="H1" value="2.3599629257681" />
+      <entry key="H2" value="4.492625775481964" />
+      <entry key="H4" value="6.952582096484223" />
+      <entry key="D1" value="10.864509288537821" />
+      <entry key="W1" value="11.828268380504431" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.9460576467255959" />
-      <entry key="MS500" value="0.9889709163809315" />
-      <entry key="S2" value="0.9972312513520695" />
-      <entry key="S5" value="0.9988915792757486" />
-      <entry key="S10" value="0.9994637199234017" />
-      <entry key="S30" value="1.2666706157923673" />
-      <entry key="S60" value="3.9992076119321216" />
-      <entry key="M2" value="11.087443675539939" />
-      <entry key="M5" value="22.495466869346355" />
-      <entry key="M10" value="42.643519403981465" />
-      <entry key="M15" value="76.02644723336118" />
-      <entry key="M30" value="179.2137312896654" />
-      <entry key="H1" value="307.2346026237034" />
-      <entry key="H2" value="428.93191949656716" />
-      <entry key="H4" value="528.2201805022356" />
-      <entry key="D1" value="652.8985940811604" />
-      <entry key="W1" value="680.2303429564874" />
+      <entry key="MS100" value="0.2161343078269663" />
+      <entry key="MS500" value="0.7361134310840891" />
+      <entry key="S2" value="0.9262669865803762" />
+      <entry key="S5" value="0.9698274543890458" />
+      <entry key="S10" value="0.9847981795215941" />
+      <entry key="S30" value="0.9949068302983227" />
+      <entry key="S60" value="0.9974615869808735" />
+      <entry key="M2" value="1.0021057934740178" />
+      <entry key="M5" value="1.1249077202930957" />
+      <entry key="M10" value="2.307080925325265" />
+      <entry key="M15" value="6.315982306805493" />
+      <entry key="M30" value="41.255281208844046" />
+      <entry key="H1" value="145.65961995583305" />
+      <entry key="H2" value="301.3528754994128" />
+      <entry key="H4" value="453.9882452836994" />
+      <entry key="D1" value="665.0451052473657" />
+      <entry key="W1" value="713.478087579041" />
     </decayedShown>
   </component>
   <component name="OptimizeOnSaveOptions">
@@ -142,7 +150,7 @@
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "feat/ditto",
+    "git-widget-placeholder": "#3 on feat/ditto",
     "git.auto.fetch.suggestion.counter": "3",
     "ignore.virus.scanning.warn.message": "true",
     "javascript.preferred.runtime.type.id": "node",
@@ -169,6 +177,10 @@
 }]]></component>
   <component name="RunManager" selected="npm.dev">
     <configuration name="Debug Application" type="JavascriptDebugType" engineId="98ca6316-2f89-46d9-a9e5-fa9e2b0625b3" uri="http://localhost:5173">
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="docker-deploy" factoryName="dockerfile" temporary="true">
+      <deployment type="dockerfile" />
       <method v="2" />
     </configuration>
     <configuration name="dev" type="js.build_tools.npm" nameIsGenerated="true">
@@ -305,7 +317,31 @@
       <option name="project" value="LOCAL" />
       <updated>1782701333782</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="feat(deploy): comfigurando deploy">
+      <option name="closed" value="true" />
+      <created>1782946717097</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1782946717097</updated>
+    </task>
+    <task id="LOCAL-00014" summary="feat(deploy): configurando deploy">
+      <option name="closed" value="true" />
+      <created>1782947621128</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1782947621128</updated>
+    </task>
+    <task id="LOCAL-00015" summary="fix: add --build to docker-compose up">
+      <option name="closed" value="true" />
+      <created>1782947842538</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1782947842538</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -335,6 +371,9 @@
     <MESSAGE value="feat(map): comportamento pesquisa" />
     <MESSAGE value="feat(back): adicionado google earth no back" />
     <MESSAGE value="feat(calculos ): adicionado os calculo ao front" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(calculos ): adicionado os calculo ao front" />
+    <MESSAGE value="feat(deploy): comfigurando deploy" />
+    <MESSAGE value="feat(deploy): configurando deploy" />
+    <MESSAGE value="fix: add --build to docker-compose up" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: add --build to docker-compose up" />
   </component>
 </project>

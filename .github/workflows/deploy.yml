@@ -21,28 +21,20 @@ jobs:
         run: |
           echo '${{ secrets.GCP_CREDENTIALS }}' > credentials.json
 
-      - name: Create directory and copy files to server
+      - name: Copy credentials and compose to server
         run: |
-          # 🔥 Cria a pasta no servidor primeiro
-          ssh -o StrictHostKeyChecking=no \
-              -p ${{ secrets.SERVER_PORT }} \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "mkdir -p ~/digital-twin"
-
-          # 🔥 Agora copia os arquivos
-          scp -o StrictHostKeyChecking=no \
-              -P ${{ secrets.SERVER_PORT }} \
-              credentials.json \
-              docker-compose.yml \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/digital-twin/
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ~/digital-twin"
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.SERVER_PORT }} credentials.json docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/digital-twin/
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no \
-              -p ${{ secrets.SERVER_PORT }} \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             cd ~/digital-twin
-            git pull || echo "Primeiro deploy, ignorando git pull"
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }} .
+            else
+              git pull
+            fi
             docker-compose down || echo "Nenhum container para parar"
             docker-compose up -d --build
             docker system prune -f
