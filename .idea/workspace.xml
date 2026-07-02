@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="test: deploy do zero com estrutura corrigida">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/deploy.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/deploy.yml" afterDir="false" />
+    <list default="true" id="011e0a0a-7bc8-43fb-8c27-e59ddf7bfa0f" name="Changes" comment="fix: corrigindo google earth">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/back/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/back/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/back/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/back/server.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,61 +67,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0660636275350863" />
-      <entry key="MS500" value="1.5807543659628611" />
-      <entry key="S2" value="1.8729675911337629" />
-      <entry key="S5" value="1.947107440251894" />
-      <entry key="S10" value="1.973194451408296" />
-      <entry key="S30" value="1.9909837690323169" />
-      <entry key="S60" value="1.9954816768944799" />
-      <entry key="M2" value="1.9977386874768952" />
-      <entry key="M5" value="2.001935688141372" />
-      <entry key="M10" value="2.104051624234944" />
-      <entry key="M15" value="2.816945382209395" />
-      <entry key="M30" value="17.069103279537156" />
-      <entry key="H1" value="89.74602498941299" />
-      <entry key="H2" value="234.29702935104865" />
-      <entry key="H4" value="397.446955688185" />
-      <entry key="D1" value="642.9469098179145" />
-      <entry key="W1" value="701.6043101137168" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0000000000000333" />
+      <entry key="S2" value="1.0004274371727022" />
+      <entry key="S5" value="1.0449106060414188" />
+      <entry key="S10" value="1.2119319684218142" />
+      <entry key="S30" value="1.660623464769598" />
+      <entry key="S60" value="2.3624691642314573" />
+      <entry key="M2" value="3.906327271125104" />
+      <entry key="M5" value="7.425891002008611" />
+      <entry key="M10" value="10.85020784393797" />
+      <entry key="M15" value="12.86885231132448" />
+      <entry key="M30" value="19.05954933650731" />
+      <entry key="H1" value="58.89250790420696" />
+      <entry key="H2" value="178.01625295989624" />
+      <entry key="H4" value="346.96516234693615" />
+      <entry key="D1" value="641.7600644961291" />
+      <entry key="W1" value="717.4157119250633" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
       <entry key="MS500" value="0.0" />
       <entry key="S2" value="0.0" />
-      <entry key="S5" value="2.554576626268004E-213" />
-      <entry key="S10" value="5.054281973008634E-107" />
-      <entry key="S30" value="3.697315309117679E-36" />
-      <entry key="S60" value="1.9228404273672004E-18" />
-      <entry key="M2" value="1.3866652184401881E-9" />
-      <entry key="M5" value="2.863143383723064E-4" />
-      <entry key="M10" value="0.01713867796926102" />
-      <entry key="M15" value="0.0707483678349873" />
-      <entry key="M30" value="0.39919911314153445" />
-      <entry key="H1" value="1.4450456095854591" />
-      <entry key="H2" value="3.515510761119051" />
-      <entry key="H4" value="6.150213883861434" />
-      <entry key="D1" value="10.64471727848272" />
-      <entry key="W1" value="11.793784073386975" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="3.509947482841859E-226" />
+      <entry key="S30" value="7.053968881956692E-76" />
+      <entry key="S60" value="2.655930888023384E-38" />
+      <entry key="M2" value="1.6297026995563738E-19" />
+      <entry key="M5" value="3.05420231992748E-8" />
+      <entry key="M10" value="1.770127997067067E-4" />
+      <entry key="M15" value="0.0033553255209541996" />
+      <entry key="M30" value="0.08693580607727527" />
+      <entry key="H1" value="0.6743511672670769" />
+      <entry key="H2" value="2.4015449016200114" />
+      <entry key="H4" value="5.083248709125974" />
+      <entry key="D1" value="10.311994066093837" />
+      <entry key="W1" value="11.74040182539863" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.9545581161737567" />
-      <entry key="MS500" value="1.5233936899294547" />
-      <entry key="S2" value="1.8534276537086276" />
-      <entry key="S5" value="1.9387567604134721" />
-      <entry key="S10" value="1.9689247446743496" />
-      <entry key="S30" value="1.989539054755877" />
-      <entry key="S60" value="1.9947566025849661" />
-      <entry key="M2" value="1.9973754694385015" />
-      <entry key="M5" value="2.002074126559767" />
-      <entry key="M10" value="2.121070993430814" />
-      <entry key="M15" value="2.8875135419877074" />
-      <entry key="M30" value="17.467758456170767" />
-      <entry key="H1" value="91.1897856844168" />
-      <entry key="H2" value="237.81066682814014" />
-      <entry key="H4" value="403.5953523792307" />
-      <entry key="D1" value="653.591056266802" />
-      <entry key="W1" value="713.3980025767232" />
+      <entry key="MS100" value="0.9460576467255959" />
+      <entry key="MS500" value="0.9889709163809645" />
+      <entry key="S2" value="0.9976572097044965" />
+      <entry key="S5" value="1.0437399691201206" />
+      <entry key="S10" value="1.2112307547323116" />
+      <entry key="S30" value="1.6602847539294607" />
+      <entry key="S60" value="2.3621417378659983" />
+      <entry key="M2" value="3.9056554438289317" />
+      <entry key="M5" value="7.424742982302856" />
+      <entry key="M10" value="10.849196614923207" />
+      <entry key="M15" value="12.871139392666068" />
+      <entry key="M30" value="19.14563711821989" />
+      <entry key="H1" value="59.565826900812" />
+      <entry key="H2" value="180.416282058296" />
+      <entry key="H4" value="352.0467856897729" />
+      <entry key="D1" value="652.0714842197723" />
+      <entry key="W1" value="729.15601948426" />
     </decayedShown>
   </component>
   <component name="OptimizeOnSaveOptions">
@@ -349,7 +350,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782952448067</updated>
     </task>
-    <option name="localTasksCounter" value="17" />
+    <task id="LOCAL-00017" summary="fix: corrigindo deploy">
+      <option name="closed" value="true" />
+      <created>1782955633056</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1782955633056</updated>
+    </task>
+    <option name="localTasksCounter" value="18" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -383,6 +392,8 @@
     <MESSAGE value="feat(deploy): configurando deploy" />
     <MESSAGE value="fix: add --build to docker-compose up" />
     <MESSAGE value="test: deploy do zero com estrutura corrigida" />
-    <option name="LAST_COMMIT_MESSAGE" value="test: deploy do zero com estrutura corrigida" />
+    <MESSAGE value="fix: corrigindo deploy" />
+    <MESSAGE value="fix: corrigindo google earth" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: corrigindo google earth" />
   </component>
 </project>
