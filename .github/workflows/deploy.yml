@@ -1,5 +1,5 @@
 # .github/workflows/deploy.yml
-name: Deploy
+name: 🚀 Deploy
 
 on:
   push:
@@ -7,82 +7,69 @@ on:
 
 jobs:
   deploy:
+    name: 🚀 Deploy para Servidor
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: 🔑 Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
 
-      - name: Create credentials file
-        run: |
-          echo '${{ secrets.GCP_CREDENTIALS }}' > credentials.json
-          echo "✅ credentials.json criado localmente"
-
-      - name: Copy credentials and compose to server
-        run: |
-          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ~/digital-twin"
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.SERVER_PORT }} credentials.json docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/digital-twin/
-          echo "✅ Arquivos copiados para o servidor"
-
-      - name: Deploy
+      - name: 🚀 Deploy e Build
         run: |
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-            cd ~/digital-twin
-
-            # 🔥 VERIFICA SE O REPOSITÓRIO EXISTE
-            if [ ! -d ".git" ]; then
-              echo "📦 Repositório não encontrado. Clonando..."
-              git clone https://github.com/${{ github.repository }} .
-              echo "✅ Clone concluído!"
-            else
-              echo "📦 Repositório encontrado. Atualizando..."
-              git pull
-              echo "✅ Git pull concluído!"
-            fi
-
-            # 🔥 VERIFICA SE AS PASTAS EXISTEM
-            echo "📁 Verificando estrutura do projeto:"
-            ls -la
-            if [ -d "back" ]; then
-              echo "✅ Pasta 'back' encontrada!"
-            else
-              echo "❌ Pasta 'back' NÃO encontrada!"
-              exit 1
-            fi
-            if [ -d "front" ]; then
-              echo "✅ Pasta 'front' encontrada!"
-            else
-              echo "❌ Pasta 'front' NÃO encontrada!"
-              exit 1
-            fi
-
-            # 🔥 VERIFICA O credentials.json
-            echo "🔍 Verificando credentials.json:"
-            ls -la credentials.json
-            echo "📄 Primeiras 3 linhas:"
-            head -3 credentials.json
-
-            # 🔥 SOBE OS CONTAINERS
+            cd ~
+            rm -rf digital-twin
+            git clone https://github.com/${{ github.repository }} digital-twin
+            cd digital-twin
+            echo '${{ secrets.GCP_CREDENTIALS }}' > credentials.json
             docker-compose down || echo "Nenhum container para parar"
             docker-compose up -d --build
+          EOF
 
-            # 🔥 VERIFICA SE OS CONTAINERS SUBIRAM
-            echo "🔍 Verificando containers rodando:"
+      - name: ⏳ Aguardando containers
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            echo "⏳ Aguardando container digital_twin_api..."
+            MAX_ATTEMPTS=30
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              ATTEMPT=$((ATTEMPT + 1))
+              if docker ps | grep -q "digital_twin_api" && docker ps | grep -q "Up"; then
+                echo "✅ Container digital_twin_api está rodando! (após $ATTEMPT segundos)"
+                break
+              fi
+              echo "⏳ Aguardando... ($ATTEMPT/$MAX_ATTEMPTS)"
+              sleep 2
+            done
+
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "❌ Timeout: Container não subiu após $MAX_ATTEMPTS segundos"
+              docker logs digital_twin_api --tail 20 || echo "Container não encontrado"
+              exit 1
+            fi
+          EOF
+
+      - name: 🔍 Verificando containers
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            echo "🔍 Containers rodando:"
             docker ps
+          EOF
 
-            # 🔥 VERIFICA A VARIÁVEL NO CONTAINER
+      - name: 🔍 Verificando GOOGLE_APPLICATION_CREDENTIALS
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             echo "🔍 Verificando GOOGLE_APPLICATION_CREDENTIALS no container:"
             docker exec digital_twin_api printenv | grep GOOGLE_APPLICATION_CREDENTIALS || echo "❌ Variável não encontrada!"
+          EOF
 
-            # 🔥 VERIFICA O ARQUIVO NO CONTAINER
-            echo "🔍 Verificando arquivo de credenciais no container:"
-            docker exec digital_twin_api ls -la /app/credentials.json || echo "❌ Arquivo não encontrado!"
-
-            # 🔥 MOSTRA OS LOGS DO BACKEND
+      - name: 📋 Logs do backend
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             echo "📋 Logs do backend (últimas 20 linhas):"
             docker logs digital_twin_api --tail 20
           EOF
