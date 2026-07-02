@@ -10,7 +10,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # Permite todas as origens (para desenvolvimento)
 
-PROJECT_ID = 'digital-twin-500823'
+PROJECT_ID = 'digital-twin-501202'
 
 
 # Inicializa o Earth Engine
