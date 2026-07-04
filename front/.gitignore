@@ -4,3 +4,4 @@ front/node_modules/
 .output/
 dist/
 .idea/
+workspace.xml

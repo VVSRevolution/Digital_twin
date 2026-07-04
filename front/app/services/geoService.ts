@@ -1,5 +1,7 @@
 import * as turf from "@turf/turf"
 import GeoJSON from "ol/format/GeoJSON";
+import type Feature from 'ol/Feature'
+import type Geometry from 'ol/geom/Geometry'
 
 export type OSMPlace = {
     lon: string
@@ -10,7 +12,7 @@ export type OSMPlace = {
 const format = new GeoJSON()
 
 
-export function convertParkToFeature(element: any) {
+export function convertParkToFeature(element: any): Feature<Geometry> {
     const coords = element.geometry.map((p: any) => [
         Number(p.lon),
         Number(p.lat)
@@ -39,7 +41,7 @@ export function convertParkToFeature(element: any) {
             dataProjection: "EPSG:4326",
             featureProjection: "EPSG:3857"
         }
-    )
+    ) as Feature<Geometry>
 }
 
 // 🔎 busca OSM

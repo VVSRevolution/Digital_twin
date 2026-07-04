@@ -3,11 +3,14 @@ import {onMounted, onUnmounted, ref} from "vue"
 import {convertParkToFeature} from "@/services/geoService"
 import {searchPark} from "@/services/parkService"
 import {analyzeParkCooling, type CoolingAnalysisResult, formatCoolingStats} from "@/services/eeService"
+import type Feature from 'ol/Feature'
+import type Geometry from 'ol/geom/Geometry'
 import Style from "ol/style/Style"
 import {Fill, Stroke} from "ol/style"
 import {drawBuffers} from "~/utils/buffer"
 import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
+import {useNotifications} from '~/composables/useErrorHandler'
 
 // ===== TIPOS =====
 interface SearchResult {
@@ -190,11 +193,12 @@ async function addPixelLayer(buffers: any[]) {
       normalized = Math.max(0, Math.min(1, normalized))
 
       const color = getGradientColor(normalized)
-      const rgb = color.match(/\d+/g)?.map(Number) || [0, 0, 0]
+      const nums = color.match(/\d+/g)?.map(Number) ?? [0, 0, 0]
+      const [r = 0, g = 0, b = 0] = nums
 
-      imageData[idx] = rgb[0]
-      imageData[idx + 1] = rgb[1]
-      imageData[idx + 2] = rgb[2]
+      imageData[idx] = r
+      imageData[idx + 1] = g
+      imageData[idx + 2] = b
       imageData[idx + 3] = 220 // 🔥 SEMI-TRANSPARENTE (opaco)
     }
   }
@@ -212,12 +216,9 @@ async function addPixelLayer(buffers: any[]) {
   const ImageLayer = (await import('ol/layer/Image')).default
   const ImageStatic = (await import('ol/source/ImageStatic')).default
 
-  const extent = [
-    fromLonLat([minLon, minLat])[0],
-    fromLonLat([minLon, minLat])[1],
-    fromLonLat([maxLon, maxLat])[0],
-    fromLonLat([maxLon, maxLat])[1]
-  ]
+  const [x1, y1] = fromLonLat([minLon, minLat]) as [number, number]
+  const [x2, y2] = fromLonLat([maxLon, maxLat]) as [number, number]
+  const extent: [number, number, number, number] = [x1, y1, x2, y2]
 
   pixelLayer = new ImageLayer({
     source: new ImageStatic({
@@ -274,18 +275,18 @@ async function searchPlace() {
               width: 3,
               lineDash: [10, 10]
             })
-          })
+          }) as unknown as Style
       )
 
       vectorSource.clear()
       vectorSource.addFeature(feature)
 
-      parkName.value = element.tags?.name || "Parque sem nome"
+      parkName.value = element?.tags?.name ?? "Parque sem nome"
 
       drawBuffers(feature, vectorSource)
       await analyzePark(feature)
 
-      const extent = feature.getGeometry().getExtent()
+      const extent = feature.getGeometry()!.getExtent()
       map.getView().fit(extent, {
         padding: [50, 50, 50, 50],
         duration: 800
@@ -296,7 +297,7 @@ async function searchPlace() {
 
   } catch (error) {
     console.error("❌ Erro ao buscar parque:", error)
-    const { handleError } = useNotifications()
+    const {handleError} = useNotifications()
     handleError(error, 'Erro ao buscar parque')
   } finally {
     loading.value = false
@@ -315,7 +316,7 @@ function debouncedSearch() {
 }
 
 // ===== FUNÇÃO DE ANÁLISE =====
-async function analyzePark(feature: any) {
+async function analyzePark(feature: Feature<Geometry>) {
   if (analyzing.value) {
     console.log('⏭️ Análise já em execução')
     return
@@ -331,20 +332,20 @@ async function analyzePark(feature: any) {
 
     if (!geojson.geometry) {
       console.error('❌ Geometria não encontrada')
-      const { handleError } = useNotifications()
+      const {handleError} = useNotifications()
       handleError('Geometria não encontrada')
       return
     }
 
     const result = await analyzeParkCooling(geojson.geometry as any)
-    
+
     if (!result.success) {
-      const { handleError } = useNotifications()
+      const {handleError} = useNotifications()
       handleError(result.error || 'Erro desconhecido', 'Análise falhou')
       coolingData.value = result
       return
     }
-    
+
     coolingData.value = result
 
     // 🔥 VISUALIZA OS PIXELS COM GRADIENTE LOCAL
@@ -373,11 +374,11 @@ async function analyzePark(feature: any) {
     })
 
     showStats.value = true
-    const { handleSuccess } = useNotifications()
+    const {handleSuccess} = useNotifications()
     handleSuccess('Análise concluída com sucesso!')
   } catch (error) {
     console.error("❌ Erro na análise:", error)
-    const { handleError } = useNotifications()
+    const {handleError} = useNotifications()
     handleError(error, 'Erro na análise')
   } finally {
     analyzing.value = false
@@ -397,20 +398,20 @@ async function selectPark(item: SearchResult['elements'][0]) {
 
     drawBuffers(feature, vectorSource)
 
-    const extent = feature.getGeometry().getExtent()
+    const extent = feature.getGeometry()!.getExtent()
     map.getView().fit(extent, {
       padding: [50, 50, 50, 50],
       duration: 800
     })
 
     await analyzePark(feature)
-    
+
     results.value = []
     search.value = ""
 
   } catch (error) {
     console.error("❌ Erro ao selecionar parque:", error)
-    const { handleError } = useNotifications()
+    const {handleError} = useNotifications()
     handleError(error, 'Erro ao selecionar parque')
   }
 }
@@ -529,8 +530,8 @@ onUnmounted(() => {
             </div>
             <div class="gradient-bar"></div>
             <div class="gradient-labels">
-              <span>{{ gradientMin.toFixed(1) }}°C</span>
-              <span>{{ gradientMax.toFixed(1) }}°C</span>
+              <span>{{ gradientMin!.toFixed(1) }}°C</span>
+              <span>{{ gradientMax!.toFixed(1) }}°C</span>
             </div>
             <div style="font-size: 10px; color: #999; text-align: center; margin-top: 2px;">
               Gradiente baseado nos valores mínimo e máximo locais
@@ -546,8 +547,8 @@ onUnmounted(() => {
                 v-for="buffer in coolingData.buffers"
                 :key="buffer.distance"
                 :style="{
-                background: buffer.statistics?.mean !== null
-                  ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, (buffer.statistics.mean - 25) / 10))})`
+                background: (buffer.statistics?.mean ?? null) !== null
+                                  ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
                   : '#f5f5f5'
               }"
                 class="stats-item"
@@ -597,7 +598,7 @@ onUnmounted(() => {
 .search-bar {
   position: absolute;
   top: 12px;
-  left: 100px;
+  left: 12px;
   display: flex;
   gap: 8px;
   flex-direction: column;
@@ -896,5 +897,43 @@ onUnmounted(() => {
 
 .search-bar::-webkit-scrollbar-thumb:hover {
   background: #aaa;
+}
+
+
+:global(.ol-zoom) {
+  position: absolute !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: 9999;
+}
+
+:global(.ol-rotate) {
+  position: absolute !important;
+  bottom: 65px !important; /* fica acima do zoom */
+  right: 20px !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: 9999;
+}
+
+:global(.ol-control button) {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+
+  background-color: #ffffff !important;
+  color: #333 !important;
+
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+
+  margin: 5px 5px !important;
+
+  font-size: 18px !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 </style>
