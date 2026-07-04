@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  back_api:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: digital_twin_api
+    ports:
+      - "6789:3001"        # http://200.137.197.69:55235/
+    environment:
+      - PROJECT_ID=digital-twin-500823
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - DITTO_URL=http://ditto:8080
+    volumes:
+      - ./back:/app
+      - ./credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+    networks:
+      - digital_twin_network
+
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    container_name: digital_twin_front
+    ports:
+      - "8080:3000"        #http://200.137.197.69:51235
+    environment:
+      - VITE_API_URL=http://200.137.197.69:55235/api
+    restart: unless-stopped
+    depends_on:
+      - back_api
+    networks:
+      - digital_twin_network
+
+networks:
+  digital_twin_network:
+    driver: bridge

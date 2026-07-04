@@ -3,3 +3,5 @@ flask-cors==4.0.0
 earthengine-api==0.1.376
 google-auth==2.23.4
 google-auth-oauthlib==1.1.0
+requests==2.34.0
+python-dotenv==1.0.0

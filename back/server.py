@@ -1,6 +1,7 @@
 import ee
 import json
 import os
+import requests
 import traceback
 from datetime import datetime
 from flask import Flask, jsonify, request
@@ -9,22 +10,42 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # Permite todas as origens (para desenvolvimento)
 
-PROJECT_ID = 'digital-twin-500823'
+PROJECT_ID = 'digital-twin-501202'
 
 
 # Inicializa o Earth Engine
 def init_earth_engine():
+    """Inicializa o Earth Engine usando conta de serviço"""
     try:
         creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
         if creds_path and os.path.exists(creds_path):
             print(f'📁 Usando chave: {creds_path}')
 
-        ee.Initialize(project=PROJECT_ID)
-        print(f'✅ Earth Engine inicializado com sucesso!')
-        print(f'📁 Projeto: {PROJECT_ID}')
-        return True
+            # 🔥 USA A CONTA DE SERVIÇO DIRETAMENTE
+            with open(creds_path, 'r') as f:
+                creds_data = json.load(f)
+                client_email = creds_data.get('client_email')
+                print(f'📧 Client email: {client_email}')
+
+            # 🔥 CREDENCIAIS DA CONTA DE SERVIÇO
+            credentials = ee.ServiceAccountCredentials(
+                client_email,
+                creds_path
+            )
+
+            # 🔥 INICIALIZA O EARTH ENGINE
+            ee.Initialize(credentials, project=PROJECT_ID)
+            print(f'✅ Earth Engine autenticado com sucesso!')
+            print(f'📁 Projeto: {PROJECT_ID}')
+            return True
+        else:
+            print('⚠️ Arquivo de chave não encontrado!')
+            return False
+
     except Exception as e:
         print(f'❌ Erro ao inicializar Earth Engine: {e}')
+        import traceback
+        traceback.print_exc()
         return False
 
 
