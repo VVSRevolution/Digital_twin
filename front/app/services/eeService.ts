@@ -22,9 +22,12 @@ export interface BufferResult {
     distance: number
     distance_prev: number
     buffer_index: number
-    pixels: PixelTemperature[]  // 🔥 TODOS OS PIXELS
-    statistics: BufferStatistics  // 🔥 ESTATÍSTICAS DO BUFFER
+    pixels: PixelTemperature[]
+    statistics: BufferStatistics
     area_ha: number
+    area_m2: number
+    lst_celsius: number | null
+    lst_kelvin: number | null
 }
 
 export interface CoolingAnalysisResult {
@@ -85,9 +88,19 @@ export async function analyzeParkCooling(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(
-                errorData?.error || `Erro HTTP ${response.status}: ${response.statusText}`
-            )
+            const errorMsg = errorData?.error || `Erro HTTP ${response.status}: ${response.statusText}`
+            const { handleError } = useNotifications()
+            handleError(errorMsg, 'Erro ao analisar park cooling')
+            return {
+                success: false,
+                park_lst: null,
+                buffers: [],
+                pci: null,
+                pcd: null,
+                pca: null,
+                timestamp: new Date().toISOString(),
+                error: errorMsg,
+            }
         }
 
         const data = await response.json()
@@ -96,6 +109,9 @@ export async function analyzeParkCooling(
 
     } catch (error) {
         console.error('❌ Erro ao analisar park cooling:', error)
+        const { handleError } = useNotifications()
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+        handleError(errorMsg, 'Erro ao analisar park cooling')
         return {
             success: false,
             park_lst: null,
@@ -104,7 +120,7 @@ export async function analyzeParkCooling(
             pcd: null,
             pca: null,
             timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Erro desconhecido',
+            error: errorMsg,
         }
     }
 }
@@ -128,9 +144,16 @@ export async function getParkLSTTimeseries(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(
-                errorData?.error || `Erro HTTP ${response.status}: ${response.statusText}`
-            )
+            const errorMsg = errorData?.error || `Erro HTTP ${response.status}: ${response.statusText}`
+            const { handleError } = useNotifications()
+            handleError(errorMsg, 'Erro ao obter série temporal')
+            return {
+                success: false,
+                timeseries: [],
+                count: 0,
+                timestamp: new Date().toISOString(),
+                error: errorMsg,
+            }
         }
 
         const data = await response.json()
@@ -138,12 +161,15 @@ export async function getParkLSTTimeseries(
 
     } catch (error) {
         console.error('❌ Erro ao obter série temporal:', error)
+        const { handleError } = useNotifications()
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+        handleError(errorMsg, 'Erro ao obter série temporal')
         return {
             success: false,
             timeseries: [],
             count: 0,
             timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Erro desconhecido',
+            error: errorMsg,
         }
     }
 }
@@ -173,18 +199,29 @@ export async function getLSTAtPoint(
         })
 
         if (!response.ok) {
-            throw new Error(`Erro HTTP ${response.status}`)
+            const errorMsg = `Erro HTTP ${response.status}`
+            const { handleError } = useNotifications()
+            handleError(errorMsg, 'Erro ao obter LST')
+            return {
+                success: false,
+                kelvin: null,
+                celsius: null,
+                error: errorMsg,
+            }
         }
 
         return await response.json()
 
     } catch (error) {
         console.error('❌ Erro ao obter LST no ponto:', error)
+        const { handleError } = useNotifications()
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+        handleError(errorMsg, 'Erro ao obter LST')
         return {
             success: false,
             kelvin: null,
             celsius: null,
-            error: error instanceof Error ? error.message : 'Erro desconhecido',
+            error: errorMsg,
         }
     }
 }

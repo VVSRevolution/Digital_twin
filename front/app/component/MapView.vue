@@ -295,7 +295,9 @@ async function searchPlace() {
     }
 
   } catch (error) {
-    console.error("Erro:", error)
+    console.error("❌ Erro ao buscar parque:", error)
+    const { handleError } = useNotifications()
+    handleError(error, 'Erro ao buscar parque')
   } finally {
     loading.value = false
     isSearching.value = false
@@ -328,10 +330,21 @@ async function analyzePark(feature: any) {
     })
 
     if (!geojson.geometry) {
-      throw new Error("Geometria não encontrada")
+      console.error('❌ Geometria não encontrada')
+      const { handleError } = useNotifications()
+      handleError('Geometria não encontrada')
+      return
     }
 
     const result = await analyzeParkCooling(geojson.geometry as any)
+    
+    if (!result.success) {
+      const { handleError } = useNotifications()
+      handleError(result.error || 'Erro desconhecido', 'Análise falhou')
+      coolingData.value = result
+      return
+    }
+    
     coolingData.value = result
 
     // 🔥 VISUALIZA OS PIXELS COM GRADIENTE LOCAL
@@ -360,8 +373,12 @@ async function analyzePark(feature: any) {
     })
 
     showStats.value = true
+    const { handleSuccess } = useNotifications()
+    handleSuccess('Análise concluída com sucesso!')
   } catch (error) {
     console.error("❌ Erro na análise:", error)
+    const { handleError } = useNotifications()
+    handleError(error, 'Erro na análise')
   } finally {
     analyzing.value = false
   }
@@ -392,7 +409,9 @@ async function selectPark(item: SearchResult['elements'][0]) {
     search.value = ""
 
   } catch (error) {
-    console.error("Erro ao selecionar parque:", error)
+    console.error("❌ Erro ao selecionar parque:", error)
+    const { handleError } = useNotifications()
+    handleError(error, 'Erro ao selecionar parque')
   }
 }
 

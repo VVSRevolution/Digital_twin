@@ -44,10 +44,25 @@ export function convertParkToFeature(element: any) {
 
 // 🔎 busca OSM
 export async function searchOSM(query: string): Promise<OSMPlace[]> {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`
+        const res = await fetch(url)
 
-    const res = await fetch(url)
-    return await res.json()
+        if (!res.ok) {
+            const errorMsg = `Erro HTTP ${res.status}: ${res.statusText}`
+            const {handleError} = useNotifications()
+            handleError(errorMsg, 'Erro ao buscar local')
+            return []
+        }
+
+        return await res.json()
+    } catch (error) {
+        console.error('❌ Erro ao buscar OSM:', error)
+        const {handleError} = useNotifications()
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+        handleError(errorMsg, 'Erro ao buscar local')
+        return []
+    }
 }
 
 // 📍 ponto (sem tipo chato)
