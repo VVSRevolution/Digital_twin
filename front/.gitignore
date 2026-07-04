@@ -4,4 +4,3 @@ front/node_modules/
 .output/
 dist/
 .idea/
-package-lock.json
