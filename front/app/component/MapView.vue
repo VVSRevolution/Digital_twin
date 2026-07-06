@@ -11,6 +11,7 @@ import {drawBuffers} from "~/utils/buffer"
 import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
+import ParkSearchBar from "~/component/ParkSearchBar.vue";
 
 // ===== TIPOS =====
 interface SearchResult {
@@ -479,100 +480,28 @@ onUnmounted(() => {
       <!-- MAPA -->
       <div ref="mapEl" class="map"></div>
 
-      <!-- SEARCH BAR -->
-      <div class="search-bar">
-        <div class="search-input">
-          <input
-              v-model="search"
-              placeholder="Pesquisar parque..."
-              @keydown.enter="debouncedSearch"
-          />
-          <button :disabled="loading || analyzing" @click="debouncedSearch">
-            {{ loading ? "Buscando..." : analyzing ? "Analisando..." : "🔍 Buscar" }}
-          </button>
-        </div>
-
-        <!-- RESULTADOS DA ANÁLISE -->
-        <div v-if="showStats && coolingData" class="stats">
-          <div class="stats-header">
-            <h4>🌳 {{ parkName }}</h4>
-            <span :class="coolingData.success ? 'success' : 'error'" class="badge">
-              {{ coolingData.success ? "✅ OK" : "❌ Falha" }}
-            </span>
-          </div>
-
-          <div
-              v-for="stat in formatCoolingStats(coolingData)"
-              :key="stat.label"
-              class="stat-item"
-          >
-            <span>{{ stat.label }}</span>
-            <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
-          </div>
-
-          <div v-if="coolingData.error" class="error-msg">
-            ⚠️ {{ coolingData.error }}
-          </div>
-        </div>
-
-        <!-- 🔥 CONTROLE DE VISUALIZAÇÃO DOS PIXELS -->
-        <div v-if="showStats && coolingData?.buffers" class="controls">
-          <label class="toggle-label">
-            <input v-model="showPixels" type="checkbox" @change="togglePixels"/>
-            Mostrar pixels de temperatura
-          </label>
-
-          <!-- 🔥 LEGENDA COM GRADIENTE LOCAL -->
-          <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
-            <div class="gradient-header">
-              <span>🌡️ Temperatura dos Pixels</span>
-              <span class="pixel-count">{{ totalPixels }} pixels</span>
-            </div>
-            <div class="gradient-bar"></div>
-            <div class="gradient-labels">
-              <span>{{ gradientMin!.toFixed(1) }}°C</span>
-              <span>{{ gradientMax!.toFixed(1) }}°C</span>
-            </div>
-            <div style="font-size: 10px; color: #999; text-align: center; margin-top: 2px;">
-              Gradiente baseado nos valores mínimo e máximo locais
-            </div>
-          </div>
-        </div>
-
-        <!-- 🔥 ESTATÍSTICAS DOS BUFFERS -->
-        <div v-if="showStats && coolingData?.buffers" class="buffer-stats">
-          <h4>📊 Estatísticas por Anel</h4>
-          <div class="stats-grid">
-            <div
-                v-for="buffer in coolingData.buffers"
-                :key="buffer.distance"
-                :style="{
-                background: (buffer.statistics?.mean ?? null) !== null
-                                  ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
-                  : '#f5f5f5'
-              }"
-                class="stats-item"
-            >
-              <span class="label">{{ buffer.distance }}m</span>
-              <span class="mean">{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
-              <span class="count">{{ buffer.statistics?.count ?? 0 }}px</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- DROPDOWN DE RESULTADOS -->
-        <div v-if="results.length" class="dropdown">
-          <div
-              v-for="(item, index) in results"
-              :key="index"
-              class="dropdown-item"
-              @click="selectPark(item)"
-          >
-            🌳 {{ item.tags?.name || "Parque sem nome" }}
-          </div>
-        </div>
-      </div>
-
+      <ParkSearchBar
+          v-model:search="search"
+          v-model:showPixels="showPixels"
+          :loading="loading"
+          :analyzing="analyzing"
+          :results="results"
+          :predefinedParks="predefinedParks"
+          :showStats="showStats"
+          :coolingData="coolingData"
+          :parkName="parkName"
+          :gradientMin="gradientMin"
+          :gradientMax="gradientMax"
+          :totalPixels="totalPixels"
+          @search="searchPlace"
+          @select="selectPark"
+          @addPark="openAddParkModal"
+          @refresh="refreshData"
+          @export="exportReport"
+          @settings="openSettings"
+          @about="showAbout"
+          @togglePixels="togglePixels"
+      />
     </div>
   </div>
 </template>
@@ -594,64 +523,7 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* SEARCH BAR */
-.search-bar {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  display: flex;
-  gap: 8px;
-  flex-direction: column;
-  background: white;
-  padding: 15px;
-  border-radius: 8px;
-  z-index: 1000;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  min-width: 280px;
-  max-width: 350px;
-  max-height: 80vh;
-  overflow-y: auto;
-}
 
-.search-input {
-  display: flex;
-  gap: 8px;
-}
-
-.search-input input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  outline: none;
-}
-
-.search-input input:focus {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
-}
-
-.search-input button {
-  padding: 8px 16px;
-  background: #1a73e8;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-
-.search-input button:hover:not(:disabled) {
-  background: #1557b0;
-}
-
-.search-input button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
 
 /* STATS */
 .stats {
