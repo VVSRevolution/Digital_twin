@@ -2,7 +2,7 @@
 Write-Host "Iniciando servidor Earth Engine (Python)..." -ForegroundColor Cyan
 
 # Configura a variavel de ambiente
-$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\Users\vinic\WebstormProjects\Digital_twin\back\digital-twin-500823-f9b35f328839.json"
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\Users\vinic\WebstormProjects\Digital_twin\back\credentials.json"
 Write-Host "Variavel configurada" -ForegroundColor Green
 
 # Verifica Python
