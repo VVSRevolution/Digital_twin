@@ -1,11 +1,5 @@
 import {computed, ref} from 'vue'
-
-export interface Notification {
-    id: string
-    message: string
-    type: 'error' | 'success' | 'info'
-    duration?: number
-}
+import type { Notification } from '~/types'
 
 const notifications = ref<Notification[]>([])
 

@@ -1,4 +1,11 @@
-// services/eeService.ts
+import { useNotifications } from '~/composables/useErrorHandler'
+import type {
+    ParkGeometry,
+    CoolingAnalysisResult,
+    TimeseriesResult,
+    BufferResult,
+    CoolingIslandType,
+} from '~/types'
 
 const isProduction = import.meta.env.PROD || import.meta.env.NODE_ENV === 'production'
 
@@ -8,68 +15,7 @@ const API_URL = isProduction
 
 console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvolvimento'})`)
 
-// ===== TIPOS =====
-
-export interface PixelTemperature {
-    lat: number | null
-    lon: number | null
-    temperature: number
-}
-
-export interface BufferStatistics {
-    count: number
-    mean: number | null
-    min: number | null
-    max: number | null
-    std: number | null
-}
-
-export interface BufferResult {
-    distance: number
-    distance_prev: number
-    buffer_index: number
-    pixels: PixelTemperature[]
-    statistics: BufferStatistics
-    area_ha: number
-    area_m2: number
-    lst_celsius: number | null
-    lst_kelvin: number | null
-}
-
-export interface CoolingAnalysisResult {
-    success: boolean
-    park_lst: {
-        kelvin: number | null
-        celsius: number | null
-    } | null
-    buffers: BufferResult[]
-    pci: number | null      // Park Cooling Intensity (em Celsius)
-    pcd: number | null      // Park Cooling Distance (metros)
-    pca: {
-        ha: number | null
-        m2: number | null
-    } | null
-    timestamp: string
-    error?: string
-}
-
-export interface TimeseriesPoint {
-    date: string
-    lst: number | null
-}
-
-export interface TimeseriesResult {
-    success: boolean
-    timeseries: TimeseriesPoint[]
-    count: number
-    timestamp: string
-    error?: string
-}
-
-export interface ParkGeometry {
-    type: 'Polygon' | 'MultiPolygon'
-    coordinates: number[][][] | number[][][][]
-}
+// ===== TIPOS LOCAIS =====
 
 // ===== FUNÇÕES =====
 
@@ -318,7 +264,7 @@ export function calculatePCI(
  */
 export function classifyCoolingIsland(
     buffers: BufferResult[]
-): 'regular' | 'declined' | 'increased' | 'other' {
+): CoolingIslandType {
     // Validação inicial
     if (!buffers || buffers.length < 3) return 'other'
 

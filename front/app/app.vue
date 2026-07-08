@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import MapView from "~/component/MapView.vue";
-import NotificationCenter from "~/component/NotificationCenter.vue";
+import MapView from "~/components/MapView.vue";
+import NotificationCenter from "~/components/NotificationCenter.vue";
 </script>
 <template>
   <div>

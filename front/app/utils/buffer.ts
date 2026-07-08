@@ -7,8 +7,12 @@ import * as turf from "@turf/turf"
 
 const format = new GeoJSON()
 
+/**
+ * Desenha buffers concêntricos em torno de um parque
+ * @param feature - Feature do parque (OpenLayers)
+ * @param vectorSource - Fonte de vetores onde adicionar os buffers
+ */
 export function drawBuffers(feature: OLFeature, vectorSource: VectorSource) {
-
     const geojson = format.writeFeatureObject(feature, {
         featureProjection: "EPSG:3857",
         dataProjection: "EPSG:4326"
@@ -20,7 +24,6 @@ export function drawBuffers(feature: OLFeature, vectorSource: VectorSource) {
     let prev: any = null
 
     for (const d of distances) {
-
         const outer = turf.buffer(geojson as any, d, {units: "meters"})
 
         let ring = outer

@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
-import {convertParkToFeature} from "@/services/geoService"
-import {searchPark} from "@/services/parkService"
-import {analyzeParkCooling, type CoolingAnalysisResult, formatCoolingStats} from "@/services/eeService"
+import {convertParkToFeature} from "~/services/geoService"
+import {searchPark} from "~/services/parkService"
+import {analyzeParkCooling, formatCoolingStats} from "~/services/eeService"
 import type Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
 import Style from "ol/style/Style"
@@ -11,20 +11,8 @@ import {drawBuffers} from "~/utils/buffer"
 import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
-import ParkSearchBar from "~/component/ParkSearchBar.vue";
-
-// ===== TIPOS =====
-interface SearchResult {
-  elements: Array<{
-    id: number
-    lat: number
-    lon: number
-    tags?: {
-      name?: string
-      [key: string]: unknown
-    }
-  }>
-}
+import ParkSearchBar from "~/components/ParkSearchBar.vue"
+import type { SearchResult, CoolingAnalysisResult } from '~/types'
 
 // ===== REFS =====
 const loading = ref(false)

@@ -1,28 +1,26 @@
 import * as turf from "@turf/turf"
-import GeoJSON from "ol/format/GeoJSON";
+import GeoJSON from "ol/format/GeoJSON"
 import type Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
-
-export type OSMPlace = {
-    lon: string
-    lat: string
-    display_name: string
-}
+import { useNotifications } from '~/composables/useErrorHandler'
+import type { OSMPlace, OSMElement, ParkGeometry } from '~/types'
 
 const format = new GeoJSON()
 
-
-export function convertParkToFeature(element: any): Feature<Geometry> {
-    const coords = element.geometry.map((p: any) => [
+/**
+ * Converte um elemento OSM em Feature OpenLayers
+ */
+export function convertParkToFeature(element: OSMElement): Feature<Geometry> {
+    const coords = element.geometry?.map((p: any) => [
         Number(p.lon),
         Number(p.lat)
-    ])
+    ]) ?? []
 
     // garante que o polígono está fechado
     const first = coords[0]
     const last = coords[coords.length - 1]
 
-    if (first[0] !== last[0] || first[1] !== last[1]) {
+    if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
         coords.push([...first])
     }
 
@@ -44,7 +42,9 @@ export function convertParkToFeature(element: any): Feature<Geometry> {
     ) as Feature<Geometry>
 }
 
-// 🔎 busca OSM
+/**
+ * Busca lugares no OpenStreetMap (Nominatim)
+ */
 export async function searchOSM(query: string): Promise<OSMPlace[]> {
     try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`
@@ -67,12 +67,16 @@ export async function searchOSM(query: string): Promise<OSMPlace[]> {
     }
 }
 
-// 📍 ponto (sem tipo chato)
+/**
+ * Cria um ponto geográfico (Turf)
+ */
 export function createPoint(lon: number, lat: number) {
     return turf.point([lon, lat])
 }
 
-// 📐 buffer (CORRETO sem Feature genérico)
+/**
+ * Cria um buffer em torno de um ponto
+ */
 export function createBuffer(point: any, distance = 500) {
     return turf.buffer(point, distance, {units: "meters"})
 }

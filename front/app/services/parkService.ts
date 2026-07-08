@@ -1,3 +1,8 @@
+import type { SearchResult, OSMElement } from '~/types'
+
+/**
+ * Busca parques no Overpass API (OpenStreetMap)
+ */
 export async function searchPark(query: string) {
     const overpassQuery = `
     [out:json];
