@@ -105,7 +105,7 @@
                       v-for="country in countrySuggestions"
                       :key="country.id"
                       class="autocomplete-item"
-                      @mousedown.prevent="selectCountry(country)"
+                      @mousedown.prevent="selectCountryHandler(country)"
                   >
                     <span class="country-name">{{ country.name }}</span>
                     <span class="country-code">{{ country.code }}</span>
@@ -132,7 +132,7 @@
                       v-for="city in citySuggestions"
                       :key="city.id"
                       class="autocomplete-item"
-                      @mousedown.prevent="selectCity(city)"
+                      @mousedown.prevent="selectCityHandler(city)"
                   >
                     <span class="city-name">{{ city.name }}</span>
                     <span class="city-state">{{ city.state || '' }}</span>
@@ -281,41 +281,20 @@
 import { ref, watch, onMounted } from 'vue'
 import { formatCoolingStats, type CoolingAnalysisResult } from '@/services/eeService'
 import { useNotifications } from '~/composables/useErrorHandler'
+import { useParkSearch } from '~/composables/useParkSearch'
+import { useCountrySearch } from '~/composables/useCountrySearch'
+import { useCitySearch } from '~/composables/useCitySearch'
+import { useAddParkForm } from '~/composables/useAddParkForm'
+import { useParkMenu } from '~/composables/useParkMenu'
+import { debounce, formatDate } from '@/utils/parkSearchUtils'
+import type { SearchResult, AddParkData } from '@/types/parkSearch'
 
 const { handleError, handleSuccess, handleInfo } = useNotifications()
-
-// 🔥 INTERFACES
-interface SearchResult {
-  id: number
-  lat: number
-  lon: number
-  tags?: { name?: string; [key: string]: unknown }
-}
-
-interface ParkSuggestion {
-  id: number
-  name: string
-  city: string
-  country: string
-  lat: number
-  lon: number
-  display_name: string
-}
-
-interface CountrySuggestion {
-  id: string
-  name: string
-  code: string
-}
-
-interface CitySuggestion {
-  id: number
-  name: string
-  state: string
-  country: string
-  lat: number
-  lon: number
-}
+const { parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions } = useParkSearch()
+const { countrySuggestions, showCountrySuggestions, searchCountries, hideSuggestions: hideCountrySuggestions, getCountryByCode } = useCountrySearch()
+const { citySuggestions, showCitySuggestions, searchCities, hideSuggestions: hideCitySuggestions } = useCitySearch()
+const { isAddingPark, newParkName, newParkCountry, newParkCity, newParkStartDate, newParkEndDate, selectedCountryCode, startAddPark, cancelAddPark, confirmAddPark: confirmAddParkForm, selectCountry } = useAddParkForm()
+const { isMenuOpen, selectedPark, menuCardRef, toggleMenu } = useParkMenu()
 
 // MODELOS
 const search = defineModel<string>('search', { required: true })
@@ -339,7 +318,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'search'): void
   (e: 'select', park: SearchResult): void
-  (e: 'addPark', data: { city: string; country: string; name: string; startDate: string; endDate: string }): void
+  (e: 'addPark', data: AddParkData): void
   (e: 'refresh'): void
   (e: 'export'): void
   (e: 'settings'): void
@@ -347,53 +326,42 @@ const emit = defineEmits<{
   (e: 'togglePixels'): void
 }>()
 
-// CONTROLE DO MENU
-const isMenuOpen = ref(false)
-const selectedPark = ref<SearchResult | null>(null)
-
-// 🔥 CONTROLE DO CADASTRO
-const isAddingPark = ref(false)
-const newParkName = ref('')
-const newParkCountry = ref('Brasil')
-const newParkCity = ref('')
-const newParkStartDate = ref('')
-const newParkEndDate = ref('')
-const selectedCountryCode = ref('BR')
-
-// 🔥 AUTOCOMPLETE - PARQUE
-const parkSuggestions = ref<ParkSuggestion[]>([])
-const showParkSuggestions = ref(false)
-const parkCache = new Map<string, ParkSuggestion[]>()
-
-// 🔥 AUTOCOMPLETE - PAÍS
-const countrySuggestions = ref<CountrySuggestion[]>([])
-const showCountrySuggestions = ref(false)
-const countryCache = new Map<string, CountrySuggestion[]>()
-
-// 🔥 AUTOCOMPLETE - CIDADE
-const cityCache = new Map<string, CitySuggestion[]>()
-const citySuggestions = ref<CitySuggestion[]>([])
-const showCitySuggestions = ref(false)
+// LOCAL STATE
 const cityWrapperRef = ref<HTMLElement | null>(null)
 
-// 🔥 LISTA DE PAÍSES
-const countryList: CountrySuggestion[] = [
-  { id: 'BR', name: 'Brasil', code: 'BR' },
-  { id: 'US', name: 'Estados Unidos', code: 'US' },
-  { id: 'PT', name: 'Portugal', code: 'PT' },
-  { id: 'FR', name: 'França', code: 'FR' },
-  { id: 'DE', name: 'Alemanha', code: 'DE' },
-  { id: 'IT', name: 'Itália', code: 'IT' },
-  { id: 'ES', name: 'Espanha', code: 'ES' },
-  { id: 'GB', name: 'Reino Unido', code: 'GB' },
-  { id: 'AR', name: 'Argentina', code: 'AR' },
-  { id: 'CL', name: 'Chile', code: 'CL' },
-  { id: 'CO', name: 'Colômbia', code: 'CO' },
-  { id: 'MX', name: 'México', code: 'MX' },
-  { id: 'PE', name: 'Peru', code: 'PE' },
-  { id: 'UY', name: 'Uruguai', code: 'UY' },
-  { id: 'PY', name: 'Paraguai', code: 'PY' },
-]
+// Debounced search functions
+const debouncedSearchParks = debounce(async (query: string) => {
+  if (query.length >= 2) {
+    const results = await searchParks(query, selectedCountryCode.value)
+    parkSuggestions.value = results
+    showParkSuggestions.value = results.length > 0
+  } else {
+    parkSuggestions.value = []
+    showParkSuggestions.value = false
+  }
+}, 600)
+
+const debouncedSearchCountries = debounce((query: string) => {
+  if (query.length >= 1) {
+    const results = searchCountries(query)
+    countrySuggestions.value = results
+    showCountrySuggestions.value = results.length > 0
+  } else {
+    countrySuggestions.value = []
+    showCountrySuggestions.value = false
+  }
+}, 300)
+
+const debouncedSearchCities = debounce(async (query: string) => {
+  if (query.length >= 2 && selectedCountryCode.value) {
+    const results = await searchCities(query, selectedCountryCode.value)
+    citySuggestions.value = results
+    showCitySuggestions.value = results.length > 0
+  } else {
+    citySuggestions.value = []
+    showCitySuggestions.value = false
+  }
+}, 600)
 
 const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
 
@@ -413,155 +381,38 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function toggleMenu() {
-  isMenuOpen.value = !isMenuOpen.value
-}
-
-// 🔥 FUNÇÃO DEBOUNCE
-function debounce<T extends (...args: any[]) => any>(fn: T, delay: number = 400): (...args: Parameters<T>) => void {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null
-  return (...args: Parameters<T>) => {
-    if (timeoutId) clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(...args), delay)
-  }
-}
 
 // ============================================================
-// 🔥 BUSCA PARQUES
+// 🔥 EVENT HANDLERS - PARQUE
 // ============================================================
-async function searchParks(query: string): Promise<ParkSuggestion[]> {
-  if (!query || query.length < 2) return []
-
-  const cacheKey = `${query.toLowerCase()}_${selectedCountryCode.value}`
-  if (parkCache.has(cacheKey)) return parkCache.get(cacheKey) || []
-
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=${selectedCountryCode.value}&limit=15`
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'DigitalTwinApp/1.0' }
-    })
-
-    if (response.status === 429) {
-      handleInfo('Muitas requisições. Aguarde um momento...')
-      return []
-    }
-
-    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`)
-
-    const data = await response.json()
-
-    const results = data
-        .filter((item: any) => {
-          const displayName = (item.display_name || '').toLowerCase()
-          const name = (item.name || '').toLowerCase()
-          const type = item.class || ''
-          const tags = item.tags || {}
-
-          const isPark =
-              displayName.includes('parque') ||
-              displayName.includes('park') ||
-              type === 'leisure' ||
-              tags.leisure === 'park' ||
-              tags.boundary === 'national_park'
-
-          const isSpecificPlace =
-              name.includes('vaca brava') ||
-              displayName.includes('vaca brava') ||
-              name.includes('parque') ||
-              displayName.includes('parque')
-
-          return isPark || isSpecificPlace
-        })
-        .map((item: any) => {
-          const address = item.address || {}
-          const city = address.city || address.town || address.village || ''
-          const country = address.country || ''
-          const name = item.display_name?.split(',')[0] || item.name || ''
-
-          return {
-            id: item.place_id,
-            name: name,
-            city: city,
-            country: country,
-            lat: parseFloat(item.lat),
-            lon: parseFloat(item.lon),
-            display_name: item.display_name || name
-          }
-        })
-        .slice(0, 10)
-
-    if (results.length > 0) parkCache.set(cacheKey, results)
-    return results
-  } catch (error) {
-    handleError(error, 'Erro ao buscar parques')
-    return []
-  }
-}
-const debouncedSearchParks = debounce(async (query: string) => {
-  if (query.length >= 2) {
-    const results = await searchParks(query)
-    parkSuggestions.value = results
-    showParkSuggestions.value = results.length > 0
-  } else {
-    parkSuggestions.value = []
-    showParkSuggestions.value = false
-  }
-}, 600)
-
 function onParkInput() {
   debouncedSearchParks(newParkName.value)
 }
 
-function selectPark(park: ParkSuggestion) {
+function selectPark(park: any) {
   newParkName.value = park.name
   if (park.city) newParkCity.value = park.city
   if (park.country) {
     newParkCountry.value = park.country
-    const found = countryList.find(c => c.name.toLowerCase() === park.country.toLowerCase())
-    if (found) selectedCountryCode.value = found.code
+    const code = park.country.split(',')[0]?.trim()
+    if (code) {
+      const country = getCountryByCode(code.substring(0, 2))
+      if (country) selectedCountryCode.value = country.code
+    }
   }
   showParkSuggestions.value = false
   handleSuccess(`Parque "${park.name}" selecionado!`)
 }
 
-function hideParkSuggestions() {
-  setTimeout(() => { showParkSuggestions.value = false }, 300)
-}
-
 // ============================================================
-// 🔥 BUSCA PAÍSES
+// 🔥 EVENT HANDLERS - PAÍS
 // ============================================================
-function searchCountries(query: string): CountrySuggestion[] {
-  if (!query || query.length < 1) return []
-
-  const cacheKey = query.toLowerCase()
-  if (countryCache.has(cacheKey)) return countryCache.get(cacheKey) || []
-
-  const results = countryList
-      .filter(c => c.name.toLowerCase().includes(query.toLowerCase()) ||
-          c.code.toLowerCase().includes(query.toLowerCase()))
-      .slice(0, 8)
-
-  if (results.length > 0) countryCache.set(cacheKey, results)
-  return results
-}
-
-const debouncedSearchCountries = debounce((query: string) => {
-  if (query.length >= 1) {
-    const results = searchCountries(query)
-    countrySuggestions.value = results
-    showCountrySuggestions.value = results.length > 0
-  } else {
-    countrySuggestions.value = []
-    showCountrySuggestions.value = false
-  }
-}, 300)
-
 function onCountryInput() {
   debouncedSearchCountries(newParkCountry.value)
 }
 
-function selectCountry(country: CountrySuggestion) {
+function selectCountryHandler(country: any) {
+  selectCountry(country.name)
   newParkCountry.value = country.name
   selectedCountryCode.value = country.code
   showCountrySuggestions.value = false
@@ -569,107 +420,35 @@ function selectCountry(country: CountrySuggestion) {
   citySuggestions.value = []
 }
 
-function hideCountrySuggestions() {
-  setTimeout(() => { showCountrySuggestions.value = false }, 300)
-}
-
 // ============================================================
-// 🔥 BUSCA CIDADES
+// 🔥 EVENT HANDLERS - CIDADE
 // ============================================================
-
-
-// 🔥 BUSCA CIDADES
-async function searchCities(query: string, countryCode: string): Promise<CitySuggestion[]> {
-  if (!query || query.length < 2) return []
-
-  const cacheKey = `${query.toLowerCase()}_${countryCode}`
-  if (cityCache.has(cacheKey)) return cityCache.get(cacheKey) || []
-
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=${countryCode}&limit=15`
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'DigitalTwinApp/1.0' }
-    })
-
-    if (response.status === 429) {
-      handleInfo('Muitas requisições. Aguarde um momento...')
-      return []
-    }
-
-    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`)
-
-    const data = await response.json()
-    console.log('📊 Dados da cidade (brutos):', data)
-
-    // 🔥 SEM FILTRO - USA TUDO QUE VEIO DO NOMINATIM
-    const results = data.map((item: any) => {
-      const address = item.address || {}
-      return {
-        id: item.place_id,
-        name: item.display_name?.split(',')[0] || item.name || '',
-        state: address.state || address.region || '',
-        country: address.country || '',
-        lat: parseFloat(item.lat),
-        lon: parseFloat(item.lon)
-      }
-    }).slice(0, 10)
-
-    console.log('📊 Cidades encontradas (sem filtro):', results)
-
-    if (results.length > 0) {
-      cityCache.set(cacheKey, results)
-    }
-    return results
-  } catch (error) {
-    console.error('Erro ao buscar cidades:', error)
-    return []
-  }
-}
-
-// 🔥 DEBOUNCE DA CIDADE (IGUAL AO PARQUE)
-const debouncedSearchCities = debounce(async (query: string) => {
-  console.log('🔍 Buscando cidades:', query, 'País:', selectedCountryCode.value)
-
-  if (query.length >= 2 && selectedCountryCode.value) {
-    const results = await searchCities(query, selectedCountryCode.value)
-    citySuggestions.value = results
-    showCitySuggestions.value = results.length > 0
-    console.log('📊 Sugestões de cidade:', results.length, 'Mostrar:', showCitySuggestions.value)
-  } else {
-    citySuggestions.value = []
-    showCitySuggestions.value = false
-  }
-}, 600)
-
-// 🔥 INPUT DA CIDADE
 function onCityInput() {
-  console.log('✏️ Input cidade:', newParkCity.value)
   debouncedSearchCities(newParkCity.value)
 }
 
-// 🔥 SELECIONA CIDADE
-function selectCity(city: CitySuggestion) {
-  console.log('✅ Cidade selecionada:', city.name)
+function onCityFocus() {
+  if (newParkCity.value.length >= 2 && citySuggestions.value.length > 0) {
+    showCitySuggestions.value = true
+  }
+}
+
+function onCityBlur() {
+  hideCitySuggestions()
+}
+
+function selectCityHandler(city: any) {
   newParkCity.value = city.name
   citySuggestions.value = []
   showCitySuggestions.value = false
 }
 
-// 🔥 ESCONDE SUGESTÕES (IGUAL AO PARQUE)
-function hideCitySuggestions() {
-  setTimeout(() => {
-    showCitySuggestions.value = false
-  }, 300)
-}
-
-// 🔥 CLICK FORA FECHA AS SUGESTÕES (IGUAL AO PARQUE)
 function handleClickOutsideCity(event: MouseEvent) {
   if (cityWrapperRef.value && !cityWrapperRef.value.contains(event.target as Node)) {
     showCitySuggestions.value = false
   }
 }
 
-// 🔥 LISTENER GLOBAL
 watch(showCitySuggestions, (newVal) => {
   if (newVal) {
     document.addEventListener('click', handleClickOutsideCity)
@@ -677,48 +456,16 @@ watch(showCitySuggestions, (newVal) => {
     document.removeEventListener('click', handleClickOutsideCity)
   }
 })
-// ============================================================
-// 🔥 FUNÇÕES DO CADASTRO
-// ============================================================
-function startAddPark() {
-  isAddingPark.value = true
-  newParkName.value = ''
-  newParkCountry.value = 'Brasil'
-  newParkCity.value = ''
-  newParkStartDate.value = ''
-  newParkEndDate.value = ''
-  selectedCountryCode.value = 'BR'
-  parkSuggestions.value = []
-  countrySuggestions.value = []
-  citySuggestions.value = []
-  showParkSuggestions.value = false
-  showCountrySuggestions.value = false
-  showCitySuggestions.value = false
-}
 
-function cancelAddPark() {
-  isAddingPark.value = false
-  handleInfo('Cadastro cancelado')
-}
-
+// ============================================================
+// 🔥 EVENT HANDLERS - CADASTRO
+// ============================================================
 function confirmAddPark() {
-  if (!newParkCity.value || !newParkCountry.value || !newParkName.value ||
-      !newParkStartDate.value || !newParkEndDate.value) {
-    handleError('Preencha todos os campos obrigatórios')
-    return
+  const data = confirmAddParkForm()
+  if (data) {
+    isMenuOpen.value = false
+    emit('addPark', data)
   }
-
-  emit('addPark', {
-    city: newParkCity.value,
-    country: newParkCountry.value,
-    name: newParkName.value,
-    startDate: newParkStartDate.value,
-    endDate: newParkEndDate.value
-  })
-
-  isAddingPark.value = false
-  isMenuOpen.value = false
-  handleSuccess(`Parque "${newParkName.value}" cadastrado com sucesso!`)
 }
 
 function handleSelectPark() {
@@ -744,30 +491,6 @@ function handleSelect(item: SearchResult) {
 function handleTogglePixels() {
   emit('togglePixels')
 }
-
-// FECHA O MENU AO CLICAR FORA
-const menuCardRef = ref<HTMLElement | null>(null)
-
-function handleClickOutside(event: MouseEvent) {
-  if (menuCardRef.value && !menuCardRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false
-    if (isAddingPark.value) isAddingPark.value = false
-  }
-}
-
-watch(isMenuOpen, (newVal) => {
-  if (newVal) {
-    document.addEventListener('click', handleClickOutside)
-  } else {
-    document.removeEventListener('click', handleClickOutside)
-  }
-})
-
-// 🔥 PRÉ-SELECIONA BRASIL AO INICIAR
-onMounted(() => {
-  newParkCountry.value = 'Brasil'
-  selectedCountryCode.value = 'BR'
-})
 </script>
 
 <style scoped>
