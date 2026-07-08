@@ -12,9 +12,6 @@ services:
       - PROJECT_ID=digital-twin-500823
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
       - DITTO_URL=http://ditto:8080
-    volumes:
-      - ./back:/app
-      - ./credentials.json:/app/credentials.json:ro
     restart: unless-stopped
     networks:
       - digital_twin_network
