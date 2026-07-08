@@ -206,6 +206,12 @@
             />
           </div>
 
+          <!-- 🔥 DATA DA IMAGEM -->
+          <div v-if="coolingData.image_date" class="stat-item image-date">
+            <span>📅 Data da Imagem</span>
+            <strong>{{ formatDate(coolingData.image_date) }}</strong>
+          </div>
+
           <div
               v-for="stat in formatCoolingStats(coolingData)"
               :key="stat.label"
@@ -391,6 +397,22 @@ const countryList: CountrySuggestion[] = [
 
 const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
 
+function formatDate(dateStr: string): string {
+  if (!dateStr) return 'N/A'
+
+  try {
+    // 🔥 SUPORTA FORMATOS: YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss
+    const parts = dateStr.split('T')[0].split('-')
+    if (parts.length === 3) {
+      const [year, month, day] = parts
+      return `${day}/${month}/${year}`
+    }
+    return dateStr
+  } catch (e) {
+    return dateStr
+  }
+}
+
 function toggleMenu() {
   isMenuOpen.value = !isMenuOpen.value
 }
@@ -414,7 +436,6 @@ async function searchParks(query: string): Promise<ParkSuggestion[]> {
   if (parkCache.has(cacheKey)) return parkCache.get(cacheKey) || []
 
   try {
-    // 🔥 ADICIONA countrycodes PARA FILTRAR PELO PAÍS SELECIONADO
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=${selectedCountryCode.value}&limit=15`
     const response = await fetch(url, {
       headers: { 'User-Agent': 'DigitalTwinApp/1.0' }
@@ -612,13 +633,13 @@ const debouncedSearchCities = debounce(async (query: string) => {
   if (query.length >= 2 && selectedCountryCode.value) {
     const results = await searchCities(query, selectedCountryCode.value)
     citySuggestions.value = results
-    showCitySuggestions.value = results.length > 0  // 🔥 MESMA LÓGICA DO PARQUE!
+    showCitySuggestions.value = results.length > 0
     console.log('📊 Sugestões de cidade:', results.length, 'Mostrar:', showCitySuggestions.value)
   } else {
     citySuggestions.value = []
     showCitySuggestions.value = false
   }
-}, 600) // 🔥 MESMO DELAY DO PARQUE
+}, 600)
 
 // 🔥 INPUT DA CIDADE
 function onCityInput() {
@@ -631,14 +652,14 @@ function selectCity(city: CitySuggestion) {
   console.log('✅ Cidade selecionada:', city.name)
   newParkCity.value = city.name
   citySuggestions.value = []
-  showCitySuggestions.value = false  // 🔥 FECHA AS SUGESTÕES
+  showCitySuggestions.value = false
 }
 
 // 🔥 ESCONDE SUGESTÕES (IGUAL AO PARQUE)
 function hideCitySuggestions() {
   setTimeout(() => {
     showCitySuggestions.value = false
-  }, 300)  // 🔥 MESMO DELAY DO PARQUE
+  }, 300)
 }
 
 // 🔥 CLICK FORA FECHA AS SUGESTÕES (IGUAL AO PARQUE)

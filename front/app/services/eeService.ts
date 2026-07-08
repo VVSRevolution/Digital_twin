@@ -79,17 +79,23 @@ export interface ParkGeometry {
  * @returns Dados do cooling island (PCI, PCD, PCA, buffers)
  */
 export async function analyzeParkCooling(
-    geometry: ParkGeometry
+    geometry: ParkGeometry,
+    numBuffers: number = 11,
+    bufferDistance: number = 90
 ): Promise<CoolingAnalysisResult> {
     try {
-        console.log('📡 Enviando requisição para:', `${API_URL}/park-cooling`)
+        console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`)
 
-        const response = await fetch(`${API_URL}/park-cooling`, {
+        const response = await fetch(`${API_URL}/api/park/analyze`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({geometry}),
+            body: JSON.stringify({
+                geometry,
+                numBuffers,
+                bufferDistance,
+            }),
         })
 
         if (!response.ok) {
