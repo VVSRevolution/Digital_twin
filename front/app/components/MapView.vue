@@ -729,7 +729,7 @@ onUnmounted(() => {
 }
 
 /* RESPONSIVIDADE */
-@media (max-width: 768px) {
+@media (max-width: 360px) {
   .search-bar {
     top: 12px;
     left: 50%;

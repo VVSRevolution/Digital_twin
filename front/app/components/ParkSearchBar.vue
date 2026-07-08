@@ -141,6 +141,37 @@
               </div>
             </div>
 
+            <!-- 🔥 BUFFERS CONFIG -->
+            <div class="menu-section">
+              <label class="menu-label">📐 Configuração dos Buffers</label>
+              <div class="buffer-config">
+                <div class="buffer-field">
+                  <label for="numBuffers">Número de anéis</label>
+                  <input
+                      id="numBuffers"
+                      v-model.number="newNumBuffers"
+                      type="number"
+                      min="1"
+                      max="20"
+                      class="add-field buffer-input"
+                  />
+                </div>
+                <div class="buffer-field">
+                  <label for="bufferDistance">Distância (m)</label>
+                  <input
+                      id="bufferDistance"
+                      v-model.number="newBufferDistance"
+                      type="number"
+                      min="10"
+                      max="500"
+                      step="10"
+                      class="add-field buffer-input"
+                  />
+                </div>
+              </div>
+              <small class="buffer-hint">Padrão: 11 anéis de 90m. Ajuste conforme necessário.</small>
+            </div>
+
             <div class="menu-section">
               <label class="menu-label">📅 Período de Análise</label>
               <div class="date-range">
@@ -221,6 +252,12 @@
             <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
           </div>
 
+          <!-- 🔥 INFO DOS BUFFERS USADOS -->
+          <div class="stat-item buffer-info">
+            <span>📐 Buffers</span>
+            <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
+          </div>
+
           <div v-if="coolingData.error" class="error-msg">
             ⚠️ {{ coolingData.error }}
           </div>
@@ -296,6 +333,12 @@ const { citySuggestions, showCitySuggestions, searchCities, hideSuggestions: hid
 const { isAddingPark, newParkName, newParkCountry, newParkCity, newParkStartDate, newParkEndDate, selectedCountryCode, startAddPark, cancelAddPark, confirmAddPark: confirmAddParkForm, selectCountry } = useAddParkForm()
 const { isMenuOpen, selectedPark, menuCardRef, toggleMenu } = useParkMenu()
 
+// ============================================================
+// 🔥 BUFFERS CONFIG
+// ============================================================
+const newNumBuffers = ref(11)
+const newBufferDistance = ref(90)
+
 // MODELOS
 const search = defineModel<string>('search', { required: true })
 const showPixels = defineModel<boolean>('showPixels', { default: true })
@@ -318,7 +361,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'search'): void
   (e: 'select', park: SearchResult): void
-  (e: 'addPark', data: AddParkData): void
+  (e: 'addPark', data: AddParkData & { numBuffers: number; bufferDistance: number }): void
   (e: 'refresh'): void
   (e: 'export'): void
   (e: 'settings'): void
@@ -369,7 +412,6 @@ function formatDate(dateStr: string): string {
   if (!dateStr) return 'N/A'
 
   try {
-    // 🔥 SUPORTA FORMATOS: YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss
     const parts = dateStr.split('T')[0].split('-')
     if (parts.length === 3) {
       const [year, month, day] = parts
@@ -380,7 +422,6 @@ function formatDate(dateStr: string): string {
     return dateStr
   }
 }
-
 
 // ============================================================
 // 🔥 EVENT HANDLERS - PARQUE
@@ -461,8 +502,13 @@ watch(showCitySuggestions, (newVal) => {
 // 🔥 EVENT HANDLERS - CADASTRO
 // ============================================================
 function confirmAddPark() {
-  const data = confirmAddParkForm()
-  if (data) {
+  const baseData = confirmAddParkForm()
+  if (baseData) {
+    const data = {
+      ...baseData,
+      numBuffers: newNumBuffers.value,
+      bufferDistance: newBufferDistance.value
+    }
     isMenuOpen.value = false
     emit('addPark', data)
   }
@@ -503,7 +549,7 @@ function handleTogglePixels() {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 420px;
+  width: 360px;
   max-height: 90vh;
   overflow-y: auto;
 }
@@ -580,6 +626,52 @@ function handleTogglePixels() {
   color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* 🔥 BUFFER CONFIG */
+.buffer-config {
+  display: flex;
+  gap: 12px;
+}
+
+.buffer-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.buffer-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.buffer-input {
+  width: 100% !important;
+}
+
+.buffer-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* 🔥 BUFFER INFO NO RESULTADO */
+.buffer-info {
+  background: #f0fdf4;
+  border-radius: 4px;
+  padding: 4px 8px !important;
+  margin-bottom: 4px;
+}
+
+.buffer-info span {
+  color: #15803d;
+}
+
+.buffer-info strong {
+  color: #166534;
 }
 
 /* 🔥 AUTOCOMPLETE */
@@ -800,7 +892,7 @@ function handleTogglePixels() {
 }
 
 /* RESPONSIVIDADE */
-@media (max-width: 768px) {
+@media (max-width: 360px) {
   .search-wrapper {
     left: 8px;
     right: 8px;
@@ -815,6 +907,11 @@ function handleTogglePixels() {
 
   .menu-actions {
     flex-direction: column;
+  }
+
+  .buffer-config {
+    flex-direction: column;
+    gap: 8px;
   }
 }
 </style>
