@@ -33,9 +33,8 @@ jobs:
             # CRIAR CREDENTIALS
             echo '${{ secrets.GCP_CREDENTIALS }}' > credentials.json
             chmod 644 credentials.json
-          
-            # SE EXISTIR credentials.json NA PASTA BACK, REMOVER
-            rm -f back/credentials.json
+            cp credentials.json back/credentials.json
+
           
             # DOCKER SEM SUDO
             docker-compose down || echo "Nenhum container"
