@@ -267,8 +267,24 @@
             <Divider />
             <div class="controls">
               <div class="toggle-wrapper">
-                <Checkbox v-model="showPixels" binary @change="handleTogglePixels" />
+                <Checkbox v-model="showPixels"
+                          binary
+                          @update:model-value="handleTogglePixels"
+                />
                 <label>Mostrar pixels de temperatura</label>
+              </div>
+
+              <!-- 🔥 CONTROLE DE OPACIDADE (NOVO) -->
+              <div v-if="showPixels" class="opacity-control">
+                <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    :value="pixelOpacity * 100"
+                    @input="handleOpacityChange($event)"
+                    class="opacity-slider"
+                />
               </div>
 
               <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
@@ -352,6 +368,7 @@ const props = defineProps<{
   showStats: boolean
   coolingData: CoolingAnalysisResult | null
   parkName: string
+  pixelOpacity: number
   gradientMin: number | null
   gradientMax: number | null
   totalPixels: number
@@ -367,6 +384,7 @@ const emit = defineEmits<{
   (e: 'settings'): void
   (e: 'about'): void
   (e: 'togglePixels'): void
+  (e: 'updateOpacity', value: number): void
 }>()
 
 // LOCAL STATE
@@ -408,20 +426,6 @@ const debouncedSearchCities = debounce(async (query: string) => {
 
 const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return 'N/A'
-
-  try {
-    const parts = dateStr.split('T')[0].split('-')
-    if (parts.length === 3) {
-      const [year, month, day] = parts
-      return `${day}/${month}/${year}`
-    }
-    return dateStr
-  } catch (e) {
-    return dateStr
-  }
-}
 
 // ============================================================
 // 🔥 EVENT HANDLERS - PARQUE
@@ -535,7 +539,14 @@ function handleSelect(item: SearchResult) {
 }
 
 function handleTogglePixels() {
+  console.log(" updade pixel")
   emit('togglePixels')
+}
+
+function handleOpacityChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const value = parseFloat(target.value)
+  emit('updateOpacity', value)
 }
 </script>
 
@@ -913,5 +924,49 @@ function handleTogglePixels() {
     flex-direction: column;
     gap: 8px;
   }
+}
+/* 🔥 CONTROLE DE OPACIDADE */
+.opacity-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.opacity-control label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.opacity-slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  border-radius: 2px;
+  outline: none;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.opacity-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid white;
 }
 </style>

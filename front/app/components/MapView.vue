@@ -13,6 +13,7 @@ import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
 import type { SearchResult, CoolingAnalysisResult } from '~/types'
+import {Overlay} from "ol";
 
 // ===== REFS =====
 const loading = ref(false)
@@ -29,6 +30,9 @@ const gradientMin = ref<number | null>(null)
 const gradientMax = ref<number | null>(null)
 const totalPixels = ref(0)
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+const tooltipOverlay = ref<Overlay | null>(null)
+const tooltipElement = ref<HTMLElement | null>(null)
+const pixelOpacity = ref(0.50)
 
 // ===== VARIÁVEIS OPENLAYERS =====
 let map: any
@@ -79,10 +83,42 @@ function getGradientColor(t: number): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
+// ===== FUNÇÃO PARA CRIAR/ATUALIZAR O TOOLTIP =====
+function setupTooltip() {
+  // Cria o elemento HTML do tooltip
+  const el = document.createElement('div')
+  el.style.cssText = `
+    position: relative;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.15);
+    font-family: 'Titillium Web', sans-serif;
+    transition: opacity 0.15s ease;
+    opacity: 0;
+    z-index: 1000;
+  `
+  tooltipElement.value = el
 
-// ===== FUNÇÃO PARA CRIAR RASTER CONTÍNUO COM TRANSPARÊNCIA =====
+  // Cria o overlay do OpenLayers
+  const overlay = new Overlay({
+    element: el,
+    positioning: 'bottom-center',
+    offset: [0, -10],
+    stopEvent: false
+  })
+  tooltipOverlay.value = overlay
+  map.addOverlay(overlay)
+}
+
+// ===== FUNÇÃO COM GRID PERFEITO (SEM ESPAÇOS) =====
 async function addPixelLayer(buffers: any[]) {
-  // Remove camada anterior
   if (pixelLayer) {
     map.removeLayer(pixelLayer)
     pixelLayer = null
@@ -90,7 +126,7 @@ async function addPixelLayer(buffers: any[]) {
 
   if (!showPixels.value) return
 
-  const allTemps: number[] = []
+  // 🔥 COLETA TODOS OS PIXELS
   const points: { lon: number; lat: number; temp: number }[] = []
 
   buffers.forEach((buffer) => {
@@ -101,31 +137,21 @@ async function addPixelLayer(buffers: any[]) {
           lat: pixel.lat,
           temp: pixel.temperature
         })
-        allTemps.push(pixel.temperature)
       }
     })
   })
 
-  if (points.length === 0) return
+  if (points.length === 0) {
+    console.log('❌ Nenhum pixel encontrado')
+    return
+  }
 
-  // 🔥 CALCULA EXTENSÃO DA ÁREA
-  const lons = points.map(p => p.lon)
-  const lats = points.map(p => p.lat)
+  console.log(`📊 ${points.length} pixels encontrados`)
 
-  const margin = 0.0005
-  const minLon = Math.min(...lons) - margin
-  const maxLon = Math.max(...lons) + margin
-  const minLat = Math.min(...lats) - margin
-  const maxLat = Math.max(...lats) + margin
-
-  // 🔥 RESOLUÇÃO (15 metros)
-  const resolution = 0.00015
-  const cols = Math.ceil((maxLon - minLon) / resolution)
-  const rows = Math.ceil((maxLat - minLat) / resolution)
-
-  // 🔥 CALCULA GRADIENTE LOCAL
-  const minTemp = Math.min(...allTemps)
-  const maxTemp = Math.max(...allTemps)
+  // 🔥 CALCULA GRADIENTE
+  const temps = points.map(p => p.temp)
+  const minTemp = Math.min(...temps)
+  const maxTemp = Math.max(...temps)
   const range = maxTemp - minTemp
   const gradientMinVal = minTemp - range * 0.05
   const gradientMaxVal = maxTemp + range * 0.05
@@ -135,91 +161,70 @@ async function addPixelLayer(buffers: any[]) {
   gradientMax.value = gradientMaxVal
   totalPixels.value = points.length
 
-  console.log(`📊 Criando raster contínuo: ${cols}x${rows} = ${cols * rows} pixels`)
+  // 🔥 IMPORTAÇÕES
+  const VectorLayer = (await import('ol/layer/Vector')).default
+  const VectorSource = (await import('ol/source/Vector')).default
+  const Feature = (await import('ol/Feature')).default
+  const Style = (await import('ol/style/Style')).default
+  const FillStyle = (await import('ol/style/Fill')).default
+  const StrokeStyle = (await import('ol/style/Stroke')).default
+  const Polygon = (await import('ol/geom/Polygon')).default
 
-  // 🔥 CRIA ARRAY DE CORES (RGBA) COM TRANSPARÊNCIA
-  const imageData = new Uint8ClampedArray(cols * rows * 4)
-  const radius = resolution * 4
-  const radiusSq = radius * radius
+  // 🔥 RESOLUÇÃO (30 METROS) - USA O MESMO DO TOOLTIP
+  const pixelSizeDegrees = 0.00026
 
-  // 🔥 DEFINE UM LIMITE MÍNIMO DE PESO PARA CONSIDERAR DADO VÁLIDO
-  const MIN_WEIGHT = 0.01
+  // 🔥 USA AS COORDENADAS REAIS DOS PIXELS (SEM ARREDONDAR)
+  const source = new VectorSource()
+  const features: any[] = []
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const lon = minLon + col * resolution
-      const lat = minLat + row * resolution
+  points.forEach(p => {
+    // 🔥 CALCULA COR
+    let normalized = (p.temp - gradientMinVal) / gradientRange
+    normalized = Math.max(0, Math.min(1, normalized))
+    const color = getGradientColor(normalized)
 
-      let weightedSum = 0
-      let weightSum = 0
+    // 🔥 CRIA QUADRADO CENTRADO NA POSIÇÃO EXATA DO PIXEL
+    const half = pixelSizeDegrees / 2
+    const [x1, y1] = fromLonLat([p.lon - half, p.lat - half]) as [number, number]
+    const [x2, y2] = fromLonLat([p.lon + half, p.lat + half]) as [number, number]
 
-      for (const point of points) {
-        const dx = point.lon - lon
-        const dy = point.lat - lat
-        const distSq = dx * dx + dy * dy
+    const square = new Polygon([[
+      [x1, y1],
+      [x1, y2],
+      [x2, y2],
+      [x2, y1],
+      [x1, y1]
+    ]])
 
-        if (distSq < radiusSq) {
-          const dist = Math.sqrt(distSq)
-          const weight = 1 / (dist + 0.001)
-          weightedSum += point.temp * weight
-          weightSum += weight
-        }
-      }
+    const feature = new Feature({
+      geometry: square,
+      temperature: p.temp
+    })
 
-      const idx = (row * cols + col) * 4
+    feature.setStyle(new Style({
+      fill: new FillStyle({
+        color: color,
+      }),
+      stroke: new StrokeStyle({
+        color: 'rgba(255,255,255,0.2)',
+        width: 0.5
+      })
+    }))
 
-      // 🔥 SE NÃO HOUVER DADOS SUFICIENTES, FAZ TRANSPARENTE
-      if (weightSum < MIN_WEIGHT) {
-        imageData[idx] = 0
-        imageData[idx + 1] = 0
-        imageData[idx + 2] = 0
-        imageData[idx + 3] = 0 // 🔥 COMPLETAMENTE TRANSPARENTE
-        continue
-      }
 
-      const temp = weightedSum / weightSum
-      let normalized = (temp - gradientMinVal) / gradientRange
-      normalized = Math.max(0, Math.min(1, normalized))
+    features.push(feature)
+  })
 
-      const color = getGradientColor(normalized)
-      const nums = color.match(/\d+/g)?.map(Number) ?? [0, 0, 0]
-      const [r = 0, g = 0, b = 0] = nums
+  source.addFeatures(features)
 
-      imageData[idx] = r
-      imageData[idx + 1] = g
-      imageData[idx + 2] = b
-      imageData[idx + 3] = 220 // 🔥 SEMI-TRANSPARENTE (opaco)
-    }
-  }
-
-  // 🔥 CRIA IMAGEM
-  const canvas = document.createElement('canvas')
-  canvas.width = cols
-  canvas.height = rows
-  const ctx = canvas.getContext('2d')!
-  const imageDataObj = new ImageData(imageData, cols, rows)
-  ctx.putImageData(imageDataObj, 0, 0)
-  const imageUrl = canvas.toDataURL('image/png')
-
-  // 🔥 ADICIONA AO MAPA COMO RASTER
-  const ImageLayer = (await import('ol/layer/Image')).default
-  const ImageStatic = (await import('ol/source/ImageStatic')).default
-
-  const [x1, y1] = fromLonLat([minLon, minLat]) as [number, number]
-  const [x2, y2] = fromLonLat([maxLon, maxLat]) as [number, number]
-  const extent: [number, number, number, number] = [x1, y1, x2, y2]
-
-  pixelLayer = new ImageLayer({
-    source: new ImageStatic({
-      url: imageUrl,
-      imageExtent: extent
-    }),
+  pixelLayer = new VectorLayer({
+    source: source,
     zIndex: 5,
-    opacity: 0.75
+    opacity: pixelOpacity.value,
   })
 
   map.addLayer(pixelLayer)
-  console.log(`✅ Raster contínuo criado com ${cols * rows} pixels (áreas sem dados transparentes)`)
+  console.log(`✅ ${features.length} quadrados criados`)
 }
 
 // ===== FUNÇÃO PRINCIPAL =====
@@ -247,18 +252,27 @@ async function searchPlace() {
   }
 
   try {
-    const data = await searchPark(search.value) as SearchResult
-    results.value = data.elements || []
+    const data = await searchPark(search.value)
 
-    if (data.elements?.length) {
-      const element = data.elements[0]
+    // 🔥 CONVERSÃO SEGURA
+    const elements = (data?.elements || []) as any[]
+    results.value = elements
+
+    if (elements.length > 0) {
+      const element = elements[0]
+
+      // 🔥 VERIFICA SE O ELEMENTO É VÁLIDO
+      if (!element || !element.geometry || element.geometry.length === 0) {
+        console.warn('⚠️ Elemento inválido ou sem geometria')
+        const {handleInfo} = useNotifications()
+        handleInfo('Parque encontrado mas sem geometria disponível')
+        return
+      }
+
       const feature = convertParkToFeature(element)
 
       feature.setStyle(
           new Style({
-            fill: new Fill({
-              color: "rgba(22, 152, 7, 0.35)"
-            }),
             stroke: new Stroke({
               color: "#00aa00",
               width: 3,
@@ -282,12 +296,16 @@ async function searchPlace() {
       })
 
       results.value = []
+    } else {
+      const {handleInfo} = useNotifications()
+      handleInfo('Nenhum parque encontrado')
     }
 
   } catch (error) {
     console.error("❌ Erro ao buscar parque:", error)
     const {handleError} = useNotifications()
     handleError(error, 'Erro ao buscar parque')
+    results.value = []
   } finally {
     loading.value = false
     isSearching.value = false
@@ -405,12 +423,23 @@ async function selectPark(item: SearchResult['elements'][0]) {
   }
 }
 
-// ===== TOGGLE PIXELS =====
+// ===== FUNÇÃO PARA ATUALIZAR OPACIDADE =====
+function updatePixelOpacity(value: number) {
+  pixelOpacity.value = value / 100
+  if (pixelLayer) {
+    pixelLayer.setOpacity(pixelOpacity.value)
+  }
+}
+
+// ===== FUNÇÃO TOGGLE PIXELS =====
 async function togglePixels() {
-  showPixels.value = !showPixels.value
+  // 🔥 INVERTE O VALOR
+
   if (showPixels.value && coolingData.value?.buffers) {
+    console.log(showPixels.value, "colocar mapa ")
     await addPixelLayer(coolingData.value.buffers)
   } else if (pixelLayer) {
+    console.log(showPixels.value, "remover mapa ")
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
@@ -444,6 +473,70 @@ onMounted(async () => {
       zoom: 12
     })
   })
+
+// ===== EVENTO PARA MOSTRAR TOOLTIP AO PASSAR O MOUSE =====
+  map.on('pointermove', (evt: any) => {
+    const overlay = tooltipOverlay.value
+    const el = tooltipElement.value
+    if (!overlay || !el) return
+
+    const coordinate = evt.coordinate
+    const lonLat = proj.toLonLat(coordinate)
+
+    // 🔥 FORÇA O TIPO COMO ARRAY DE NÚMEROS
+    if (!lonLat || !Array.isArray(lonLat) || lonLat.length < 2) {
+      el.style.opacity = '0'
+      overlay.setPosition(undefined)
+      return
+    }
+
+    // 🔥 USA AS VARIÁVEIS COM TIPO CERTO
+    const lon = lonLat[0] as number
+    const lat = lonLat[1] as number
+
+    let closestTemp = null
+    let closestDist = Infinity
+
+    if (coolingData.value?.buffers) {
+      for (const buffer of coolingData.value.buffers) {
+        for (const pixelData of (buffer.pixels || [])) {
+          if (pixelData.lat != null && pixelData.lon != null && pixelData.temperature != null) {
+            const dx = pixelData.lon - lon
+            const dy = pixelData.lat - lat
+            const dist = Math.sqrt(dx*dx + dy*dy)
+
+            if (dist < 0.0003 && dist < closestDist) {
+              closestDist = dist
+              closestTemp = pixelData.temperature
+            }
+          }
+        }
+      }
+    }
+
+    if (closestTemp !== null) {
+      el.innerHTML = `🌡️ ${closestTemp.toFixed(2)}°C`
+      el.style.opacity = '1'
+      el.style.transform = 'translate(-50%, -100%)'
+      overlay.setPosition(coordinate)
+    } else {
+      el.style.opacity = '0'
+      overlay.setPosition(undefined)
+    }
+  })
+
+// ===== ESCONDE TOOLTIP AO SAIR DO MAPA =====
+  map.getTargetElement().addEventListener('mouseleave', () => {
+    if (tooltipElement.value) {
+      tooltipElement.value.style.opacity = '0'
+    }
+    if (tooltipOverlay.value) {
+      tooltipOverlay.value.setPosition(undefined)
+    }
+  })
+
+// Inicializa o tooltip
+  setupTooltip()
 })
 
 // ===== LIMPA MAPA =====
@@ -453,6 +546,20 @@ onUnmounted(() => {
   }
   if (pixelLayer) {
     map?.removeLayer(pixelLayer)
+  }
+  if (map) {
+    map.setTarget(undefined)
+    map.dispose()
+  }
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  if (pixelLayer) {
+    map?.removeLayer(pixelLayer)
+  }
+  // Remove o overlay do tooltip
+  if (tooltipOverlay.value) {
+    map?.removeOverlay(tooltipOverlay.value)
   }
   if (map) {
     map.setTarget(undefined)
@@ -481,6 +588,7 @@ onUnmounted(() => {
           :gradientMin="gradientMin"
           :gradientMax="gradientMax"
           :totalPixels="totalPixels"
+          :pixelOpacity="pixelOpacity"
           @search="searchPlace"
           @select="selectPark"
           @addPark="openAddParkModal"
@@ -489,6 +597,7 @@ onUnmounted(() => {
           @settings="openSettings"
           @about="showAbout"
           @togglePixels="togglePixels"
+          @updateOpacity="updatePixelOpacity"
       />
     </div>
   </div>
