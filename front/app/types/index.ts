@@ -71,6 +71,9 @@ export interface CoolingAnalysisResult {
         m2: number | null
     } | null
     timestamp: string
+    image_date?: string
+    num_buffers?: number
+    buffer_distance?: number
     error?: string
 }
 

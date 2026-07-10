@@ -331,8 +331,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { formatCoolingStats, type CoolingAnalysisResult } from '@/services/eeService'
+import { ref, watch} from 'vue'
+import { formatCoolingStats, type CoolingAnalysisResult } from '@/services'
 import { useNotifications } from '~/composables/useErrorHandler'
 import { useParkSearch } from '~/composables/useParkSearch'
 import { useCountrySearch } from '~/composables/useCountrySearch'
