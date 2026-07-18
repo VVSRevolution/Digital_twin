@@ -16,7 +16,7 @@ services:
     networks:
       - digital_twin_network_dev
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U digital_twin -d digital_twin"]
+      test: [ "CMD-SHELL", "pg_isready -U digital_twin -d digital_twin" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,7 +31,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin123
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
-      - "8081:80"
+      - "8082:80"
     networks:
       - digital_twin_network_dev
     depends_on:
