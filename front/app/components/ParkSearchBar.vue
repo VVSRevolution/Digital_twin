@@ -7,12 +7,12 @@
           <!-- MENU SANDUÍCHE -->
           <div class="menu-container">
             <Button
+                aria-label="Menu"
                 icon="pi pi-bars"
+                rounded
                 severity="secondary"
                 text
-                rounded
                 @click="toggleMenu"
-                aria-label="Menu"
             />
           </div>
 
@@ -20,15 +20,15 @@
           <div class="search-input">
             <input
                 v-model="search"
-                type="text"
-                placeholder="Pesquisar parque..."
                 class="search-field"
+                placeholder="Pesquisar parque..."
+                type="text"
                 @keydown.enter="handleSearch"
             />
             <Button
+                :loading="loading || analyzing"
                 icon="pi pi-search"
                 label="Buscar"
-                :loading="loading || analyzing"
                 @click="handleSearch"
             />
           </div>
@@ -36,7 +36,7 @@
 
         <!-- OPÇÕES DO MENU -->
         <div v-if="isMenuOpen" class="menu-options">
-          <Divider />
+          <Divider/>
 
           <!-- 🔥 MODO NORMAL: SELECIONAR PARQUE -->
           <template v-if="!isAddingPark">
@@ -45,17 +45,17 @@
               <Select
                   v-model="selectedPark"
                   :options="predefinedParks"
+                  fluid
                   optionLabel="tags.name"
                   placeholder="Selecione um parque..."
-                  fluid
                   @change="handleSelectPark"
               />
             </div>
 
             <Button
+                fluid
                 icon="pi pi-plus"
                 label=" Adicionar Parque"
-                fluid
                 @click="startAddPark"
             />
           </template>
@@ -68,11 +68,11 @@
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkName"
-                    type="text"
-                    placeholder="Digite o nome do parque..."
                     class="add-field"
-                    @input="onParkInput"
+                    placeholder="Digite o nome do parque..."
+                    type="text"
                     @blur="hideParkSuggestions"
+                    @input="onParkInput"
                 />
                 <div v-if="parkSuggestions.length && showParkSuggestions" class="autocomplete-list">
                   <div
@@ -94,11 +94,11 @@
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkCountry"
-                    type="text"
-                    placeholder="Digite o país..."
                     class="add-field"
-                    @input="onCountryInput"
+                    placeholder="Digite o país..."
+                    type="text"
                     @blur="hideCountrySuggestions"
+                    @input="onCountryInput"
                 />
                 <div v-if="countrySuggestions.length && showCountrySuggestions" class="autocomplete-list">
                   <div
@@ -117,15 +117,15 @@
             <!-- 🔥 CIDADE (com autocomplete, filtrada pelo país) -->
             <div class="menu-section">
               <label class="menu-label">📍 Cidade</label>
-              <div class="autocomplete-wrapper" ref="cityWrapperRef">
+              <div ref="cityWrapperRef" class="autocomplete-wrapper">
                 <input
                     v-model="newParkCity"
-                    type="text"
-                    placeholder="Digite a cidade..."
                     class="add-field"
-                    @input="onCityInput"
-                    @focus="onCityFocus"
+                    placeholder="Digite a cidade..."
+                    type="text"
                     @blur="onCityBlur"
+                    @focus="onCityFocus"
+                    @input="onCityInput"
                 />
                 <div v-if="citySuggestions.length && showCitySuggestions" class="autocomplete-list">
                   <div
@@ -150,10 +150,10 @@
                   <input
                       id="numBuffers"
                       v-model.number="newNumBuffers"
-                      type="number"
-                      min="1"
-                      max="20"
                       class="add-field buffer-input"
+                      max="20"
+                      min="1"
+                      type="number"
                   />
                 </div>
                 <div class="buffer-field">
@@ -161,47 +161,96 @@
                   <input
                       id="bufferDistance"
                       v-model.number="newBufferDistance"
-                      type="number"
-                      min="10"
-                      max="500"
-                      step="10"
                       class="add-field buffer-input"
+                      max="500"
+                      min="10"
+                      step="10"
+                      type="number"
                   />
                 </div>
               </div>
               <small class="buffer-hint">Padrão: 11 anéis de 90m. Ajuste conforme necessário.</small>
             </div>
 
+            <!-- 🔥 PERÍODO DE ANÁLISE -->
             <div class="menu-section">
               <label class="menu-label">📅 Período de Análise</label>
+
+              <!-- 🔥 DATA DE INÍCIO (SEMPRE OBRIGATÓRIA) -->
               <div class="date-range">
                 <input
                     v-model="newParkStartDate"
-                    type="date"
                     class="add-field date-field"
-                />
-                <span class="date-separator">até</span>
-                <input
-                    v-model="newParkEndDate"
+                    placeholder="Data de início *"
                     type="date"
-                    class="add-field date-field"
                 />
+
+                <!-- 🔥 DATA DE FIM (só aparece se NÃO estiver atualizado) -->
+                <template v-if="!isUpToDate">
+                  <span class="date-separator">até</span>
+                  <input
+                      v-model="newParkEndDate"
+                      class="add-field date-field"
+                      placeholder="Data de fim"
+                      type="date"
+                  />
+                </template>
+
+                <!-- 🔥 INDICADOR DE ATUALIZADO -->
+                <span v-else class="date-hint">📡 até a imagem mais recente</span>
+              </div>
+
+              <!-- 🔥 TOGGLE: Manter atualizado -->
+              <div class="toggle-update-wrapper">
+                <ToggleSwitch v-model="isUpToDate"/>
+                <label class="toggle-label">Manter atualizado (buscar imagem mais recente)</label>
+              </div>
+            </div>
+
+            <!-- 🔥 SATÉLITES (Multiselect) -->
+            <div class="menu-section">
+              <label class="menu-label">🛰️ Satélites</label>
+              <div class="satellite-select-wrapper">
+                <MultiSelect
+                    v-model="selectedSatellites"
+                    :loading="loadingSatellites"
+                    :options="availableSatellites"
+                    filter
+                    fluid
+                    optionLabel="name"
+                    optionValue="id"
+                    placeholder="Selecione os satélites..."
+                    showClear
+                >
+                  <template #option="slotProps">
+                    <div class="satellite-option">
+                      <div class="satellite-option-main">
+                        <span class="satellite-option-name">{{ slotProps.option.name }}</span>
+                        <span class="satellite-option-resolution">{{ slotProps.option.resolution }}m</span>
+                      </div>
+                      <div class="satellite-option-desc">{{ slotProps.option.description }}</div>
+                    </div>
+                  </template>
+                </MultiSelect>
+                <small class="satellite-hint">
+                  {{ selectedSatellites.length }} satélite(s) selecionado(s)
+                </small>
               </div>
             </div>
 
             <div class="menu-actions">
               <Button
-                  label="Voltar"
-                  icon="pi pi-arrow-left"
-                  severity="secondary"
                   fluid
+                  icon="pi pi-arrow-left"
+                  label="Voltar"
+                  severity="secondary"
                   @click="cancelAddPark"
               />
               <Button
-                  label="Cadastrar"
-                  icon="pi pi-check"
-                  severity="success"
                   fluid
+                  icon="pi pi-check"
+                  label="Cadastrar"
+                  severity="success"
                   @click="confirmAddPark"
               />
             </div>
@@ -227,13 +276,13 @@
 
         <!-- RESULTADOS DA ANÁLISE -->
         <template v-if="showStats && coolingData">
-          <Divider v-if="results.length" />
+          <Divider v-if="results.length"/>
 
           <div class="stats-header">
             <h4>🌳 {{ parkName }}</h4>
             <Tag
-                :value="coolingData.success ? 'OK' : 'Falha'"
                 :severity="coolingData.success ? 'success' : 'danger'"
+                :value="coolingData.success ? 'OK' : 'Falha'"
             />
           </div>
 
@@ -264,7 +313,7 @@
 
           <!-- PIXELS -->
           <template v-if="coolingData?.buffers">
-            <Divider />
+            <Divider/>
             <div class="controls">
               <div class="toggle-wrapper">
                 <Checkbox v-model="showPixels"
@@ -278,19 +327,19 @@
               <div v-if="showPixels" class="opacity-control">
                 <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
                 <input
-                    type="range"
-                    min="0"
-                    max="100"
                     :value="pixelOpacity * 100"
-                    @input="handleOpacityChange($event)"
                     class="opacity-slider"
+                    max="100"
+                    min="0"
+                    type="range"
+                    @input="handleOpacityChange($event)"
                 />
               </div>
 
               <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
                 <div class="gradient-header">
                   <span>🌡️ Temperatura</span>
-                  <Badge :value="`${totalPixels} px`" />
+                  <Badge :value="`${totalPixels} px`"/>
                 </div>
                 <div class="gradient-bar"></div>
                 <div class="gradient-labels">
@@ -303,19 +352,19 @@
 
           <!-- BUFFERS -->
           <template v-if="coolingData?.buffers">
-            <Divider />
+            <Divider/>
             <div class="buffer-stats">
               <h4>📊 Anéis</h4>
               <div class="stats-grid">
                 <div
                     v-for="buffer in coolingData.buffers"
                     :key="buffer.distance"
-                    class="stats-item"
                     :style="{
                     background: (buffer.statistics?.mean ?? null) !== null
                       ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
                       : '#f5f5f5'
                   }"
+                    class="stats-item"
                 >
                   <span>{{ buffer.distance }}m</span>
                   <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
@@ -330,24 +379,43 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, watch} from 'vue'
-import { formatCoolingStats, type CoolingAnalysisResult } from '@/services'
-import { useNotifications } from '~/composables/useErrorHandler'
-import { useParkSearch } from '~/composables/useParkSearch'
-import { useCountrySearch } from '~/composables/useCountrySearch'
-import { useCitySearch } from '~/composables/useCitySearch'
-import { useAddParkForm } from '~/composables/useAddParkForm'
-import { useParkMenu } from '~/composables/useParkMenu'
-import { debounce, formatDate } from '@/utils/parkSearchUtils'
-import type { SearchResult, AddParkData } from '@/types/parkSearch'
+<script lang="ts" setup>
+import {onMounted, ref, watch} from 'vue'
+import {type CoolingAnalysisResult, formatCoolingStats} from '@/services'
+import {useNotifications} from '~/composables/useErrorHandler'
+import {useParkSearch} from '~/composables/useParkSearch'
+import {useCountrySearch} from '~/composables/useCountrySearch'
+import {useCitySearch} from '~/composables/useCitySearch'
+import {useAddParkForm} from '~/composables/useAddParkForm'
+import {useParkMenu} from '~/composables/useParkMenu'
+import {debounce, formatDate} from '@/utils/parkSearchUtils'
+import type {AddParkData, SearchResult} from '@/types/parkSearch'
+import {fetchSatellites} from "~/services/satelliteService";
 
-const { handleError, handleSuccess, handleInfo } = useNotifications()
-const { parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions } = useParkSearch()
-const { countrySuggestions, showCountrySuggestions, searchCountries, hideSuggestions: hideCountrySuggestions, getCountryByCode } = useCountrySearch()
-const { citySuggestions, showCitySuggestions, searchCities, hideSuggestions: hideCitySuggestions } = useCitySearch()
-const { isAddingPark, newParkName, newParkCountry, newParkCity, newParkStartDate, newParkEndDate, selectedCountryCode, startAddPark, cancelAddPark, confirmAddPark: confirmAddParkForm, selectCountry } = useAddParkForm()
-const { isMenuOpen, selectedPark, menuCardRef, toggleMenu } = useParkMenu()
+const {handleError, handleSuccess, handleInfo} = useNotifications()
+const {parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions} = useParkSearch()
+const {
+  countrySuggestions,
+  showCountrySuggestions,
+  searchCountries,
+  hideSuggestions: hideCountrySuggestions,
+  getCountryByCode
+} = useCountrySearch()
+const {citySuggestions, showCitySuggestions, searchCities, hideSuggestions: hideCitySuggestions} = useCitySearch()
+const {
+  isAddingPark,
+  newParkName,
+  newParkCountry,
+  newParkCity,
+  newParkStartDate,
+  newParkEndDate,
+  selectedCountryCode,
+  startAddPark,
+  cancelAddPark,
+  confirmAddPark: confirmAddParkForm,
+  selectCountry
+} = useAddParkForm()
+const {isMenuOpen, selectedPark, menuCardRef, toggleMenu} = useParkMenu()
 
 // ============================================================
 // 🔥 BUFFERS CONFIG
@@ -355,9 +423,14 @@ const { isMenuOpen, selectedPark, menuCardRef, toggleMenu } = useParkMenu()
 const newNumBuffers = ref(11)
 const newBufferDistance = ref(90)
 
+const isUpToDate = ref(true)
+const availableSatellites = ref<Array<{ id: string, name: string, active: boolean }>>([])
+const selectedSatellites = ref<string[]>(['LANDSAT_8'])
+const loadingSatellites = ref(false)
+
 // MODELOS
-const search = defineModel<string>('search', { required: true })
-const showPixels = defineModel<boolean>('showPixels', { default: true })
+const search = defineModel<string>('search', {required: true})
+const showPixels = defineModel<boolean>('showPixels', {default: true})
 
 // PROPS
 const props = defineProps<{
@@ -386,6 +459,10 @@ const emit = defineEmits<{
   (e: 'togglePixels'): void
   (e: 'updateOpacity', value: number): void
 }>()
+
+onMounted(() => {
+  loadSatellites()
+})
 
 // LOCAL STATE
 const cityWrapperRef = ref<HTMLElement | null>(null)
@@ -426,6 +503,29 @@ const debouncedSearchCities = debounce(async (query: string) => {
 
 const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
 
+
+// ============================================================
+// 🔥 CARREGAR SATÉLITES
+// ============================================================
+async function loadSatellites() {
+  loadingSatellites.value = true
+  try {
+    const data = await fetchSatellites()
+    if (data && data.length > 0) {
+      availableSatellites.value = data.filter(s => s.active)
+    } else {
+      // Fallback
+      availableSatellites.value = [
+        {id: 'LANDSAT_8', name: 'Landsat 8', active: true},
+      ]
+      selectedSatellites.value = ['LANDSAT_8']
+    }
+  } catch (error) {
+    console.error('Erro ao carregar satélites:', error)
+  } finally {
+    loadingSatellites.value = false
+  }
+}
 
 // ============================================================
 // 🔥 EVENT HANDLERS - PARQUE
@@ -925,6 +1025,7 @@ function handleOpacityChange(event: Event) {
     gap: 8px;
   }
 }
+
 /* 🔥 CONTROLE DE OPACIDADE */
 .opacity-control {
   display: flex;
@@ -958,7 +1059,7 @@ function handleOpacityChange(event: Event) {
   background: #3b82f6;
   cursor: pointer;
   border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .opacity-slider::-moz-range-thumb {
@@ -968,5 +1069,82 @@ function handleOpacityChange(event: Event) {
   background: #3b82f6;
   cursor: pointer;
   border: 2px solid white;
+}
+
+/* 🔥 TOGGLE UPDATE */
+.toggle-update-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.date-hint {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 0;
+  font-style: italic;
+}
+
+/* 🔥 SATÉLITES */
+.satellite-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.satellite-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Melhorar o MultiSelect */
+.satellite-select-wrapper :deep(.p-multiselect) {
+  width: 100%;
+}
+
+/* 🔥 SATÉLITE OPTION */
+.satellite-option {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  padding: 2px 0;
+  gap: 1px;
+}
+
+.satellite-option-main {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.satellite-option-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.satellite-option-resolution {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0 8px;
+  border-radius: 10px;
+}
+
+.satellite-option-desc {
+  font-size: 12px;
+  font-weight: 300;
+  color: #9ca3af;
+  margin-top: 0;
+  line-height: 1.3;
 }
 </style>
