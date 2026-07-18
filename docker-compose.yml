@@ -1,36 +1,106 @@
 version: '3.8'
 
 services:
+  # ============================================================
+  # 1. POSTGIS - Banco de dados
+  # ============================================================
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: digital_twin_postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: digital_twin
+      POSTGRES_PASSWORD: DigitalTwin2024!Prod
+      POSTGRES_DB: digital_twin
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./back/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - digital_twin_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U digital_twin -d digital_twin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # 2. BACKEND API
+  # ============================================================
   back_api:
     build:
       context: ./back
       dockerfile: Dockerfile
     container_name: digital_twin_api
+    restart: unless-stopped
     ports:
       - "6789:3001"        # http://200.137.197.69:55235/
     environment:
       - PROJECT_ID=digital-twin-501202
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
-      - DITTO_URL=http://ditto:8080
-    restart: unless-stopped
+      - DATABASE_URL=postgresql://digital_twin:DigitalTwin2024!Prod@postgis:5432/digital_twin
+      - FLASK_ENV=production
+      - FLASK_DEBUG=False
+      - PORT=3001
+      - SECRET_KEY=producao-secret-key-2024
+    depends_on:
+      postgis:
+        condition: service_healthy
+    volumes:
+      - ./back/credentials.json:/app/credentials.json:ro
     networks:
       - digital_twin_network
 
+  # ============================================================
+  # 3. FRONTEND
+  # ============================================================
   front:
     build:
       context: ./front
       dockerfile: Dockerfile
     container_name: digital_twin_front
+    restart: unless-stopped
     ports:
-      - "8080:3000"        #http://200.137.197.69:51235
+      - "8080:3000"        # http://200.137.197.69:51235
     environment:
       - VITE_API_URL=http://200.137.197.69:55235/api
-    restart: unless-stopped
     depends_on:
       - back_api
     networks:
       - digital_twin_network
 
+  # ============================================================
+  # 4. PGADMIN (Opcional - para monitoramento)
+  # ============================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: digital_twin_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@digitaltwin.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8081:80"          # http://200.137.197.69:53235
+    networks:
+      - digital_twin_network
+    depends_on:
+      - postgis
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+# ============================================================
+# VOLUMES
+# ============================================================
+volumes:
+  postgis_data:
+  pgadmin_data:
+
+# ============================================================
+# NETWORKS
+# ============================================================
 networks:
   digital_twin_network:
     driver: bridge
