@@ -8,3 +8,4 @@ credentials.json
 Digital_twin.iml
 modules.xml
 node_modules
+/.env

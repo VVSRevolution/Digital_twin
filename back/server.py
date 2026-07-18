@@ -2,10 +2,10 @@
 import json
 import os
 from datetime import datetime
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 
 from config import Config
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from services.ditto_service import DittoService
 from services.earth_engine_service import EarthEngineService
 from services.park_service import ParkService
@@ -19,6 +19,7 @@ if not EarthEngineService.initialize():
     print("💥 Falha ao inicializar Earth Engine")
     exit(1)
 
+
 # ============================================================
 # 🔥 ENDPOINTS
 # ============================================================
@@ -30,6 +31,7 @@ def health():
         'project': Config.PROJECT_ID,
         'timestamp': datetime.now().isoformat()
     })
+
 
 @app.route('/api/park/search', methods=['GET'])
 def search_park():
@@ -43,6 +45,7 @@ def search_park():
     results = ParkService.search_park_by_name(query, country)
     return jsonify({'results': results})
 
+
 @app.route('/api/park/polygon', methods=['POST'])
 def get_park_polygon():
     """Busca o polígono de um parque"""
@@ -55,6 +58,7 @@ def get_park_polygon():
 
     polygon = ParkService.fetch_park_polygon(park_name, city)
     return jsonify({'polygon': polygon})
+
 
 # ============================================================
 # 🔥 ENDPOINT: PARK COOLING (COM DATA DA IMAGEM)
@@ -125,6 +129,7 @@ def analyze_park():
         print(f"❌ Erro: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 # ============================================================
 # 🔥 ENDPOINT: COMPATIBILIDADE COM O FRONTEND ANTIGO
 # ============================================================
@@ -132,6 +137,73 @@ def analyze_park():
 def park_cooling():
     """Mantém compatibilidade com o frontend antigo"""
     return analyze_park()
+
+
+@app.route('/api/satellites', methods=['GET'])
+def get_satellites():
+    """Retorna a lista de satélites disponíveis para análise"""
+    try:
+        # Satélites disponíveis com suas configurações
+        satellites = [
+            {
+                'id': 'LANDSAT_8',
+                'name': 'Landsat 8',
+                'platform': 'Landsat',
+                'sensor': 'OLI/TIRS',
+                'band_thermal': 'Band 10',
+                'resolution': 30,
+                'description': 'Landsat 8 OLI/TIRS - Imagens de 30m de resolução',
+                'active': True,
+                'collection': 'LANDSAT/LC08/C02/T1_L2'
+            },
+            {
+                'id': 'LANDSAT_9',
+                'name': 'Landsat 9',
+                'platform': 'Landsat',
+                'sensor': 'OLI-2/TIRS-2',
+                'band_thermal': 'Band 10',
+                'resolution': 30,
+                'description': 'Landsat 9 OLI-2/TIRS-2 - Imagens de 30m de resolução',
+                'active': True,
+                'collection': 'LANDSAT/LC09/C02/T1_L2'
+            },
+            {
+                'id': 'SENTINEL_2',
+                'name': 'Sentinel 2',
+                'platform': 'Sentinel',
+                'sensor': 'MSI',
+                'band_thermal': 'Band 10',
+                'resolution': 10,
+                'description': 'Sentinel 2 MSI - Imagens de 10m de resolução',
+                'active': False,
+                'collection': 'COPERNICUS/S2_SR'
+            },
+            {
+                'id': 'MODIS',
+                'name': 'MODIS',
+                'platform': 'Terra/Aqua',
+                'sensor': 'MODIS',
+                'band_thermal': 'Band 31',
+                'resolution': 1000,
+                'description': 'MODIS - Imagens de 1000m de resolução',
+                'active': False,
+                'collection': 'MODIS/006/MOD11A1'
+            }
+        ]
+
+        return jsonify({
+            'success': True,
+            'count': len(satellites),
+            'satellites': satellites
+        })
+
+    except Exception as e:
+        print(f"❌ Erro ao listar satélites: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # ============================================================
 # 🔥 INICIA SERVIDOR
