@@ -1,4 +1,4 @@
-# server.py
+# app.py
 import json
 import os
 from datetime import datetime
@@ -9,10 +9,18 @@ from flask_cors import CORS
 from services.ditto_service import DittoService
 from services.earth_engine_service import EarthEngineService
 from services.park_service import ParkService
+from extensions import db, migrate
+from services.database_service import DatabaseService
+
 
 # 🔥 INICIALIZAÇÃO
 app = Flask(__name__)
+
+app.config.from_object(Config)
+db.init_app(app)
+migrate.init_app(app, db)
 CORS(app)
+
 
 # 🔥 INICIALIZA EARTH ENGINE
 if not EarthEngineService.initialize():
@@ -141,60 +149,17 @@ def park_cooling():
 
 @app.route('/api/satellites', methods=['GET'])
 def get_satellites():
-    """Retorna a lista de satélites disponíveis para análise"""
+    """Retorna a lista de satélites disponíveis do banco"""
     try:
-        # Satélites disponíveis com suas configurações
-        satellites = [
-            {
-                'id': 'LANDSAT_8',
-                'name': 'Landsat 8',
-                'platform': 'Landsat',
-                'sensor': 'OLI/TIRS',
-                'band_thermal': 'Band 10',
-                'resolution': 30,
-                'description': 'Landsat 8 OLI/TIRS - Imagens de 30m de resolução',
-                'active': True,
-                'collection': 'LANDSAT/LC08/C02/T1_L2'
-            },
-            {
-                'id': 'LANDSAT_9',
-                'name': 'Landsat 9',
-                'platform': 'Landsat',
-                'sensor': 'OLI-2/TIRS-2',
-                'band_thermal': 'Band 10',
-                'resolution': 30,
-                'description': 'Landsat 9 OLI-2/TIRS-2 - Imagens de 30m de resolução',
-                'active': True,
-                'collection': 'LANDSAT/LC09/C02/T1_L2'
-            },
-            {
-                'id': 'SENTINEL_2',
-                'name': 'Sentinel 2',
-                'platform': 'Sentinel',
-                'sensor': 'MSI',
-                'band_thermal': 'Band 10',
-                'resolution': 10,
-                'description': 'Sentinel 2 MSI - Imagens de 10m de resolução',
-                'active': False,
-                'collection': 'COPERNICUS/S2_SR'
-            },
-            {
-                'id': 'MODIS',
-                'name': 'MODIS',
-                'platform': 'Terra/Aqua',
-                'sensor': 'MODIS',
-                'band_thermal': 'Band 31',
-                'resolution': 1000,
-                'description': 'MODIS - Imagens de 1000m de resolução',
-                'active': False,
-                'collection': 'MODIS/006/MOD11A1'
-            }
-        ]
+        from models import SatelliteSource
+
+        # Buscar do banco
+        satellites = SatelliteSource.query.filter_by(active=True).all()
 
         return jsonify({
             'success': True,
             'count': len(satellites),
-            'satellites': satellites
+            'satellites': [s.to_dict() for s in satellites]
         })
 
     except Exception as e:
@@ -204,11 +169,16 @@ def get_satellites():
             'error': str(e)
         }), 500
 
-
 # ============================================================
 # 🔥 INICIA SERVIDOR
 # ============================================================
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        print("✅ Tabelas verificadas/criadas!")
+        DatabaseService.seed_satellites()
+        print("✅ Satélites populados!")
+
     print('')
     print('=' * 50)
     print('🚀 Iniciando servidor Digital Twin...')
@@ -228,4 +198,7 @@ if __name__ == '__main__':
     print('=' * 50)
     print('')
 
+
     app.run(host='0.0.0.0', port=3001, debug=True)
+
+
