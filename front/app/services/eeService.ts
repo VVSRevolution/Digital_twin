@@ -1,18 +1,12 @@
-import { useNotifications } from '~/composables/useErrorHandler'
-import type {
-    ParkGeometry,
-    CoolingAnalysisResult,
-    TimeseriesResult,
-    BufferResult,
-    CoolingIslandType,
-} from '~/types'
+import {useNotifications} from '~/composables/useErrorHandler'
+import type {BufferResult, CoolingAnalysisResult, CoolingIslandType, ParkGeometry, TimeseriesResult,} from '~/types'
 
 const isProduction = import.meta.env.PROD || import.meta.env.NODE_ENV === 'production'
 
 const API_URL = isProduction
     ? 'http://200.137.197.69:55235'  // Produção
     : 'http://localhost:3001'         // Desenvolvimento
-
+export {API_URL}
 console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvolvimento'})`)
 
 // ===== TIPOS LOCAIS =====
@@ -22,6 +16,8 @@ console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvol
 /**
  * Analisa o Park Cooling Island para uma geometria de parque
  * @param geometry - Geometria do parque em GeoJSON (EPSG:4326)
+ * @param numBuffers
+ * @param bufferDistance
  * @returns Dados do cooling island (PCI, PCD, PCA, buffers)
  */
 export async function analyzeParkCooling(
@@ -47,7 +43,7 @@ export async function analyzeParkCooling(
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
             const errorMsg = errorData?.error || `Erro HTTP ${response.status}: ${response.statusText}`
-            const { handleError } = useNotifications()
+            const {handleError} = useNotifications()
             handleError(errorMsg, 'Erro ao analisar park cooling')
             return {
                 success: false,
@@ -67,7 +63,7 @@ export async function analyzeParkCooling(
 
     } catch (error) {
         console.error('❌ Erro ao analisar park cooling:', error)
-        const { handleError } = useNotifications()
+        const {handleError} = useNotifications()
         const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
         handleError(errorMsg, 'Erro ao analisar park cooling')
         return {
@@ -103,7 +99,7 @@ export async function getParkLSTTimeseries(
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
             const errorMsg = errorData?.error || `Erro HTTP ${response.status}: ${response.statusText}`
-            const { handleError } = useNotifications()
+            const {handleError} = useNotifications()
             handleError(errorMsg, 'Erro ao obter série temporal')
             return {
                 success: false,
@@ -119,7 +115,7 @@ export async function getParkLSTTimeseries(
 
     } catch (error) {
         console.error('❌ Erro ao obter série temporal:', error)
-        const { handleError } = useNotifications()
+        const {handleError} = useNotifications()
         const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
         handleError(errorMsg, 'Erro ao obter série temporal')
         return {
@@ -158,7 +154,7 @@ export async function getLSTAtPoint(
 
         if (!response.ok) {
             const errorMsg = `Erro HTTP ${response.status}`
-            const { handleError } = useNotifications()
+            const {handleError} = useNotifications()
             handleError(errorMsg, 'Erro ao obter LST')
             return {
                 success: false,
@@ -172,7 +168,7 @@ export async function getLSTAtPoint(
 
     } catch (error) {
         console.error('❌ Erro ao obter LST no ponto:', error)
-        const { handleError } = useNotifications()
+        const {handleError} = useNotifications()
         const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
         handleError(errorMsg, 'Erro ao obter LST')
         return {
