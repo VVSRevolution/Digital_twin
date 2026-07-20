@@ -252,7 +252,7 @@ async function searchPlace() {
   }
 
   try {
-    const data = await searchPark(search.value)
+    const data = await searchPark(search.value, undefined, 'Brazil')
 
     // 🔥 CONVERSÃO SEGURA
     const elements = (data?.elements || []) as any[]
@@ -304,6 +304,9 @@ async function searchPlace() {
   } catch (error) {
     console.error("❌ Erro ao buscar parque:", error)
     const {handleError} = useNotifications()
+    handleError("Não foi possível gerar a geometria.\n" +
+        "O servidor provavelmente está muito ocupado para processar sua solicitação.\n" +
+        "Tente novamente mais tarde.", "Error", true)
     handleError(error, 'Erro ao buscar parque')
     results.value = []
   } finally {
@@ -344,7 +347,7 @@ async function analyzePark(feature: Feature<Geometry>) {
       return
     }
 
-    const result = await analyzeParkCooling(geojson.geometry as any)
+    const result = await analyzeParkCooling(geojson.geometry as any, undefined)
 
     if (!result.success) {
       const {handleError} = useNotifications()

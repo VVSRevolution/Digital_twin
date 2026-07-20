@@ -1,7 +1,9 @@
 # services/earth_engine_service.py
+import datetime
 import json
 import os
 import traceback
+from datetime import datetime, timedelta
 
 import ee
 
@@ -65,11 +67,19 @@ class EarthEngineService:
             # 🔥 PEGA A IMAGEM MAIS RECENTE
             latest_image = collection.sort('system:time_start', False).first()
 
-            if latest_image:
-                date = ee.Date(latest_image.get('system:time_start'))
-                date_str = date.format('YYYY-MM-dd').getInfo()
+            if latest_image is None:
+                print('⚠️ Nenhuma imagem encontrada (latest_image é None)')
+                return None, None
 
-                # 🔥 CRIA UM INTERVALO DE 1 DIA (24 HORAS)
+            # 🔥 EXTRAI A DATA USANDO O METODO CORRETO
+            try:
+                # Tenta pegar a data como string
+                date_str = ee.Date(latest_image.get('system:time_start')).format('YYYY-MM-dd').getInfo()
+
+                if date_str is None:
+                    print('⚠️ Data da imagem é None')
+                    return None, None
+
                 start = date_str
                 end = ee.Date(date_str).advance(1, 'day').format('YYYY-MM-dd').getInfo()
 
@@ -77,7 +87,26 @@ class EarthEngineService:
                 print(f'📅 Intervalo: {start} a {end}')
                 return start, end
 
-            return None, None
+            except Exception as e:
+                print(f'⚠️ Erro ao processar data da imagem: {e}')
+
+                # 🔥 TENTA OUTRA FORMA DE PEGAR A DATA
+                try:
+                    # Pega a data como timestamp
+                    timestamp = latest_image.get('system:time_start').getInfo()
+                    date_obj = datetime.fromtimestamp(timestamp / 1000)
+                    date_str = date_obj.strftime('%Y-%m-%d')
+
+                    start = date_str
+                    end = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+
+                    print(f'📅 Data mais recente (timestamp): {date_str}')
+                    print(f'📅 Intervalo: {start} a {end}')
+                    return start, end
+
+                except Exception as e2:
+                    print(f'⚠️ Falha ao extrair data da imagem: {e2}')
+                    return None, None
 
         except Exception as e:
             print(f'⚠️ Erro ao buscar data mais recente: {e}')
@@ -109,7 +138,7 @@ class EarthEngineService:
             return None
 
     @staticmethod
-    def calculate_lst(geometry, start_date=None, end_date=None, num_buffers=10, buffer_distance=90):
+    def calculate_lst(geometry, start_date=None, end_date=None, num_buffers=11, buffer_distance=90):
         """Calcula o LST e buffers para um parque"""
         try:
             park_geom = ee.Geometry(geometry)
@@ -121,8 +150,11 @@ class EarthEngineService:
                 if start_date and end_date:
                     print(f'📅 Usando intervalo de 1 dia: {start_date} a {end_date}')
                 else:
-                    start_date = '2023-01-01'
-                    end_date = '2023-12-31'
+                    today = datetime.now()
+                    one_month_ago = today - timedelta(days=30)
+
+                    start_date = one_month_ago.strftime('%Y-%m-%d')
+                    end_date = today.strftime('%Y-%m-%d')
                     print(f'⚠️ Usando data padrão: {start_date} a {end_date}')
 
             print(f'📅 Datas finais: {start_date} a {end_date}')
@@ -146,14 +178,37 @@ class EarthEngineService:
 
             # 🔥 PEGA A IMAGEM MAIS RECENTE (NÃO A MEDIANA!)
             image = collection.sort('system:time_start', False).first()
+            print(image.getInfo())
 
             # 🔥 EXTRAI A DATA DA IMAGEM USADA
             try:
-                image_date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd').getInfo()
-                print(f'📸 Data da imagem usada: {image_date}')
-            except:
-                image_date = start_date
-                print(f'📸 Data da imagem: {image_date} (fallback)')
+                # 1. Pega a data da captura
+                date_acquired = image.get('DATE_ACQUIRED').getInfo()
+
+                # 2. Pega a hora exata da captura
+                scene_time = image.get('SCENE_CENTER_TIME').getInfo()
+                # SCENE_CENTER_TIME vem como "13:20:42.7876610Z"
+                # Remove os milissegundos e o Z
+                scene_time = scene_time.split('.')[0]  # "13:20:42"
+
+                # 3. Combina data + hora
+                image_datetime = f"{date_acquired}T{scene_time}Z"
+
+                print(f'📸 Data e hora da captura: {image_datetime}')
+
+            except Exception as e:
+                print(f'⚠️ Erro ao extrair data/hora: {e}')
+
+                # Fallback: usa system:time_start
+                try:
+                    timestamp = image.get('system:time_start').getInfo()
+                    from datetime import datetime
+                    image_datetime = datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%dT%H:%M:%SZ')
+                    print(f'📸 Data e hora (fallback): {image_datetime}')
+
+                except:
+                    image_datetime = start_date
+                    print(f'📸 Data e hora: {image_datetime} (fallback)')
 
             # 🔥 CALCULA LST
             lst_raw = image.select("ST_B10")
@@ -263,7 +318,7 @@ class EarthEngineService:
                 },
                 'start_date': start_date,
                 'end_date': end_date,
-                'image_date': image_date,  # 🔥 DATA DA IMAGEM USADA
+                'image_date': image_datetime,
                 'num_images': count
             }
 

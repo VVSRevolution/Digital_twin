@@ -19,6 +19,11 @@ export async function searchPark(query: string, city?: string, country?: string)
             area["name"="${city}"]->.searchArea;
         `
         areaFilterQuery = '(area.searchArea)'
+    } else if (country) {
+        areaFilter = `
+        area["name"="${country}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;
+    `
+        areaFilterQuery = '(area.searchArea)'
     }
 
     const overpassQuery = `
@@ -30,8 +35,6 @@ export async function searchPark(query: string, city?: string, country?: string)
     );
     out geom;
   `
-
-    console.log('🔍 Query Overpass:', overpassQuery)
 
     const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
