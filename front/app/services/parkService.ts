@@ -1,17 +1,37 @@
-import type { SearchResult, OSMElement } from '~/types'
-
 /**
  * Busca parques no Overpass API (OpenStreetMap)
  */
-export async function searchPark(query: string) {
+// services/parkService.ts
+export async function searchPark(query: string, city?: string, country?: string) {
+    let areaFilter = ''
+    let areaFilterQuery = ''
+
+    if (city && country) {
+        areaFilter = `
+        area["name"="${country}"]["boundary"="administrative"]["admin_level"="2"]->.country;
+
+        area["name"="${city}"]["boundary"="administrative"](area.country)->.searchArea;
+    `
+
+        areaFilterQuery = '(area.searchArea)'
+    } else if (city) {
+        areaFilter = `
+            area["name"="${city}"]->.searchArea;
+        `
+        areaFilterQuery = '(area.searchArea)'
+    }
+
     const overpassQuery = `
     [out:json];
+    ${areaFilter}
     (
-      way["leisure"="park"]["name"~"${query}", i];
-      relation["leisure"="park"]["name"~"${query}", i];
+      way["leisure"="park"]["name"~"${query}", i]${city ? areaFilterQuery : ''};
+      relation["leisure"="park"]["name"~"${query}", i]${city ? areaFilterQuery : ''};
     );
     out geom;
   `
+
+    console.log('🔍 Query Overpass:', overpassQuery)
 
     const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
@@ -25,6 +45,7 @@ export async function searchPark(query: string) {
 
     return await res.json()
 }
+
 //
 // export async function searchPark(query: string) {
 //     const res = {

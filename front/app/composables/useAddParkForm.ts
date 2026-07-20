@@ -2,21 +2,8 @@
 import {ref} from 'vue'
 import {useNotifications} from '~/composables/useErrorHandler'
 import {useCountrySearch} from './useCountrySearch'
+import type {AddParkData} from "~/types/parkSearch";
 
-// ============================================================
-// 🔥 INTERFACE FORA DA FUNÇÃO
-// ============================================================
-export interface AddParkData {
-    name: string
-    city: string
-    country: string
-    startDate: string | null
-    endDate: string | null
-    isUpToDate?: boolean
-    satellites?: string[]
-    numBuffers?: number
-    bufferDistance?: number
-}
 
 // ============================================================
 // 🔥 COMPOSABLE
@@ -102,7 +89,7 @@ export function useAddParkForm() {
 
         const data = getFormData()
         isAddingPark.value = false
-        handleSuccess(`Parque "${newParkName.value}" cadastrado com sucesso!`)
+        handleSuccess(`Cadastrando "${newParkName.value}" ...`)
 
         return data
     }

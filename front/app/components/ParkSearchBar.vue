@@ -44,12 +44,22 @@
               <label class="menu-label">📍 Selecionar Parque</label>
               <Select
                   v-model="selectedPark"
-                  :options="predefinedParks"
+                  :loading="loadingParks"
+                  :options="parkList"
                   fluid
-                  optionLabel="tags.name"
+                  optionLabel="name"
                   placeholder="Selecione um parque..."
-                  @change="handleSelectPark"
-              />
+                  @change="handleSelectParkFromList"
+              >
+                <template #option="slotProps">
+                  <div class="park-option">
+                    <span class="park-option-name">{{ slotProps.option.name }}</span>
+                    <span class="park-option-location">{{ slotProps.option.city }}, {{
+                        slotProps.option.country
+                      }}</span>
+                  </div>
+                </template>
+              </Select>
             </div>
 
             <Button
@@ -381,7 +391,14 @@
 
 <script lang="ts" setup>
 import {onMounted, ref, watch} from 'vue'
-import {type CoolingAnalysisResult, formatCoolingStats} from '@/services'
+import {
+  analyzeParkCooling,
+  type CoolingAnalysisResult,
+  formatCoolingStats,
+  getParkAnalyses,
+  getParks,
+  type ParkGeometry
+} from '@/services'
 import {useNotifications} from '~/composables/useErrorHandler'
 import {useParkSearch} from '~/composables/useParkSearch'
 import {useCountrySearch} from '~/composables/useCountrySearch'
@@ -391,6 +408,7 @@ import {useParkMenu} from '~/composables/useParkMenu'
 import {debounce, formatDate} from '@/utils/parkSearchUtils'
 import type {AddParkData, SearchResult} from '@/types/parkSearch'
 import {fetchSatellites} from "~/services/satelliteService";
+import {searchPark} from "~/services/parkService";
 
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 const {parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions} = useParkSearch()
@@ -458,10 +476,13 @@ const emit = defineEmits<{
   (e: 'about'): void
   (e: 'togglePixels'): void
   (e: 'updateOpacity', value: number): void
+  (e: 'updateCoolingData', data: CoolingAnalysisResult): void
 }>()
 
 onMounted(() => {
   loadSatellites()
+  loadParks()
+
 })
 
 // LOCAL STATE
@@ -502,7 +523,61 @@ const debouncedSearchCities = debounce(async (query: string) => {
 }, 600)
 
 const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
+const parkList = ref<Array<{ id: number, name: string, city: string, country: string }>>([])
+const loadingParks = ref(false)
 
+async function loadParks() {
+  loadingParks.value = true
+  try {
+    const data = await getParks()
+    if (data.success) {
+      parkList.value = data.parks
+    }
+  } catch (error) {
+    console.error('Erro ao carregar parques:', error)
+  } finally {
+    loadingParks.value = false
+  }
+}
+
+// ============================================================
+// 🔥 BUSCAR ANÁLISES DE UM PARQUE
+// ============================================================
+async function loadParkAnalyses(parkId: number) {
+  try {
+    const data = await getParkAnalyses(parkId)
+    if (data.success && data.analyses && data.analyses.length > 0) {
+      const latestAnalysis = data.analyses[0]
+
+      const coolingResult: CoolingAnalysisResult = {
+        success: true,
+        park_lst: {
+          celsius: latestAnalysis.park_lst_celsius,
+          kelvin: latestAnalysis.park_lst_celsius + 273.15
+        },
+        buffers: [],
+        pci: latestAnalysis.pci,
+        pcd: latestAnalysis.pcd,
+        pca: {
+          ha: latestAnalysis.pca_ha,
+          m2: latestAnalysis.pca_m2
+        },
+        image_date: latestAnalysis.image_date,
+        timestamp: latestAnalysis.analyzed_at,
+        num_buffers: latestAnalysis.num_buffers,
+        buffer_distance: latestAnalysis.buffer_distance
+      }
+
+      emit('updateCoolingData', coolingResult)
+      handleSuccess(`Análise do parque "${data.park_name}" carregada!`)
+    } else {
+      handleInfo('Este parque ainda não tem análises')
+    }
+  } catch (error) {
+    console.error('Erro ao carregar análises:', error)
+    handleError('Falha ao carregar análises do parque')
+  }
+}
 
 // ============================================================
 // 🔥 CARREGAR SATÉLITES
@@ -524,6 +599,17 @@ async function loadSatellites() {
     console.error('Erro ao carregar satélites:', error)
   } finally {
     loadingSatellites.value = false
+  }
+}
+
+// ============================================================
+// 🔥 HANDLER - SELECIONAR PARQUE DA LISTA
+// ============================================================
+function handleSelectParkFromList() {
+  if (selectedPark.value) {
+    isMenuOpen.value = false
+    // Carregar as análises do parque selecionado
+    loadParkAnalyses(selectedPark.value.id)
   }
 }
 
@@ -605,18 +691,44 @@ watch(showCitySuggestions, (newVal) => {
 // ============================================================
 // 🔥 EVENT HANDLERS - CADASTRO
 // ============================================================
-function confirmAddPark() {
+async function confirmAddPark() {
   const baseData = confirmAddParkForm()
-  if (baseData) {
-    const data = {
-      ...baseData,
-      numBuffers: newNumBuffers.value,
-      bufferDistance: newBufferDistance.value
+  if (!baseData) return
+
+  try {
+    const resultGeo = await searchPark(
+        newParkName.value,
+        newParkCity.value,
+        newParkCountry.value
+    )
+
+    const element = resultGeo?.elements?.[0]
+    if (!element || !element.geometry) {
+      handleError('Parque não encontrado')
+      return
     }
-    isMenuOpen.value = false
-    emit('addPark', data)
+
+    const coordinates = element.geometry.map((p: any) => [p.lon, p.lat])
+
+    // 🔥 FORÇAR O TIPO CORRETO
+    const geojson: ParkGeometry = {
+      type: 'Polygon',
+      coordinates: [coordinates]
+    }
+
+    const result = await analyzeParkCooling(
+        geojson,
+        baseData
+    )
+
+    emit('updateCoolingData', result)
+
+  } catch (error) {
+    console.error('❌ Erro:', error)
+    handleError('Falha ao analisar')
   }
 }
+
 
 function handleSelectPark() {
   if (selectedPark.value) {
@@ -1146,5 +1258,22 @@ function handleOpacityChange(event: Event) {
   color: #9ca3af;
   margin-top: 0;
   line-height: 1.3;
+}
+
+.park-option {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+
+.park-option-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.park-option-location {
+  font-size: 11px;
+  color: #6b7280;
 }
 </style>

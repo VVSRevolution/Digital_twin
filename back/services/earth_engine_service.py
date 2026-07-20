@@ -1,9 +1,12 @@
 # services/earth_engine_service.py
-import ee
 import json
 import os
 import traceback
+
+import ee
+
 from config import Config
+
 
 class EarthEngineService:
     """Serviço para interagir com Google Earth Engine"""
@@ -217,7 +220,7 @@ class EarthEngineService:
                     'area_ha': buffer_geom.area().getInfo() / 10000
                 })
 
-                print(f'📊 Buffer {i+1}: {dist}m, {len(temps)} pixels')
+                print(f'📊 Buffer {i + 1}: {dist}m, {len(temps)} pixels')
 
             # 🔥 ENCONTRA PCI, PCD, PCA
             pci = None

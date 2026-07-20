@@ -2,17 +2,17 @@
 import {onMounted, onUnmounted, ref} from "vue"
 import {convertParkToFeature} from "~/services/geoService"
 import {searchPark} from "~/services/parkService"
-import {analyzeParkCooling, formatCoolingStats} from "~/services/eeService"
+import {analyzeParkCooling} from "~/services/eeService"
 import type Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
 import Style from "ol/style/Style"
-import {Fill, Stroke} from "ol/style"
+import {Stroke} from "ol/style"
 import {drawBuffers} from "~/utils/buffer"
 import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
-import type { SearchResult, CoolingAnalysisResult } from '~/types'
+import type {CoolingAnalysisResult, SearchResult} from '~/types'
 import {Overlay} from "ol";
 
 // ===== REFS =====
@@ -503,7 +503,7 @@ onMounted(async () => {
           if (pixelData.lat != null && pixelData.lon != null && pixelData.temperature != null) {
             const dx = pixelData.lon - lon
             const dy = pixelData.lat - lat
-            const dist = Math.sqrt(dx*dx + dy*dy)
+            const dist = Math.sqrt(dx * dx + dy * dy)
 
             if (dist < 0.0003 && dist < closestDist) {
               closestDist = dist
@@ -578,24 +578,23 @@ onUnmounted(() => {
       <ParkSearchBar
           v-model:search="search"
           v-model:showPixels="showPixels"
-          :loading="loading"
           :analyzing="analyzing"
-          :results="results"
-          :predefinedParks="predefinedParks"
-          :showStats="showStats"
           :coolingData="coolingData"
-          :parkName="parkName"
-          :gradientMin="gradientMin"
           :gradientMax="gradientMax"
-          :totalPixels="totalPixels"
+          :gradientMin="gradientMin"
+          :loading="loading"
+          :parkName="parkName"
           :pixelOpacity="pixelOpacity"
+          :predefinedParks="predefinedParks"
+          :results="results"
+          :showStats="showStats"
+          :totalPixels="totalPixels"
+          @about="showAbout"
+          @export="exportReport"
+          @refresh="refreshData"
           @search="searchPlace"
           @select="selectPark"
-          @addPark="openAddParkModal"
-          @refresh="refreshData"
-          @export="exportReport"
           @settings="openSettings"
-          @about="showAbout"
           @togglePixels="togglePixels"
           @updateOpacity="updatePixelOpacity"
       />
@@ -619,7 +618,6 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
 }
-
 
 
 /* STATS */

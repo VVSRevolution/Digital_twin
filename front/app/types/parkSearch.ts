@@ -40,8 +40,9 @@ export interface AddParkData {
     country: string
     startDate: string | null
     endDate: string | null
-    numBuffers: number
-    bufferDistance: number
-    isUpToDate: boolean
-    satellites: string[]
+    geometry?: any
+    isUpToDate?: boolean
+    satellites?: string[]
+    numBuffers?: number
+    bufferDistance?: number
 }

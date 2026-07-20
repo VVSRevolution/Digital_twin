@@ -1,5 +1,6 @@
 import {useNotifications} from '~/composables/useErrorHandler'
 import type {BufferResult, CoolingAnalysisResult, CoolingIslandType, ParkGeometry, TimeseriesResult,} from '~/types'
+import type {AddParkData} from "~/types/parkSearch";
 
 const isProduction = import.meta.env.PROD || import.meta.env.NODE_ENV === 'production'
 
@@ -16,17 +17,17 @@ console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvol
 /**
  * Analisa o Park Cooling Island para uma geometria de parque
  * @param geometry - Geometria do parque em GeoJSON (EPSG:4326)
- * @param numBuffers
- * @param bufferDistance
+ * @param metadata
  * @returns Dados do cooling island (PCI, PCD, PCA, buffers)
  */
 export async function analyzeParkCooling(
     geometry: ParkGeometry,
-    numBuffers: number = 11,
-    bufferDistance: number = 90
+    metadata: Partial<AddParkData>
 ): Promise<CoolingAnalysisResult> {
     try {
-        console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`)
+        console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`, geometry,
+            metadata)
+
 
         const response = await fetch(`${API_URL}/api/park/analyze`, {
             method: 'POST',
@@ -35,8 +36,7 @@ export async function analyzeParkCooling(
             },
             body: JSON.stringify({
                 geometry,
-                numBuffers,
-                bufferDistance,
+                ...metadata
             }),
         })
 
@@ -351,45 +351,75 @@ export function formatCoolingStats(result: CoolingAnalysisResult): {
     ]
 }
 
-/**
- * Utilitário para verificar se um valor é um número válido
- */
-export function isValidNumber(value: unknown): value is number {
-    return typeof value === 'number' && !isNaN(value) && isFinite(value)
-}
+// ============================================================
+// 🔥 PARQUES
+// ============================================================
 
 /**
- * Utilitário para extrair LST (Celsius) de um buffer com segurança
+ * Busca a lista de parques disponíveis no banco
  */
-export function getBufferLSTCelsius(buffer: BufferResult): number | null {
-    if (!buffer) return null
-    if (buffer.lst_celsius === null || buffer.lst_celsius === undefined) return null
-    if (!isValidNumber(buffer.lst_celsius)) return null
-    return buffer.lst_celsius
-}
+export async function getParks(): Promise<{ success: boolean; count: number; parks: any[] }> {
+    try {
+        const response = await fetch(`${API_URL}/api/parks`)
 
-/**
- * Utilitário para extrair LST (Kelvin) de um buffer com segurança
- */
-export function getBufferLSTKelvin(buffer: BufferResult): number | null {
-    if (!buffer) return null
-    if (buffer.lst_kelvin === null || buffer.lst_kelvin === undefined) return null
-    if (!isValidNumber(buffer.lst_kelvin)) return null
-    return buffer.lst_kelvin
-}
-
-/**
- * Utilitário para obter o último buffer válido (com LST em Celsius)
- */
-export function getLastValidBuffer(buffers: BufferResult[]): BufferResult | null {
-    if (!buffers || buffers.length === 0) return null
-
-    for (let i = buffers.length - 1; i >= 0; i--) {
-        const buffer = buffers[i]
-        if (buffer && buffer.lst_celsius !== null && buffer.lst_celsius !== undefined) {
-            return buffer
+        if (!response.ok) {
+            throw new Error(`Erro HTTP ${response.status}`)
         }
-    }
 
-    return null
+        return await response.json()
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar parques:', error)
+        return {success: false, count: 0, parks: []}
+    }
 }
+
+/**
+ * Busca as análises de um parque específico
+ */
+export async function getParkAnalyses(parkId: number): Promise<{
+    success: boolean;
+    park_id?: number;
+    park_name?: string;
+    count?: number;
+    analyses?: any[];
+    error?: string;
+}> {
+    try {
+        const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses`)
+
+        if (!response.ok) {
+            throw new Error(`Erro HTTP ${response.status}`)
+        }
+
+        return await response.json()
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar análises:', error)
+        return {success: false, error: String(error)}
+    }
+}
+
+/**
+ * Busca detalhes de um parque específico
+ */
+export async function getParkDetail(parkId: number): Promise<{
+    success: boolean;
+    park?: any;
+    error?: string;
+}> {
+    try {
+        const response = await fetch(`${API_URL}/api/parks/${parkId}`)
+
+        if (!response.ok) {
+            throw new Error(`Erro HTTP ${response.status}`)
+        }
+
+        return await response.json()
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar parque:', error)
+        return {success: false, error: String(error)}
+    }
+}
+
