@@ -1,8 +1,50 @@
 /**
  * Busca parques no Overpass API (OpenStreetMap)
  */
+/**
+ * Busca parques no Overpass API (OpenStreetMap)
+ */
+import {API_URL} from './eeService'
+
+interface SearchParkParams {
+    query: string
+    city?: string
+    country?: string
+    osm_id?: number
+}
+
+export async function searchPark(params: SearchParkParams) {
+    try {
+        const response = await fetch(`${API_URL}/api/park/search`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query: params.query,
+                city: params.city || '',
+                country: params.country || 'BR',
+                osm_id: params.osm_id || null
+            })
+        })
+
+        if (!response.ok) {
+            throw new Error(`Erro HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log('🔍 Resultado da busca:', data)
+        return data
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar parque:', error)
+        throw error
+    }
+}
+
+
 // services/parkService.ts
-export async function searchPark(query: string, city?: string, country?: string) {
+export async function searchParkold(query: string, city?: string, country?: string, osm_id?: any) {
     let areaFilter = ''
     let areaFilterQuery = ''
 

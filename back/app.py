@@ -10,7 +10,7 @@ from extensions import db, migrate
 from services.database_service import DatabaseService
 from services.ditto_service import DittoService
 from services.earth_engine_service import EarthEngineService
-from services.park_service import ParkService
+from services.park_search_service import ParkSearchService
 
 # 🔥 INICIALIZAÇÃO
 app = Flask(__name__)
@@ -39,33 +39,6 @@ def health():
     })
 
 
-@app.route('/api/park/search', methods=['GET'])
-def search_park():
-    """Busca parques pelo nome (autocomplete)"""
-    query = request.args.get('q', '')
-    country = request.args.get('country', 'BR')
-
-    if not query or len(query) < 2:
-        return jsonify({'results': []})
-
-    results = ParkService.search_park_by_name(query, country)
-    return jsonify({'results': results})
-
-
-@app.route('/api/park/polygon', methods=['POST'])
-def get_park_polygon():
-    """Busca o polígono de um parque"""
-    data = request.get_json()
-    park_name = data.get('name')
-    city = data.get('city')
-
-    if not park_name:
-        return jsonify({'error': 'Nome do parque é obrigatório'}), 400
-
-    polygon = ParkService.fetch_park_polygon(park_name, city)
-    return jsonify({'polygon': polygon})
-
-
 # ============================================================
 # 🔥 ENDPOINT: PARK COOLING (COM DATA DA IMAGEM)
 # ============================================================
@@ -84,7 +57,7 @@ def analyze_park():
         park_id = data.get('id', 'unknown')
         name = data.get('name', '')
         city = data.get('city', '')
-        country = data.get('country', 'Brasil')
+        country = data.get('country', 'BR')
         num_buffers = data.get('numBuffers', 10)
         buffer_distance = data.get('bufferDistance', 90)
 
@@ -303,6 +276,30 @@ def get_park_analyses(park_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/api/park/search', methods=['POST'])
+def search_park():
+    """Busca parque: DB primeiro, Overpass depois"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '')
+        city = data.get('city', '')
+        country = data.get('country', 'Brasil')
+        osm_id = data.get('osm_id')
+
+        if osm_id:
+            osm_id = str(osm_id)
+
+        if not query or len(query) < 2:
+            return jsonify({'results': []})
+
+        result = ParkSearchService.search(query, city, country, osm_id)
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"❌ Erro: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================

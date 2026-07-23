@@ -1,6 +1,7 @@
 # services/database_service.py
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Optional
 
 from geoalchemy2 import WKTElement
 
@@ -41,16 +42,31 @@ class DatabaseService:
             return False
 
     @staticmethod
-    def save_park(name: str, city: str, country: str, geometry: dict, tags: dict = None) -> Park:
+    def save_park(
+            name: str,
+            country: str,
+            geometry: dict,
+            city: Optional[str] = None,
+            osm_id: Optional[int] = None,
+            osm_type: Optional[str] = None,
+            tags: Optional[dict] = None
+    ) -> Park:
         """Salva um parque no banco de dados"""
         try:
-            # Verificar se já existe
-            existing_park = Park.query.filter_by(name=name, city=city).first()
-            if existing_park:
-                print(f"📌 Parque já existe: {existing_park.id} - {existing_park.name}")
-                return existing_park
+            # Verificar se já existe pelo osm_id
+            if osm_id:
+                existing = Park.query.filter_by(osm_id=str(osm_id)).first()
+                if existing:
+                    print(f"📌 Parque já existe: {existing.id} - {existing.name}")
+                    return existing
 
-            # Converter geometry para WKT (PostGIS)
+            # Verificar por nome + cidade
+            existing = Park.query.filter_by(name=name, city=city).first()
+            if existing:
+                print(f"📌 Parque já existe: {existing.id} - {existing.name}")
+                return existing
+
+            # Converter geometry para WKT
             geom_wkt = None
             if geometry:
                 if isinstance(geometry, dict):
@@ -58,25 +74,25 @@ class DatabaseService:
                     if coords:
                         wkt = f"POLYGON(({', '.join([f'{p[0]} {p[1]}' for p in coords[0]])}))"
                         geom_wkt = WKTElement(wkt, srid=4326)
-                else:
-                    geom_wkt = geometry
 
             park = Park(
                 name=name,
                 city=city,
                 country=country,
+                osm_id=str(osm_id) if osm_id else None,
+                osm_type=osm_type,
                 geometry=geom_wkt,
-                tags=tags or {'source': 'api'},
-                created_at=datetime.utcnow()
+                tags=tags or {'source': 'overpass'},
+                created_at=datetime.now(timezone.utc)
             )
             db.session.add(park)
             db.session.flush()
-            print(f"✅ Parque criado: {park.id} - {park.name}")
+            print(f"✅ Parque criado: {park.id} - {park.name} (osm_id: {osm_id}, type: {osm_type})")
             return park
 
         except Exception as e:
             print(f"❌ Erro ao salvar parque: {e}")
-            traceback.print_exc()
+            db.session.rollback()
             raise
 
     @staticmethod
@@ -117,7 +133,7 @@ class DatabaseService:
                 buffers_data=buffers_data,
                 ditto_thing_id=ditto_thing_id or f"park:{park_id}",
                 ditto_updated=ditto_updated,
-                analyzed_at=datetime.utcnow()
+                analyzed_at=datetime.now(timezone.utc)
             )
             db.session.add(analysis)
             db.session.flush()

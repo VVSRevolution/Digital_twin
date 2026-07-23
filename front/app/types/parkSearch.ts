@@ -11,6 +11,8 @@ export interface SearchResult {
 
 export interface ParkSuggestion {
     id: number
+    osm_id?: number
+    osm_type?: string
     name: string
     city: string
     country: string

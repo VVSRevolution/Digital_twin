@@ -391,14 +391,7 @@
 
 <script lang="ts" setup>
 import {onMounted, ref, watch} from 'vue'
-import {
-  analyzeParkCooling,
-  type CoolingAnalysisResult,
-  formatCoolingStats,
-  getParkAnalyses,
-  getParks,
-  type ParkGeometry
-} from '@/services'
+import {analyzeParkCooling, type CoolingAnalysisResult, formatCoolingStats, getParkAnalyses, getParks} from '@/services'
 import {useNotifications} from '~/composables/useErrorHandler'
 import {useParkSearch} from '~/composables/useParkSearch'
 import {useCountrySearch} from '~/composables/useCountrySearch'
@@ -406,7 +399,7 @@ import {useCitySearch} from '~/composables/useCitySearch'
 import {useAddParkForm} from '~/composables/useAddParkForm'
 import {useParkMenu} from '~/composables/useParkMenu'
 import {debounce, formatDate} from '@/utils/parkSearchUtils'
-import type {AddParkData, SearchResult} from '@/types/parkSearch'
+import type {AddParkData, CitySuggestion, CountrySuggestion, ParkSuggestion, SearchResult} from '@/types/parkSearch'
 import {fetchSatellites} from "~/services/satelliteService";
 import {searchPark} from "~/services/parkService";
 
@@ -434,6 +427,13 @@ const {
   selectCountry
 } = useAddParkForm()
 const {isMenuOpen, selectedPark, menuCardRef, toggleMenu} = useParkMenu()
+
+// ============================================================
+// 🔥 ITEM SELECIONADO (O QUE O USUÁRIO ESCOLHEU)
+// ============================================================
+const selectedParkData = ref<ParkSuggestion | null>(null)
+const selectedCityData = ref<CitySuggestion | null>(null)
+const selectedCountryData = ref<CountrySuggestion | null>(null)
 
 // ============================================================
 // 🔥 BUFFERS CONFIG
@@ -491,7 +491,11 @@ const cityWrapperRef = ref<HTMLElement | null>(null)
 // Debounced search functions
 const debouncedSearchParks = debounce(async (query: string) => {
   if (query.length >= 2) {
-    const results = await searchParks(query, selectedCountryCode.value)
+    const results = await searchParks(
+        query,
+        selectedCountryCode.value,
+        newParkCity.value
+    )
     parkSuggestions.value = results
     showParkSuggestions.value = results.length > 0
   } else {
@@ -620,7 +624,9 @@ function onParkInput() {
   debouncedSearchParks(newParkName.value)
 }
 
-function selectPark(park: any) {
+function selectPark(park: ParkSuggestion) {
+  selectedParkData.value = park
+
   newParkName.value = park.name
   if (park.city) newParkCity.value = park.city
   if (park.country) {
@@ -642,7 +648,10 @@ function onCountryInput() {
   debouncedSearchCountries(newParkCountry.value)
 }
 
-function selectCountryHandler(country: any) {
+function selectCountryHandler(country: CountrySuggestion) {
+  selectedCountryData.value = country
+
+
   selectCountry(country.name)
   newParkCountry.value = country.name
   selectedCountryCode.value = country.code
@@ -668,7 +677,9 @@ function onCityBlur() {
   hideCitySuggestions()
 }
 
-function selectCityHandler(city: any) {
+function selectCityHandler(city: CitySuggestion) {
+  selectedCityData.value = city
+
   newParkCity.value = city.name
   citySuggestions.value = []
   showCitySuggestions.value = false
@@ -689,46 +700,92 @@ watch(showCitySuggestions, (newVal) => {
 })
 
 // ============================================================
-// 🔥 EVENT HANDLERS - CADASTRO
+// 🔥 CONFIRMAR CADASTRO
 // ============================================================
+
 async function confirmAddPark() {
   const baseData = confirmAddParkForm()
   if (!baseData) return
 
-  try {
-    const resultGeo = await searchPark(
-        newParkName.value,
-        newParkCity.value,
-        newParkCountry.value
-    )
+  const name = newParkName.value
+  const city = newParkCity.value
+  const country = newParkCountry.value
+  const countryCode = selectedCountryCode.value
 
-    const element = resultGeo?.elements?.[0]
-    if (!element || !element.geometry) {
-      handleError('Parque não encontrado')
+  if (!name || !city || !country) {
+    handleError('Preencha todos os campos do parque')
+    return
+  }
+
+  try {
+    let osmId = selectedParkData.value?.osm_id ?? null
+
+    // 🔥 SE NÃO TIVER OSM_ID, BUSCA NO NOMINATIM
+    if (!osmId) {
+      const nominatimResults = await searchParks(name, selectedCountryCode.value, city)
+
+      if (!nominatimResults || nominatimResults.length === 0) {
+        handleError('Parque não encontrado. Verifique o nome e tente novamente.')
+        return
+      }
+
+      // 🔥 PEGA O PRIMEIRO RESULTADO (COM VERIFICAÇÃO)
+      const selected = nominatimResults[0]
+      if (!selected) {
+        handleError('Erro ao obter dados do parque')
+        return
+      }
+
+      osmId = selected.osm_id ?? null
+
+      // 🔥 ATUALIZA O PARQUE SELECIONADO
+      selectedParkData.value = selected
+    }
+
+    // 🔥 VERIFICA SE TEM OSM_ID ANTES DE ENVIAR
+    if (!osmId) {
+      handleError('Não foi possível obter o ID do parque')
+      return
+    }
+    // const result = await searchPark(
+    //     newParkName.value,
+    //     newParkCity.value,
+    //     newParkCountry.value
+    // )
+    // 🔥 ENVIA PARA O BACKEND
+    const result = await searchPark({
+      query: name,
+      city: city,
+      country: country,
+      osm_id: osmId ?? undefined,
+    })
+
+    if (!result.results || result.results.length === 0) {
+      handleError('Parque não encontrado no backend')
       return
     }
 
-    const coordinates = element.geometry.map((p: any) => [p.lon, p.lat])
+    const element = result.results[0]
 
-    // 🔥 FORÇAR O TIPO CORRETO
-    const geojson: ParkGeometry = {
-      type: 'Polygon',
-      coordinates: [coordinates]
+    if (!element.geometry) {
+      handleError('Parque encontrado mas sem geometria')
+      return
     }
 
-    const result = await analyzeParkCooling(
-        geojson,
+    // 🔥 ANALISAR
+    const analysisResult = await analyzeParkCooling(
+        element.geometry,
         baseData
     )
 
-    emit('updateCoolingData', result)
+    emit('updateCoolingData', analysisResult)
+    handleSuccess(`Análise do "${element.name}" concluída!`)
 
   } catch (error) {
     console.error('❌ Erro:', error)
     handleError('Falha ao analisar')
   }
 }
-
 
 function handleSelectPark() {
   if (selectedPark.value) {
@@ -751,7 +808,6 @@ function handleSelect(item: SearchResult) {
 }
 
 function handleTogglePixels() {
-  console.log(" updade pixel")
   emit('togglePixels')
 }
 

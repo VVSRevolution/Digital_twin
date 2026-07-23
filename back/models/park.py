@@ -54,6 +54,7 @@ class Park(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     osm_id = db.Column(db.String(50), unique=True)
+    osm_type = db.Column(db.String(10))
     city = db.Column(db.String(100))
     country = db.Column(db.String(100))
 
@@ -76,6 +77,7 @@ class Park(db.Model):
             'id': self.id,
             'name': self.name,
             'osm_id': self.osm_id,
+            'osm_type': self.osm_type,
             'city': self.city,
             'country': self.country,
             'area_ha': self.area_ha,

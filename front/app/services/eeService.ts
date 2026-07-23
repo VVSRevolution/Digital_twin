@@ -10,7 +10,6 @@ const API_URL = isProduction
 export {API_URL}
 console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvolvimento'})`)
 
-// ===== TIPOS LOCAIS =====
 
 // ===== FUNÇÕES =====
 
