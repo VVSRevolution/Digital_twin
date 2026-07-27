@@ -34,7 +34,8 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const tooltipOverlay = ref<Overlay | null>(null)
 const tooltipElement = ref<HTMLElement | null>(null)
 const pixelOpacity = ref(0.50)
-const predefinedParks = ref<SearchParkResult[]>([])  // 👈 ADICIONAR
+const predefinedParks = ref<SearchParkResult[]>([])
+const {handleError, handleSuccess, handleInfo} = useNotifications()
 
 // ===== VARIÁVEIS OPENLAYERS =====
 let map: any
@@ -233,21 +234,18 @@ async function searchPlace() {
     results.value = elements
 
     if (elements.length === 0) {
-      const {handleInfo} = useNotifications()
       handleInfo('Nenhum parque encontrado')
       return
     }
 
     const element = elements[0]
     if (!element) {
-      const {handleError} = useNotifications()
       handleError('Parque inválido')
       return
     }
 
     // 🔥 USA SOMENTE geometry (NÃO geometry_3857)
     if (!element.geometry) {
-      const {handleError} = useNotifications()
       handleError('Parque encontrado mas sem geometria')
       return
     }
@@ -281,7 +279,6 @@ async function searchPlace() {
 
   } catch (error) {
     console.error("❌ Erro ao buscar parque:", error)
-    const {handleError} = useNotifications()
     handleError(error, 'Erro ao buscar parque')
     results.value = []
   } finally {
@@ -313,7 +310,6 @@ async function analyzePark(feature: Feature<Geometry>, park: SearchParkResult) {
     })
 
     if (!geojson.geometry) {
-      const {handleError} = useNotifications()
       handleError('Geometria não encontrada')
       return
     }
@@ -323,7 +319,6 @@ async function analyzePark(feature: Feature<Geometry>, park: SearchParkResult) {
         park
     )
     if (!result.success) {
-      const {handleError} = useNotifications()
       handleError(result.error || 'Erro desconhecido', 'Análise falhou')
       coolingData.value = result
       return
@@ -345,7 +340,6 @@ async function analyzePark(feature: Feature<Geometry>, park: SearchParkResult) {
     handleSuccess('Análise concluída com sucesso!')
   } catch (error) {
     console.error("❌ Erro na análise:", error)
-    const {handleError} = useNotifications()
     handleError(error, 'Erro na análise')
   } finally {
     analyzing.value = false
@@ -359,7 +353,6 @@ async function selectPark(item: SearchParkResult) {
   try {
     const geom = item.geometry_3857 || item.geometry
     if (!geom || !geom.coordinates || geom.coordinates.length === 0) {
-      const {handleError} = useNotifications()
       handleError('Parque sem geometria')
       return
     }
@@ -371,7 +364,7 @@ async function selectPark(item: SearchParkResult) {
     parkName.value = item.tags?.name || item.name || "Parque sem nome"
 
     drawBuffers(feature, vectorSource)
-    await analyzePark(feature)
+    await analyzePark(feature, item)
 
     const extent = feature.getGeometry()!.getExtent()
     map.getView().fit(extent, {
@@ -381,10 +374,9 @@ async function selectPark(item: SearchParkResult) {
 
     results.value = []
     search.value = ""
-
+    handleInfo(`Carregando parque "${item.name}" ...`)
   } catch (error) {
     console.error("❌ Erro ao selecionar parque:", error)
-    const {handleError} = useNotifications()
     handleError(error, 'Erro ao selecionar parque')
   }
 }

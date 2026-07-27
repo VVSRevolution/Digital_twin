@@ -239,7 +239,7 @@
                     <div class="satellite-option">
                       <div class="satellite-option-main">
                         <span class="satellite-option-name">{{ slotProps.option.name }}</span>
-                        <span class="satellite-option-resolution">{{ slotProps.option.resolution }}m</span>
+                        <span class="satellite-option-resolution">{{ slotProps.option.resolution_m }}m</span>
                       </div>
                       <div class="satellite-option-desc">{{ slotProps.option.description }}</div>
                     </div>
@@ -375,7 +375,7 @@ const newBufferDistance = ref(90)
 
 const isUpToDate = ref(true)
 const availableSatellites = ref<Array<{ id: string, name: string, active: boolean }>>([])
-const selectedSatellites = ref<string[]>(['LANDSAT_8'])
+const selectedSatellites = ref<string[]>(['Landsat 8'])
 const loadingSatellites = ref(false)
 
 // MODELOS
@@ -542,9 +542,9 @@ async function loadSatellites() {
     } else {
       // Fallback
       availableSatellites.value = [
-        {id: 'LANDSAT_8', name: 'Landsat 8', active: true},
+        {id: 'Landsat 8', name: 'Landsat 8', active: true},
       ]
-      selectedSatellites.value = ['LANDSAT_8']
+      selectedSatellites.value = ['Landsat 8']
     }
   } catch (error) {
     console.error('Erro ao carregar satélites:', error)
@@ -597,7 +597,6 @@ function selectPark(park: ParkSuggestion) {
   }
   showParkSuggestions.value = false
   handleSuccess(`Parque "${park.name}" selecionado!`)
-  handleInfo(`Carregando parque "${park.name}" ...`)
 }
 
 // ============================================================

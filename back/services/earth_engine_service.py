@@ -1,13 +1,12 @@
 # services/earth_engine_service.py
-import datetime
 import json
 import os
 import traceback
-from datetime import datetime, timedelta
 
 import ee
 
 from config import Config
+from models import SatelliteSource
 
 
 class EarthEngineService:
@@ -45,12 +44,36 @@ class EarthEngineService:
             return False
 
     @staticmethod
-    def get_latest_single_date(geometry):
-        """Retorna a data mais recente (como intervalo de 1 dia)"""
+    def get_satellite_collection(satellite_name=None):
+        """
+        Retorna a coleção de imagens do satélite especificado
+        """
+        # 🔥 BUSCA SATÉLITE NO BANCO
+        if satellite_name:
+            satellite = SatelliteSource.query.filter_by(name=satellite_name, active=True).first()
+        else:
+            # Pega o primeiro ativo
+            satellite = SatelliteSource.query.filter_by(active=True).first()
+
+        if not satellite:
+            print(f"⚠️ Nenhum satélite ativo encontrado, usando LANDSAT_8 padrão")
+            return ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+
+        # 🔥 USA A COLLECTION_ID DO SATÉLITE CADASTRADO
+        collection_id = satellite.collection_id
+        print(f"🛰️ Usando satélite: {satellite.name} -> {collection_id}")
+
+        return ee.ImageCollection(collection_id)
+
+    # services/earth_engine_service.py
+
+    @staticmethod
+    def get_latest_single_date(geometry, satellite_name=None):
+        """Retorna a data mais recente completa (YYYY-MM-DDTHH:MM:SSZ)"""
         try:
             park_geom = ee.Geometry(geometry)
 
-            collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2") \
+            collection = EarthEngineService.get_satellite_collection(satellite_name) \
                 .filterBounds(park_geom)
 
             try:
@@ -58,59 +81,42 @@ class EarthEngineService:
                 print(f'📊 Total de imagens na região: {count}')
             except Exception as e:
                 print(f'⚠️ Erro ao contar imagens: {e}')
-                return None, None
+                return None
 
             if count == 0:
-                print('⚠️ Nenhuma imagem Landsat disponível para esta região')
-                return None, None
+                print('⚠️ Nenhuma imagem disponível para esta região')
+                return None
 
-            # 🔥 PEGA A IMAGEM MAIS RECENTE
             latest_image = collection.sort('system:time_start', False).first()
 
             if latest_image is None:
-                print('⚠️ Nenhuma imagem encontrada (latest_image é None)')
-                return None, None
+                print('⚠️ Nenhuma imagem encontrada')
+                return None
 
-            # 🔥 EXTRAI A DATA USANDO O METODO CORRETO
+            # 🔥 RETORNA SÓ A DATA COMPLETA
             try:
-                # Tenta pegar a data como string
-                date_str = ee.Date(latest_image.get('system:time_start')).format('YYYY-MM-dd').getInfo()
+                date_acquired = latest_image.get('DATE_ACQUIRED').getInfo()
+                scene_time = latest_image.get('SCENE_CENTER_TIME').getInfo()
+                scene_time = scene_time.split('.')[0]
+                image_datetime = f"{date_acquired}T{scene_time}Z"
 
-                if date_str is None:
-                    print('⚠️ Data da imagem é None')
-                    return None, None
-
-                start = date_str
-                end = ee.Date(date_str).advance(1, 'day').format('YYYY-MM-dd').getInfo()
-
-                print(f'📅 Data mais recente: {date_str}')
-                print(f'📅 Intervalo: {start} a {end}')
-                return start, end
+                print(f'📅 Data mais recente: {image_datetime}')
+                return image_datetime
 
             except Exception as e:
                 print(f'⚠️ Erro ao processar data da imagem: {e}')
-
-                # 🔥 TENTA OUTRA FORMA DE PEGAR A DATA
                 try:
-                    # Pega a data como timestamp
                     timestamp = latest_image.get('system:time_start').getInfo()
-                    date_obj = datetime.fromtimestamp(timestamp / 1000)
-                    date_str = date_obj.strftime('%Y-%m-%d')
-
-                    start = date_str
-                    end = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
-
-                    print(f'📅 Data mais recente (timestamp): {date_str}')
-                    print(f'📅 Intervalo: {start} a {end}')
-                    return start, end
-
-                except Exception as e2:
-                    print(f'⚠️ Falha ao extrair data da imagem: {e2}')
-                    return None, None
+                    from datetime import datetime
+                    image_datetime = datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%dT%H:%M:%SZ')
+                    print(f'📅 Data mais recente: {image_datetime}')
+                    return image_datetime
+                except:
+                    return None
 
         except Exception as e:
             print(f'⚠️ Erro ao buscar data mais recente: {e}')
-            return None, None
+            return None
 
     @staticmethod
     def calculate_lst_in_geometry(geometry):
@@ -138,31 +144,44 @@ class EarthEngineService:
             return None
 
     @staticmethod
-    def calculate_lst(geometry, start_date=None, end_date=None, num_buffers=11, buffer_distance=90):
-        """Calcula o LST e buffers para um parque"""
+    def calculate_lst(geometry, start_date=None, end_date=None, num_buffers=11, buffer_distance=90,
+                      satellite_name=None):
+        """Calcula o LST e buffers para um parque usando o satélite especificado"""
         try:
             park_geom = ee.Geometry(geometry)
             print(f'🔍 Geometria processada')
 
-            # 🔥 SE NÃO TIVER DATA, BUSCA A MAIS RECENTE (INTERVALO DE 1 DIA)
+            # 🔥 USA A COLEÇÃO DO SATÉLITE
+            collection = EarthEngineService.get_satellite_collection(satellite_name)
+
+            # 🔥 SE NÃO TIVER DATA, BUSCA A MAIS RECENTE
             if not start_date or not end_date:
-                start_date, end_date = EarthEngineService.get_latest_single_date(geometry)
-                if start_date and end_date:
-                    print(f'📅 Usando intervalo de 1 dia: {start_date} a {end_date}')
+                # 🔥 get_latest_single_date RETORNA SÓ 1 VALOR AGORA
+                image_datetime = EarthEngineService.get_latest_single_date(geometry, satellite_name)
+
+                if image_datetime:
+                    # 🔥 USA A DATA SIMPLES (YYYY-MM-DD) PARA O GEE
+                    start_date = image_datetime[:10]
+                    end_date = image_datetime[:10]
+                    print(f'📅 Usando data mais recente: {start_date}')
+                    print(f'📅 Data completa (para salvar): {image_datetime}')
                 else:
                     today = datetime.now()
                     one_month_ago = today - timedelta(days=30)
-
                     start_date = one_month_ago.strftime('%Y-%m-%d')
                     end_date = today.strftime('%Y-%m-%d')
                     print(f'⚠️ Usando data padrão: {start_date} a {end_date}')
+                    image_datetime = start_date
 
-            print(f'📅 Datas finais: {start_date} a {end_date}')
+            if start_date == end_date:
+                from datetime import datetime, timedelta
+                date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                end_date = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
 
-            # 🔥 CRIA A COLEÇÃO
-            collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2") \
-                .filterBounds(park_geom) \
-                .filterDate(start_date, end_date)
+            print(f'📅 Datas finais para filtro GEE: {start_date} a {end_date}')
+
+            # 🔥 FILTRA POR DATA (USA A DATA SIMPLES)
+            collection = collection.filterBounds(park_geom).filterDate(start_date, end_date)
 
             # 🔥 VERIFICA SE EXISTEM IMAGENS
             try:
@@ -176,36 +195,24 @@ class EarthEngineService:
                 print(f'❌ Nenhuma imagem encontrada para {start_date} a {end_date}')
                 return {}
 
-            # 🔥 PEGA A IMAGEM MAIS RECENTE (NÃO A MEDIANA!)
+            # 🔥 PEGA A IMAGEM MAIS RECENTE
             image = collection.sort('system:time_start', False).first()
-            print(image.getInfo())
 
             # 🔥 EXTRAI A DATA DA IMAGEM USADA
             try:
-                # 1. Pega a data da captura
                 date_acquired = image.get('DATE_ACQUIRED').getInfo()
-
-                # 2. Pega a hora exata da captura
                 scene_time = image.get('SCENE_CENTER_TIME').getInfo()
-                # SCENE_CENTER_TIME vem como "13:20:42.7876610Z"
-                # Remove os milissegundos e o Z
-                scene_time = scene_time.split('.')[0]  # "13:20:42"
-
-                # 3. Combina data + hora
+                scene_time = scene_time.split('.')[0]
                 image_datetime = f"{date_acquired}T{scene_time}Z"
-
                 print(f'📸 Data e hora da captura: {image_datetime}')
 
             except Exception as e:
                 print(f'⚠️ Erro ao extrair data/hora: {e}')
-
-                # Fallback: usa system:time_start
                 try:
                     timestamp = image.get('system:time_start').getInfo()
                     from datetime import datetime
                     image_datetime = datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%dT%H:%M:%SZ')
                     print(f'📸 Data e hora (fallback): {image_datetime}')
-
                 except:
                     image_datetime = start_date
                     print(f'📸 Data e hora: {image_datetime} (fallback)')

@@ -15,25 +15,71 @@ class DatabaseService:
     def seed_satellites():
         """Popula a tabela de satélites com dados iniciais"""
         try:
+            # 🔥 VERIFICA SE JÁ TEM DADOS
+            existing = SatelliteSource.query.first()
+            if existing:
+                print("ℹ️ Satélites já populados, pulando seed...")
+                return True
+
             satellites = [
-                {'name': 'Landsat 8', 'description': 'Landsat 8 OLI/TIRS - Imagens de 30m de resolução',
-                 'platform': 'Landsat',
-                 'sensor': 'OLI/TIRS', 'band_thermal': 'Band 10', 'resolution_m': 30, 'active': True},
-                {'name': 'Landsat 9', 'description': 'Landsat 9 OLI-2/TIRS-2 - Imagens de 30m de resolução',
-                 'platform': 'Landsat',
-                 'sensor': 'OLI-2/TIRS-2', 'band_thermal': 'Band 10', 'resolution_m': 30, 'active': True},
-                {'name': 'SENTINEL_2', 'description': 'Sentinel 2 MSI - Imagens de 10m', 'platform': 'Sentinel',
-                 'sensor': 'MSI', 'band_thermal': 'Band 10', 'resolution_m': 10, 'active': False},
-                {'name': 'MODIS', 'description': 'MODIS - Imagens de 1000m', 'platform': 'Terra/Aqua',
-                 'sensor': 'MODIS', 'band_thermal': 'Band 31', 'resolution_m': 1000, 'active': False}
+                {
+                    'name': 'Landsat 8',
+                    'description': 'Landsat 8 OLI/TIRS - Imagens de 30m de resolução',
+                    'platform': 'Landsat',
+                    'sensor': 'OLI/TIRS',
+                    'band_thermal': 'Band 10',
+                    'resolution_m': 30,
+                    'active': True,
+                    'collection_id': 'LANDSAT/LC08/C02/T1_L2'  # 🔥 ADICIONA
+                },
+                {
+                    'name': 'Landsat 9',
+                    'description': 'Landsat 9 OLI-2/TIRS-2 - Imagens de 30m de resolução',
+                    'platform': 'Landsat',
+                    'sensor': 'OLI-2/TIRS-2',
+                    'band_thermal': 'Band 10',
+                    'resolution_m': 30,
+                    'active': True,
+                    'collection_id': 'LANDSAT/LC09/C02/T1_L2'  # 🔥 ADICIONA
+                },
+                {
+                    'name': 'SENTINEL_2',
+                    'description': 'Sentinel 2 MSI - Imagens de 10m',
+                    'platform': 'Sentinel',
+                    'sensor': 'MSI',
+                    'band_thermal': 'Band 10',
+                    'resolution_m': 10,
+                    'active': False,
+                    'collection_id': 'COPERNICUS/S2_SR'  # 🔥 ADICIONA
+                },
+                {
+                    'name': 'MODIS',
+                    'description': 'MODIS - Imagens de 1000m',
+                    'platform': 'Terra/Aqua',
+                    'sensor': 'MODIS',
+                    'band_thermal': 'Band 31',
+                    'resolution_m': 1000,
+                    'active': False,
+                    'collection_id': 'MODIS/006/MOD11A1'  # 🔥 ADICIONA
+                }
             ]
 
             for data in satellites:
                 if not SatelliteSource.query.filter_by(name=data['name']).first():
-                    db.session.add(SatelliteSource(**data))
+                    sat = SatelliteSource(
+                        name=data['name'],
+                        description=data['description'],
+                        platform=data['platform'],
+                        sensor=data['sensor'],
+                        band_thermal=data['band_thermal'],
+                        resolution_m=data['resolution_m'],
+                        active=data['active'],
+                        collection_id=data['collection_id']  # 🔥 ADICIONA
+                    )
+                    db.session.add(sat)
 
             db.session.commit()
-            print("✅ Satélites populados com sucesso!")
+            print(f"✅ {len(satellites)} satélites populados com collection_id!")
             return True
 
         except Exception as e:
@@ -56,6 +102,7 @@ class DatabaseService:
             print(f"🔵 SAVING PARK: {name}, {city}, {country}")
             print(f"🔵 OSM_ID: {osm_id}, TYPE: {osm_type}")
             print(f"🔵 GEOMETRY: {geometry is not None}")
+
             # Verificar se já existe pelo osm_id
             if osm_id:
                 existing = Park.query.filter_by(osm_id=str(osm_id)).first()
@@ -74,7 +121,6 @@ class DatabaseService:
             if geometry:
                 # 🔥 OVERPASS RETORNA UMA LISTA DE {lat, lon}
                 if isinstance(geometry, list) and len(geometry) > 0:
-                    # Verifica se é o formato do Overpass
                     if isinstance(geometry[0], dict) and 'lat' in geometry[0] and 'lon' in geometry[0]:
                         coords_str = ', '.join([f"{p['lon']} {p['lat']}" for p in geometry])
                         wkt = f"POLYGON(({coords_str}))"
@@ -99,7 +145,7 @@ class DatabaseService:
                 country=country,
                 osm_id=str(osm_id) if osm_id else None,
                 osm_type=osm_type,
-                geometry=geom_wkt,  # 👈 SALVAR A GEOMETRIA
+                geometry=geom_wkt,
                 tags=tags or {'source': 'overpass'},
                 created_at=datetime.now(timezone.utc)
             )
@@ -109,6 +155,7 @@ class DatabaseService:
             print(f"✅ Parque criado: {park.id} - {park.name}")
             print(f"📍 Geometry salva: {park.geometry is not None}")
             return park
+
         except Exception as e:
             print(f"❌ Erro ao salvar parque: {e}")
             db.session.rollback()

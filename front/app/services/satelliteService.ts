@@ -7,7 +7,7 @@ export interface Satellite {
     platform: string
     sensor: string
     band_thermal: string
-    resolution: number
+    resolution_m: number
     description: string
     active: boolean
     collection: string
@@ -50,25 +50,25 @@ export async function fetchSatellites(): Promise<Satellite[]> {
 function getDefaultSatellites(): Satellite[] {
     return [
         {
-            id: 'LANDSAT_8',
+            id: 'Landsat 8',
             name: 'Landsat 8',
             platform: 'Landsat',
             sensor: 'OLI/TIRS',
             band_thermal: 'Band 10',
-            resolution: 30,
+            resolution_m: 30,
             description: 'Landsat 8 OLI/TIRS',
             active: true,
             collection: 'LANDSAT/LC08/C02/T1_L2'
         },
         {
-            id: 'LANDSAT_9',
+            id: 'Landsat 9',
             name: 'Landsat 9',
             platform: 'Landsat',
             sensor: 'OLI-2/TIRS-2',
             band_thermal: 'Band 10',
-            resolution: 30,
+            resolution_m: 30,
             description: 'Landsat 9 OLI-2/TIRS-2',
-            active: true,
+            active: false,
             collection: 'LANDSAT/LC09/C02/T1_L2'
         }
     ]
