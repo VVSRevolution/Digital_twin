@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
 import {convertParkToFeature} from "~/services/geoService"
+import type {SearchParkResult} from '~/services/parkService'
 import {searchPark} from "~/services/parkService"
 import {analyzeParkCooling} from "~/services/eeService"
 import type Feature from 'ol/Feature'
@@ -12,14 +13,14 @@ import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
-import type {CoolingAnalysisResult, SearchResult} from '~/types'
+import type {CoolingAnalysisResult} from '~/types'
 import {Overlay} from "ol";
 
 // ===== REFS =====
 const loading = ref(false)
 const mapEl = ref<HTMLDivElement | null>(null)
 const search = ref("")
-const results = ref<SearchResult['elements']>([])
+const results = ref<SearchParkResult[]>([])  // 👈 TIPO CORRETO
 const coolingData = ref<CoolingAnalysisResult | null>(null)
 const showStats = ref(false)
 const parkName = ref("")
@@ -33,6 +34,7 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const tooltipOverlay = ref<Overlay | null>(null)
 const tooltipElement = ref<HTMLElement | null>(null)
 const pixelOpacity = ref(0.50)
+const predefinedParks = ref<SearchParkResult[]>([])  // 👈 ADICIONAR
 
 // ===== VARIÁVEIS OPENLAYERS =====
 let map: any
@@ -43,37 +45,29 @@ const format = new GeoJSON()
 
 // ===== FUNÇÃO PARA GERAR COR DO GRADIENTE =====
 function getGradientColor(t: number): string {
-  // t = 0 (frio) → t = 1 (quente)
-  // Gradiente: Azul → Ciano → Verde → Amarelo → Laranja → Vermelho
-
   let r: number, g: number, b: number
 
   if (t < 0.2) {
-    // Azul → Ciano (0 → 0.2)
     const p = t / 0.2
     r = 0
     g = Math.round(50 * p)
     b = Math.round(200 - 50 * p)
   } else if (t < 0.4) {
-    // Ciano → Verde (0.2 → 0.4)
     const p = (t - 0.2) / 0.2
     r = 0
     g = Math.round(50 + 150 * p)
     b = Math.round(150 - 150 * p)
   } else if (t < 0.6) {
-    // Verde → Amarelo (0.4 → 0.6)
     const p = (t - 0.4) / 0.2
     r = Math.round(150 * p)
     g = Math.round(200)
     b = Math.round(50 - 50 * p)
   } else if (t < 0.8) {
-    // Amarelo → Laranja (0.6 → 0.8)
     const p = (t - 0.6) / 0.2
     r = Math.round(150 + 105 * p)
     g = Math.round(200 - 100 * p)
     b = 0
   } else {
-    // Laranja → Vermelho (0.8 → 1.0)
     const p = (t - 0.8) / 0.2
     r = 255
     g = Math.round(100 - 100 * p)
@@ -85,7 +79,6 @@ function getGradientColor(t: number): string {
 
 // ===== FUNÇÃO PARA CRIAR/ATUALIZAR O TOOLTIP =====
 function setupTooltip() {
-  // Cria o elemento HTML do tooltip
   const el = document.createElement('div')
   el.style.cssText = `
     position: relative;
@@ -106,7 +99,6 @@ function setupTooltip() {
   `
   tooltipElement.value = el
 
-  // Cria o overlay do OpenLayers
   const overlay = new Overlay({
     element: el,
     positioning: 'bottom-center',
@@ -117,7 +109,7 @@ function setupTooltip() {
   map.addOverlay(overlay)
 }
 
-// ===== FUNÇÃO COM GRID PERFEITO (SEM ESPAÇOS) =====
+// ===== FUNÇÃO COM GRID PERFEITO =====
 async function addPixelLayer(buffers: any[]) {
   if (pixelLayer) {
     map.removeLayer(pixelLayer)
@@ -126,7 +118,6 @@ async function addPixelLayer(buffers: any[]) {
 
   if (!showPixels.value) return
 
-  // 🔥 COLETA TODOS OS PIXELS
   const points: { lon: number; lat: number; temp: number }[] = []
 
   buffers.forEach((buffer) => {
@@ -141,14 +132,8 @@ async function addPixelLayer(buffers: any[]) {
     })
   })
 
-  if (points.length === 0) {
-    console.log('❌ Nenhum pixel encontrado')
-    return
-  }
+  if (points.length === 0) return
 
-  console.log(`📊 ${points.length} pixels encontrados`)
-
-  // 🔥 CALCULA GRADIENTE
   const temps = points.map(p => p.temp)
   const minTemp = Math.min(...temps)
   const maxTemp = Math.max(...temps)
@@ -161,7 +146,6 @@ async function addPixelLayer(buffers: any[]) {
   gradientMax.value = gradientMaxVal
   totalPixels.value = points.length
 
-  // 🔥 IMPORTAÇÕES
   const VectorLayer = (await import('ol/layer/Vector')).default
   const VectorSource = (await import('ol/source/Vector')).default
   const Feature = (await import('ol/Feature')).default
@@ -170,20 +154,15 @@ async function addPixelLayer(buffers: any[]) {
   const StrokeStyle = (await import('ol/style/Stroke')).default
   const Polygon = (await import('ol/geom/Polygon')).default
 
-  // 🔥 RESOLUÇÃO (30 METROS) - USA O MESMO DO TOOLTIP
   const pixelSizeDegrees = 0.00026
-
-  // 🔥 USA AS COORDENADAS REAIS DOS PIXELS (SEM ARREDONDAR)
   const source = new VectorSource()
   const features: any[] = []
 
   points.forEach(p => {
-    // 🔥 CALCULA COR
     let normalized = (p.temp - gradientMinVal) / gradientRange
     normalized = Math.max(0, Math.min(1, normalized))
     const color = getGradientColor(normalized)
 
-    // 🔥 CRIA QUADRADO CENTRADO NA POSIÇÃO EXATA DO PIXEL
     const half = pixelSizeDegrees / 2
     const [x1, y1] = fromLonLat([p.lon - half, p.lat - half]) as [number, number]
     const [x2, y2] = fromLonLat([p.lon + half, p.lat + half]) as [number, number]
@@ -202,15 +181,12 @@ async function addPixelLayer(buffers: any[]) {
     })
 
     feature.setStyle(new Style({
-      fill: new FillStyle({
-        color: color,
-      }),
+      fill: new FillStyle({color}),
       stroke: new StrokeStyle({
         color: 'rgba(255,255,255,0.2)',
         width: 0.5
       })
     }))
-
 
     features.push(feature)
   })
@@ -224,17 +200,12 @@ async function addPixelLayer(buffers: any[]) {
   })
 
   map.addLayer(pixelLayer)
-  console.log(`✅ ${features.length} quadrados criados`)
 }
 
 // ===== FUNÇÃO PRINCIPAL =====
 async function searchPlace() {
-  console.log('🔍 searchPlace chamado')
-
-  if (!search.value || loading.value || isSearching.value) {
-    console.log('⏭️ Ignorando (já em execução)')
-    return
-  }
+  if (!search.value || loading.value || isSearching.value) return
+  results.value = []
 
   loading.value = true
   isSearching.value = true
@@ -245,68 +216,72 @@ async function searchPlace() {
   gradientMax.value = null
   totalPixels.value = 0
 
-  // Remove camada de pixels anterior
   if (pixelLayer) {
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
 
   try {
-    const data = await searchPark(search.value, undefined, 'Brazil')
+    // 🔥 ENVIA CITY (MESMO QUE VAZIO)
+    const data = await searchPark({
+      query: search.value,
+      city: '',
+      country: 'Brazil'
+    })
 
-    // 🔥 CONVERSÃO SEGURA
-    const elements = (data?.elements || []) as any[]
+    const elements = data.results || []
     results.value = elements
 
-    if (elements.length > 0) {
-      const element = elements[0]
-
-      // 🔥 VERIFICA SE O ELEMENTO É VÁLIDO
-      if (!element || !element.geometry || element.geometry.length === 0) {
-        console.warn('⚠️ Elemento inválido ou sem geometria')
-        const {handleInfo} = useNotifications()
-        handleInfo('Parque encontrado mas sem geometria disponível')
-        return
-      }
-
-      const feature = convertParkToFeature(element)
-
-      feature.setStyle(
-          new Style({
-            stroke: new Stroke({
-              color: "#00aa00",
-              width: 3,
-              lineDash: [10, 10]
-            })
-          }) as unknown as Style
-      )
-
-      vectorSource.clear()
-      vectorSource.addFeature(feature)
-
-      parkName.value = element?.tags?.name ?? "Parque sem nome"
-
-      drawBuffers(feature, vectorSource)
-      await analyzePark(feature)
-
-      const extent = feature.getGeometry()!.getExtent()
-      map.getView().fit(extent, {
-        padding: [50, 50, 50, 50],
-        duration: 800
-      })
-
-      results.value = []
-    } else {
+    if (elements.length === 0) {
       const {handleInfo} = useNotifications()
       handleInfo('Nenhum parque encontrado')
+      return
     }
+
+    const element = elements[0]
+    if (!element) {
+      const {handleError} = useNotifications()
+      handleError('Parque inválido')
+      return
+    }
+
+    // 🔥 USA SOMENTE geometry (NÃO geometry_3857)
+    if (!element.geometry) {
+      const {handleError} = useNotifications()
+      handleError('Parque encontrado mas sem geometria')
+      return
+    }
+
+    const feature = convertParkToFeature(element)
+
+    const extent = feature.getGeometry()!.getExtent()
+    map.getView().fit(extent, {
+      padding: [10, 10, 10, 10],
+      duration: 800
+    })
+
+    feature.setStyle(
+        new Style({
+          stroke: new Stroke({
+            color: "#00aa00",
+            width: 3,
+            lineDash: [10, 10]
+          })
+        }) as unknown as Style
+    )
+
+    vectorSource.clear()
+    vectorSource.addFeature(feature)
+
+    parkName.value = element?.tags?.name ?? element?.name ?? "Parque sem nome"
+
+    drawBuffers(feature, vectorSource)
+    await analyzePark(feature, element)
+
 
   } catch (error) {
     console.error("❌ Erro ao buscar parque:", error)
     const {handleError} = useNotifications()
-    handleError("Não foi possível gerar a geometria.\n" +
-        "O servidor provavelmente está muito ocupado para processar sua solicitação.\n" +
-        "Tente novamente mais tarde.", "Error", true)
     handleError(error, 'Erro ao buscar parque')
     results.value = []
   } finally {
@@ -326,12 +301,9 @@ function debouncedSearch() {
 }
 
 // ===== FUNÇÃO DE ANÁLISE =====
-async function analyzePark(feature: Feature<Geometry>) {
-  if (analyzing.value) {
-    console.log('⏭️ Análise já em execução')
-    return
-  }
-
+async function analyzePark(feature: Feature<Geometry>, park: SearchParkResult) {
+  if (analyzing.value) return
+  console.log(park)
   analyzing.value = true
 
   try {
@@ -341,14 +313,15 @@ async function analyzePark(feature: Feature<Geometry>) {
     })
 
     if (!geojson.geometry) {
-      console.error('❌ Geometria não encontrada')
       const {handleError} = useNotifications()
       handleError('Geometria não encontrada')
       return
     }
 
-    const result = await analyzeParkCooling(geojson.geometry as any, undefined)
-
+    const result = await analyzeParkCooling(
+        geojson.geometry as any,
+        park
+    )
     if (!result.success) {
       const {handleError} = useNotifications()
       handleError(result.error || 'Erro desconhecido', 'Análise falhou')
@@ -358,30 +331,14 @@ async function analyzePark(feature: Feature<Geometry>) {
 
     coolingData.value = result
 
-    // 🔥 VISUALIZA OS PIXELS COM GRADIENTE LOCAL
     if (result.buffers && result.buffers.length > 0) {
       await addPixelLayer(result.buffers)
-
-      // 🔥 CONTA TOTAL DE PIXELS
       let count = 0
       result.buffers.forEach((b: any) => {
         count += b.statistics?.count || 0
       })
       totalPixels.value = count
     }
-
-    console.log("🌡️ Análise do Cooling Island:")
-    console.log(`  🏠 Parque: ${parkName.value}`)
-    console.log(`  🌡️ LST do Parque: ${result.park_lst?.celsius?.toFixed(2) ?? 'N/A'}°C`)
-    console.log(`  ❄️ PCI: ${result.pci?.toFixed(2) ?? 'N/A'}°C`)
-    console.log(`  📏 PCD: ${result.pcd ?? 'N/A'}m`)
-    console.log(`  📐 PCA: ${result.pca?.ha?.toFixed(2) ?? 'N/A'} ha`)
-
-    console.log("\n📊 Estatísticas por buffer:")
-    result.buffers.forEach((b: any) => {
-      const stats = b.statistics
-      console.log(`  Anel ${b.buffer_index}: ${b.distance_prev}-${b.distance}m → ${stats.mean?.toFixed(2) ?? 'N/A'}°C (${stats.count} pixels)`)
-    })
 
     showStats.value = true
     const {handleSuccess} = useNotifications()
@@ -396,25 +353,31 @@ async function analyzePark(feature: Feature<Geometry>) {
 }
 
 // ===== SELEÇÃO DE PARQUE =====
-async function selectPark(item: SearchResult['elements'][0]) {
+async function selectPark(item: SearchParkResult) {
   if (isSearching.value || analyzing.value) return
 
   try {
+    const geom = item.geometry_3857 || item.geometry
+    if (!geom || !geom.coordinates || geom.coordinates.length === 0) {
+      const {handleError} = useNotifications()
+      handleError('Parque sem geometria')
+      return
+    }
+
     const feature = convertParkToFeature(item)
     vectorSource.clear()
     vectorSource.addFeature(feature)
 
-    parkName.value = item.tags?.name || "Parque sem nome"
+    parkName.value = item.tags?.name || item.name || "Parque sem nome"
 
     drawBuffers(feature, vectorSource)
+    await analyzePark(feature)
 
     const extent = feature.getGeometry()!.getExtent()
     map.getView().fit(extent, {
       padding: [50, 50, 50, 50],
       duration: 800
     })
-
-    await analyzePark(feature)
 
     results.value = []
     search.value = ""
@@ -424,6 +387,19 @@ async function selectPark(item: SearchResult['elements'][0]) {
     const {handleError} = useNotifications()
     handleError(error, 'Erro ao selecionar parque')
   }
+}
+
+// ===== FUNÇÕES VAZIAS PARA OS EMITS =====
+function showAbout() {
+}
+
+function exportReport() {
+}
+
+function refreshData() {
+}
+
+function openSettings() {
 }
 
 // ===== FUNÇÃO PARA ATUALIZAR OPACIDADE =====
@@ -436,13 +412,9 @@ function updatePixelOpacity(value: number) {
 
 // ===== FUNÇÃO TOGGLE PIXELS =====
 async function togglePixels() {
-  // 🔥 INVERTE O VALOR
-
   if (showPixels.value && coolingData.value?.buffers) {
-    console.log(showPixels.value, "colocar mapa ")
     await addPixelLayer(coolingData.value.buffers)
   } else if (pixelLayer) {
-    console.log(showPixels.value, "remover mapa ")
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
@@ -477,7 +449,6 @@ onMounted(async () => {
     })
   })
 
-// ===== EVENTO PARA MOSTRAR TOOLTIP AO PASSAR O MOUSE =====
   map.on('pointermove', (evt: any) => {
     const overlay = tooltipOverlay.value
     const el = tooltipElement.value
@@ -486,14 +457,12 @@ onMounted(async () => {
     const coordinate = evt.coordinate
     const lonLat = proj.toLonLat(coordinate)
 
-    // 🔥 FORÇA O TIPO COMO ARRAY DE NÚMEROS
     if (!lonLat || !Array.isArray(lonLat) || lonLat.length < 2) {
       el.style.opacity = '0'
       overlay.setPosition(undefined)
       return
     }
 
-    // 🔥 USA AS VARIÁVEIS COM TIPO CERTO
     const lon = lonLat[0] as number
     const lat = lonLat[1] as number
 
@@ -528,7 +497,6 @@ onMounted(async () => {
     }
   })
 
-// ===== ESCONDE TOOLTIP AO SAIR DO MAPA =====
   map.getTargetElement().addEventListener('mouseleave', () => {
     if (tooltipElement.value) {
       tooltipElement.value.style.opacity = '0'
@@ -538,7 +506,6 @@ onMounted(async () => {
     }
   })
 
-// Inicializa o tooltip
   setupTooltip()
 })
 
@@ -550,17 +517,6 @@ onUnmounted(() => {
   if (pixelLayer) {
     map?.removeLayer(pixelLayer)
   }
-  if (map) {
-    map.setTarget(undefined)
-    map.dispose()
-  }
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
-  if (pixelLayer) {
-    map?.removeLayer(pixelLayer)
-  }
-  // Remove o overlay do tooltip
   if (tooltipOverlay.value) {
     map?.removeOverlay(tooltipOverlay.value)
   }

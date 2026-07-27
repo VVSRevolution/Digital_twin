@@ -7,17 +7,28 @@ export type OSMPlace = {
 
 // Tipos de parque
 export type OSMElement = {
-    id: number
-    lat: number
-    lon: number
+    id: number | string
+    lat?: number
+    lon?: number
+    name?: string
+    osm_id?: number | string | null
+    osm_type?: string | null
+    city?: string | null
+    country?: string | null
     tags?: {
         name?: string
         [key: string]: unknown
     }
-    geometry?: Array<{ lat: number; lon: number }>
+    geometry?: Array<{ lat: number; lon: number }> | ParkGeometry | null
 }
 
 export type SearchResult = {
+    elements: OSMElement[]
+}
+
+export type SearchParkResponse = {
+    source?: string
+    results: OSMElement[]
     elements: OSMElement[]
 }
 

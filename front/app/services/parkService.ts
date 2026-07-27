@@ -1,47 +1,82 @@
-/**
- * Busca parques no Overpass API (OpenStreetMap)
- */
-/**
- * Busca parques no Overpass API (OpenStreetMap)
- */
+// services/parkService.ts
 import {API_URL} from './eeService'
+import type {ParkGeometry} from "~/types";
 
-interface SearchParkParams {
+export interface SearchParkParams {
     query: string
     city?: string
     country?: string
-    osm_id?: number
+    osm_id?: string | null
 }
 
-export async function searchPark(params: SearchParkParams) {
+export interface SearchParkResult {
+    id?: number
+    name?: string
+    city?: string
+    country?: string
+    geometry?: ParkGeometry      // GeoJSON (EPSG:4326)
+    geometry_3857?: ParkGeometry // GeoJSON (EPSG:3857) - já convertido
+    tags?: any
+    osm_id?: string
+    osm_type?: string
+}
+
+export interface SearchParkResponse {
+    success?: boolean
+    source?: 'database' | 'overpass'
+    results: SearchParkResult[]
+    error?: string
+}
+
+/**
+ * Busca parques no backend (que consulta DB + Overpass)
+ */
+export async function searchPark(params: SearchParkParams): Promise<SearchParkResponse> {
+    const {handleError} = useNotifications()
+
     try {
         const response = await fetch(`${API_URL}/api/park/search`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 query: params.query,
                 city: params.city || '',
-                country: params.country || 'BR',
+                country: params.country || 'Brasil',
                 osm_id: params.osm_id || null
             })
         })
 
-        if (!response.ok) {
-            throw new Error(`Erro HTTP ${response.status}`)
+        const data = await response.json()
+
+        // 🔥 SE A RESPOSTA NÃO FOR SUCESSO
+        if (!response.ok || data.success === false) {
+            const errorMsg = data.error || 'Erro ao buscar parque'
+            handleError(errorMsg)
+            return {
+                success: false,
+                results: [],
+                error: errorMsg
+            }
         }
 
-        const data = await response.json()
-        console.log('🔍 Resultado da busca:', data)
-        return data
+        return {
+            success: true,
+            source: data.source || 'overpass',
+            results: data.results || [],
+            error: data.error
+        }
 
     } catch (error) {
         console.error('❌ Erro ao buscar parque:', error)
-        throw error
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+        handleError(errorMsg)
+        return {
+            success: false,
+            results: [],
+            error: errorMsg
+        }
     }
 }
-
 
 // services/parkService.ts
 export async function searchParkold(query: string, city?: string, country?: string, osm_id?: any) {

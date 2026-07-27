@@ -53,6 +53,9 @@ class DatabaseService:
     ) -> Park:
         """Salva um parque no banco de dados"""
         try:
+            print(f"🔵 SAVING PARK: {name}, {city}, {country}")
+            print(f"🔵 OSM_ID: {osm_id}, TYPE: {osm_type}")
+            print(f"🔵 GEOMETRY: {geometry is not None}")
             # Verificar se já existe pelo osm_id
             if osm_id:
                 existing = Park.query.filter_by(osm_id=str(osm_id)).first()
@@ -69,11 +72,26 @@ class DatabaseService:
             # Converter geometry para WKT
             geom_wkt = None
             if geometry:
-                if isinstance(geometry, dict):
+                # 🔥 OVERPASS RETORNA UMA LISTA DE {lat, lon}
+                if isinstance(geometry, list) and len(geometry) > 0:
+                    # Verifica se é o formato do Overpass
+                    if isinstance(geometry[0], dict) and 'lat' in geometry[0] and 'lon' in geometry[0]:
+                        coords_str = ', '.join([f"{p['lon']} {p['lat']}" for p in geometry])
+                        wkt = f"POLYGON(({coords_str}))"
+                        geom_wkt = WKTElement(wkt, srid=4326)
+                        print(f"📍 Geometria Overpass convertida: {wkt[:100]}...")
+                    else:
+                        print(f"⚠️ Formato de geometria não reconhecido: {type(geometry[0])}")
+
+                # 🔥 GEOJSON
+                elif isinstance(geometry, dict):
                     coords = geometry.get('coordinates', [])
                     if coords:
                         wkt = f"POLYGON(({', '.join([f'{p[0]} {p[1]}' for p in coords[0]])}))"
                         geom_wkt = WKTElement(wkt, srid=4326)
+                        print(f"📍 Geometria GeoJSON convertida: {wkt[:100]}...")
+                else:
+                    print(f"⚠️ Geometria não reconhecida: {type(geometry)}")
 
             park = Park(
                 name=name,
@@ -81,15 +99,16 @@ class DatabaseService:
                 country=country,
                 osm_id=str(osm_id) if osm_id else None,
                 osm_type=osm_type,
-                geometry=geom_wkt,
+                geometry=geom_wkt,  # 👈 SALVAR A GEOMETRIA
                 tags=tags or {'source': 'overpass'},
                 created_at=datetime.now(timezone.utc)
             )
-            db.session.add(park)
-            db.session.flush()
-            print(f"✅ Parque criado: {park.id} - {park.name} (osm_id: {osm_id}, type: {osm_type})")
-            return park
 
+            db.session.add(park)
+            db.session.commit()
+            print(f"✅ Parque criado: {park.id} - {park.name}")
+            print(f"📍 Geometry salva: {park.geometry is not None}")
+            return park
         except Exception as e:
             print(f"❌ Erro ao salvar parque: {e}")
             db.session.rollback()

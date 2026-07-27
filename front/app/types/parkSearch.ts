@@ -2,13 +2,6 @@
  * Tipos e Interfaces para o sistema de busca de parques
  */
 
-export interface SearchResult {
-    id: number
-    lat: number
-    lon: number
-    tags?: { name?: string; [key: string]: unknown }
-}
-
 export interface ParkSuggestion {
     id: number
     osm_id?: number

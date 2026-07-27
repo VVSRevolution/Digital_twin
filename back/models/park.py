@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+import pyproj
 from geoalchemy2 import Geometry
+from geoalchemy2.shape import to_shape
+from shapely.geometry import mapping
 
 from extensions import db
 
@@ -73,6 +76,33 @@ class Park(db.Model):
     analyses = db.relationship('CoolingAnalysis', backref='park', lazy='dynamic')
 
     def to_dict(self):
+        geometry_4326 = None
+        geometry_3857 = None
+
+        if self.geometry:
+            # 🔥 CONVERTER PARA SHAPELY
+            shape = to_shape(self.geometry)
+
+            # 🔥 GEOJSON (EPSG:4326)
+            geometry_4326 = mapping(shape)
+
+            # 🔥 CONVERTER PARA EPSG:3857 (Web Mercator)
+            transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+
+            # Converter coordenadas
+            coords_3857 = []
+            for ring in geometry_4326['coordinates']:
+                ring_3857 = []
+                for coord in ring:
+                    x, y = transformer.transform(coord[0], coord[1])
+                    ring_3857.append([x, y])
+                coords_3857.append(ring_3857)
+
+            geometry_3857 = {
+                'type': geometry_4326['type'],
+                'coordinates': coords_3857
+            }
+
         return {
             'id': self.id,
             'name': self.name,
@@ -81,5 +111,8 @@ class Park(db.Model):
             'city': self.city,
             'country': self.country,
             'area_ha': self.area_ha,
+            'geometry': geometry_4326,  # 👈 EPSG:4326
+            'geometry_3857': geometry_3857,  # 👈 EPSG:3857
+            'tags': self.tags or {'name': self.name},
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

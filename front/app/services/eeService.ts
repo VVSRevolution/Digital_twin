@@ -1,6 +1,6 @@
 import {useNotifications} from '~/composables/useErrorHandler'
 import type {BufferResult, CoolingAnalysisResult, CoolingIslandType, ParkGeometry, TimeseriesResult,} from '~/types'
-import type {AddParkData} from "~/types/parkSearch";
+import type {SearchParkResult} from "~/services/parkService";
 
 const isProduction = import.meta.env.PROD || import.meta.env.NODE_ENV === 'production'
 
@@ -21,22 +21,22 @@ console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvol
  */
 export async function analyzeParkCooling(
     geometry: ParkGeometry,
-    metadata: Partial<AddParkData>
+    metadata: Partial<SearchParkResult>
 ): Promise<CoolingAnalysisResult> {
     try {
         console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`, geometry,
             metadata)
-
+        const payload: any = {
+            geometry: geometry,
+            ...metadata  // 🔥 TUDO QUE TIVER NO METADATA VAI DIRETO
+        }
 
         const response = await fetch(`${API_URL}/api/park/analyze`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                geometry,
-                ...metadata
-            }),
+            body: JSON.stringify(payload),
         })
 
         if (!response.ok) {

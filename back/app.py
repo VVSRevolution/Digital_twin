@@ -52,30 +52,92 @@ def analyze_park():
             return jsonify({'error': 'Corpo da requisição vazio'}), 400
 
         geometry = data.get('geometry')
+        osm_id = data.get('osm_id')  # 🔥 ADICIONA
         start_date = data.get('startDate')
         end_date = data.get('endDate')
         park_id = data.get('id', 'unknown')
         name = data.get('name', '')
         city = data.get('city', '')
         country = data.get('country', 'BR')
-        num_buffers = data.get('numBuffers', 10)
+        num_buffers = data.get('numBuffers', 11)
         buffer_distance = data.get('bufferDistance', 90)
 
-        # 🔥 PEGAR SATELLITES CORRETAMENTE
+        # 🔥 VALIDA: PRECISA DE OSM_ID OU GEOMETRY
+        if not osm_id and not geometry:
+            return jsonify({'error': 'É necessário fornecer osm_id ou geometry'}), 400
+
         satellites = data.get('satellites', ['Landsat 8'])
-        # Se for string, converter para lista
         if isinstance(satellites, str):
             satellites = [satellites]
-        # Se for None ou vazio, usar padrão
         if not satellites or not isinstance(satellites, list):
             satellites = ['Landsat 8']
 
         is_up_to_date = data.get('isUpToDate', True)
 
-        if not geometry:
-            return jsonify({'error': 'Geometria do parque é obrigatória'}), 400
+        # 🔥 BUSCA PARQUE EXISTENTE PELO OSM_ID
+        from models import Park
+        park = None
 
-        # 🔥 CALCULA LST
+        if osm_id:
+            # 🔥 BUSCA POR OSM_ID
+            park = Park.query.filter_by(osm_id=str(osm_id)).first()
+
+            if park:
+                # 🔥 USA O PARQUE EXISTENTE
+                print(f"✅ Parque encontrado por OSM_ID: {park.name} (ID: {park.id}, OSM: {park.osm_id})")
+
+                if not geometry and park.geometry:
+                    from geoalchemy2.shape import to_shape
+                    from shapely.geometry import mapping
+                    geom_wkt = to_shape(park.geometry)
+                    geometry = mapping(geom_wkt)
+            else:
+                # 🔥 SE NÃO ACHOU POR OSM_ID, BUSCA POR GEOMETRIA IGUAL
+                print(f"⚠️ Parque com OSM {osm_id} não encontrado, buscando por geometria...")
+
+                if geometry:
+                    from geoalchemy2.shape import to_shape
+                    from shapely.geometry import shape
+                    input_geom = shape(geometry)
+
+                    all_parks = Park.query.all()
+                    for p in all_parks:
+                        if p.geometry:
+                            p_geom = to_shape(p.geometry)
+                            if p_geom.equals(input_geom):
+                                park = p
+                                print(f"✅ Parque encontrado por geometria igual: {park.name} (ID: {park.id})")
+                                geometry = mapping(p_geom)
+                                break
+
+                # 🔥 SÓ CRIA NOVO SE NÃO ACHOU POR GEOMETRIA
+                if not park:
+                    print(f"⚠️ Nenhum parque encontrado, criando novo com OSM {osm_id}...")
+                    park = DatabaseService.save_park(
+                        name=name,
+                        city=city,
+                        country=country,
+                        geometry=geometry,
+                        tags={'source': 'api', 'park_id': park_id, 'osm_id': str(osm_id)}
+                    )
+                    park.osm_id = int(osm_id)
+                    db.session.commit()
+                    print(f"✅ Novo parque criado: {park.name} (ID: {park.id}, OSM: {park.osm_id})")
+        else:
+            # 🔥 USA GEOMETRY (SEM OSM_ID)
+            if not geometry:
+                return jsonify({'error': 'Geometry é obrigatória quando não tem osm_id'}), 400
+
+            park = DatabaseService.save_park(
+                name=name,
+                city=city,
+                country=country,
+                geometry=geometry,
+                tags={'source': 'api', 'park_id': park_id}
+            )
+            print(f"✅ Novo parque criado sem osm_id: {park.name} (ID: {park.id})")
+
+        # 🔥 CONTINUA COM A ANÁLISE
         result = EarthEngineService.calculate_lst(
             geometry=geometry,
             start_date=start_date,
@@ -87,21 +149,8 @@ def analyze_park():
         if not result:
             return jsonify({'error': 'Falha no cálculo LST'}), 500
 
-        # 🔥 2. SALVA NO BANCO (USANDO O SERVIÇO)
-        from services.database_service import DatabaseService
-
-        # Salvar parque
-        park = DatabaseService.save_park(
-            name=name,
-            city=city,
-            country=country,
-            geometry=geometry,
-            tags={'source': 'api', 'park_id': park_id}
-        )
-
-        # Salvar análise
+        # 🔥 SALVA ANÁLISE
         satellite_name = satellites[0] if satellites and isinstance(satellites, list) else 'Landsat 8'
-        print(f"🛰️ Usando satélite: {satellite_name}")
         analysis = DatabaseService.save_analysis(
             park_id=park.id,
             satellite_name=satellite_name,
@@ -119,11 +168,12 @@ def analyze_park():
             ditto_updated=False
         )
 
-        # 🔥 3. ATUALIZA O DITTO
+        # 🔥 ATUALIZA DITTO
         park_data = {
             'name': name,
             'city': city,
             'country': country,
+            'osm_id': int(osm_id) if osm_id else None,
             'park_lst': result['park_lst']['celsius'],
             'pci': result['pci'],
             'pcd': result['pcd'],
@@ -133,16 +183,15 @@ def analyze_park():
         }
         ditto_success = DittoService.update_park_twin(park_id, park_data)
 
-        # Atualizar status do Ditto no banco
         if ditto_success:
             DatabaseService.update_ditto_status(analysis.id, True)
 
         db.session.commit()
 
-        # 🔥 4. RETORNA
         return jsonify({
             'success': True,
             'park_id': park.id,
+            'osm_id': park.osm_id,
             'analysis_id': analysis.id,
             'park_lst': result['park_lst'],
             'pci': result['pci'],
@@ -280,7 +329,6 @@ def get_park_analyses(park_id):
 
 @app.route('/api/park/search', methods=['POST'])
 def search_park():
-    """Busca parque: DB primeiro, Overpass depois"""
     try:
         data = request.get_json()
         query = data.get('query', '')
@@ -295,11 +343,20 @@ def search_park():
             return jsonify({'results': []})
 
         result = ParkSearchService.search(query, city, country, osm_id)
+
+        # 🔥 SE TIVER ERRO, RETORNA COM status 500
+        if not result.get('success', True):
+            return jsonify(result), 500
+
         return jsonify(result)
 
     except Exception as e:
         print(f"❌ Erro: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'results': []
+        }), 500
 
 
 # ============================================================

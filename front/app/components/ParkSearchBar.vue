@@ -17,12 +17,14 @@
           </div>
 
           <!-- PESQUISA -->
-          <div class="search-input">
+          <div ref="searchInputRef" class="search-input">
             <input
                 v-model="search"
                 class="search-field"
                 placeholder="Pesquisar parque..."
                 type="text"
+                @blur="hideParkSuggestions"
+                @input="onParkInput($event)"
                 @keydown.enter="handleSearch"
             />
             <Button
@@ -82,9 +84,10 @@
                     placeholder="Digite o nome do parque..."
                     type="text"
                     @blur="hideParkSuggestions"
-                    @input="onParkInput"
+                    @input="onParkInput($event)"
                 />
-                <div v-if="parkSuggestions.length && showParkSuggestions" class="autocomplete-list">
+                <div v-if="parkSuggestions.length && showParkSuggestions &&  !showParkSugestionOnSeach"
+                     class="autocomplete-list">
                   <div
                       v-for="park in parkSuggestions"
                       :key="park.id"
@@ -269,142 +272,71 @@
       </template>
     </Card>
 
+    <!-- 🔥 AUTOCOMPLETE DA PESQUISA (FORA DO CARD, ABSOLUTO) -->
+    <div v-if="parkSuggestions.length && showParkSuggestions && showParkSugestionOnSeach"
+         :style="autocompleteStyle"
+         class="autocomplete-list-search">
+      <div
+          v-for="park in parkSuggestions"
+          :key="park.id"
+          class="autocomplete-item"
+          @mousedown.prevent="selectPark(park)"
+      >
+        <span class="park-name">{{ park.name || 'Parque sem nome' }}</span>
+        <span class="park-location">{{ park.city || '' }}, {{ park.country || '' }}</span>
+      </div>
+    </div>
+
     <!-- 🔥 CARD 3: RESULTADOS -->
-    <Card v-if="results.length || (showStats && coolingData)" class="results-card">
-      <template #content>
-        <!-- RESULTADOS DA PESQUISA -->
-        <div v-if="results.length" class="results-list">
-          <div
-              v-for="item in results"
-              :key="item.id"
-              class="result-item"
-              @click="handleSelect(item)"
-          >
-            🌳 {{ item.tags?.name || 'Parque sem nome' }}
-          </div>
+    <div v-if="results.length" class="results-container">
+      <!-- HEADER PARA EXPANDIR -->
+      <div class="results-header" @click="toggleResults">
+        <span>📋 Resultados ({{ results.length }})</span>
+        <span class="results-toggle">{{ isResultsExpanded ? '▲' : '▼' }}</span>
+      </div>
+
+      <!-- LISTA (EXPANDE/ENCOLHE) -->
+      <div v-show="isResultsExpanded" class="results-list">
+        <div
+            v-for="item in results"
+            :key="item.id"
+            class="result-item"
+            @click="handleSelect(item)"
+        >
+          <div class="result-name">🌳 {{ item.tags?.name || item.name || 'Parque sem nome' }}</div>
+          <div class="result-location">{{ item.city }}, {{ item.country }}</div>
+          <div class="result-osm-id">ID: {{ item.osm_id }}</div>
         </div>
+      </div>
+    </div>
 
-        <!-- RESULTADOS DA ANÁLISE -->
-        <template v-if="showStats && coolingData">
-          <Divider v-if="results.length"/>
-
-          <div class="stats-header">
-            <h4>🌳 {{ parkName }}</h4>
-            <Tag
-                :severity="coolingData.success ? 'success' : 'danger'"
-                :value="coolingData.success ? 'OK' : 'Falha'"
-            />
-          </div>
-
-          <!-- 🔥 DATA DA IMAGEM -->
-          <div v-if="coolingData.image_date" class="stat-item image-date">
-            <span>📅 Data da Imagem</span>
-            <strong>{{ formatDate(coolingData.image_date) }}</strong>
-          </div>
-
-          <div
-              v-for="stat in formatCoolingStats(coolingData)"
-              :key="stat.label"
-              class="stat-item"
-          >
-            <span>{{ stat.label }}</span>
-            <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
-          </div>
-
-          <!-- 🔥 INFO DOS BUFFERS USADOS -->
-          <div class="stat-item buffer-info">
-            <span>📐 Buffers</span>
-            <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
-          </div>
-
-          <div v-if="coolingData.error" class="error-msg">
-            ⚠️ {{ coolingData.error }}
-          </div>
-
-          <!-- PIXELS -->
-          <template v-if="coolingData?.buffers">
-            <Divider/>
-            <div class="controls">
-              <div class="toggle-wrapper">
-                <Checkbox v-model="showPixels"
-                          binary
-                          @update:model-value="handleTogglePixels"
-                />
-                <label>Mostrar pixels de temperatura</label>
-              </div>
-
-              <!-- 🔥 CONTROLE DE OPACIDADE (NOVO) -->
-              <div v-if="showPixels" class="opacity-control">
-                <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
-                <input
-                    :value="pixelOpacity * 100"
-                    class="opacity-slider"
-                    max="100"
-                    min="0"
-                    type="range"
-                    @input="handleOpacityChange($event)"
-                />
-              </div>
-
-              <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
-                <div class="gradient-header">
-                  <span>🌡️ Temperatura</span>
-                  <Badge :value="`${totalPixels} px`"/>
-                </div>
-                <div class="gradient-bar"></div>
-                <div class="gradient-labels">
-                  <span>{{ gradientMin.toFixed(1) }}°C</span>
-                  <span>{{ gradientMax.toFixed(1) }}°C</span>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- BUFFERS -->
-          <template v-if="coolingData?.buffers">
-            <Divider/>
-            <div class="buffer-stats">
-              <h4>📊 Anéis</h4>
-              <div class="stats-grid">
-                <div
-                    v-for="buffer in coolingData.buffers"
-                    :key="buffer.distance"
-                    :style="{
-                    background: (buffer.statistics?.mean ?? null) !== null
-                      ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
-                      : '#f5f5f5'
-                  }"
-                    class="stats-item"
-                >
-                  <span>{{ buffer.distance }}m</span>
-                  <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
-                  <span>{{ buffer.statistics?.count ?? 0 }}px</span>
-                </div>
-              </div>
-            </div>
-          </template>
-        </template>
-      </template>
-    </Card>
   </div>
 </template>
 
 <script lang="ts" setup>
 import {onMounted, ref, watch} from 'vue'
-import {analyzeParkCooling, type CoolingAnalysisResult, formatCoolingStats, getParkAnalyses, getParks} from '@/services'
+import {
+  analyzeParkCooling,
+  type CoolingAnalysisResult,
+  formatCoolingStats,
+  getParkAnalyses,
+  getParks,
+  type SearchParkResult
+} from '@/services'
 import {useNotifications} from '~/composables/useErrorHandler'
 import {useParkSearch} from '~/composables/useParkSearch'
 import {useCountrySearch} from '~/composables/useCountrySearch'
 import {useCitySearch} from '~/composables/useCitySearch'
 import {useAddParkForm} from '~/composables/useAddParkForm'
 import {useParkMenu} from '~/composables/useParkMenu'
-import {debounce, formatDate} from '@/utils/parkSearchUtils'
-import type {AddParkData, CitySuggestion, CountrySuggestion, ParkSuggestion, SearchResult} from '@/types/parkSearch'
+import {debounce} from '@/utils/parkSearchUtils'
+import type {AddParkData, CitySuggestion, CountrySuggestion, ParkSuggestion} from '@/types/parkSearch'
 import {fetchSatellites} from "~/services/satelliteService";
 import {searchPark} from "~/services/parkService";
 
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 const {parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions} = useParkSearch()
+const showParkSugestionOnSeach = ref<boolean>(false)
 const {
   countrySuggestions,
   showCountrySuggestions,
@@ -454,8 +386,8 @@ const showPixels = defineModel<boolean>('showPixels', {default: true})
 const props = defineProps<{
   loading: boolean
   analyzing: boolean
-  results: SearchResult[]
-  predefinedParks?: SearchResult[]
+  results: SearchParkResult[]
+  predefinedParks?: SearchParkResult[]
   showStats: boolean
   coolingData: CoolingAnalysisResult | null
   parkName: string
@@ -468,7 +400,7 @@ const props = defineProps<{
 // EMITS
 const emit = defineEmits<{
   (e: 'search'): void
-  (e: 'select', park: SearchResult): void
+  (e: 'select', park: SearchParkResult): void
   (e: 'addPark', data: AddParkData & { numBuffers: number; bufferDistance: number }): void
   (e: 'refresh'): void
   (e: 'export'): void
@@ -487,6 +419,21 @@ onMounted(() => {
 
 // LOCAL STATE
 const cityWrapperRef = ref<HTMLElement | null>(null)
+const searchInputRef = ref<HTMLElement | null>(null)
+
+// 🔥 CALCULAR POSIÇÃO DO AUTOCOMPLETE
+const autocompleteStyle = computed(() => {
+  if (!searchInputRef.value) return {}
+
+  const rect = searchInputRef.value.getBoundingClientRect()
+  return {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: 9999
+  }
+})
 
 // Debounced search functions
 const debouncedSearchParks = debounce(async (query: string) => {
@@ -609,6 +556,12 @@ async function loadSatellites() {
 // ============================================================
 // 🔥 HANDLER - SELECIONAR PARQUE DA LISTA
 // ============================================================
+const isResultsExpanded = ref(false)
+
+function toggleResults() {
+  isResultsExpanded.value = !isResultsExpanded.value
+}
+
 function handleSelectParkFromList() {
   if (selectedPark.value) {
     isMenuOpen.value = false
@@ -620,8 +573,13 @@ function handleSelectParkFromList() {
 // ============================================================
 // 🔥 EVENT HANDLERS - PARQUE
 // ============================================================
-function onParkInput() {
-  debouncedSearchParks(newParkName.value)
+
+function onParkInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  debouncedSearchParks(value)
+  showParkSugestionOnSeach.value = target.classList.contains('search-field');
+
 }
 
 function selectPark(park: ParkSuggestion) {
@@ -639,6 +597,7 @@ function selectPark(park: ParkSuggestion) {
   }
   showParkSuggestions.value = false
   handleSuccess(`Parque "${park.name}" selecionado!`)
+  handleInfo(`Carregando parque "${park.name}" ...`)
 }
 
 // ============================================================
@@ -802,7 +761,7 @@ function handleSearch() {
   emit('search')
 }
 
-function handleSelect(item: SearchResult) {
+function handleSelect(item: SearchParkResult) {
   emit('select', item)
   handleSuccess(`Parque "${item.tags?.name || 'sem nome'}" selecionado!`)
 }
@@ -819,6 +778,8 @@ function handleOpacityChange(event: Event) {
 </script>
 
 <style scoped>
+
+
 /* 🔥 WRAPPER */
 .search-wrapper {
   position: absolute;
@@ -885,12 +846,45 @@ function handleOpacityChange(event: Event) {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+
+/* 🔥 AUTOCOMPLETE DA PESQUISA (FORA DO CARD, POSIÇÃO FIXA) */
+.autocomplete-list-search {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.autocomplete-list-search .autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.15s;
+}
+
+.autocomplete-list-search .autocomplete-item:hover {
+  background: #f3f4f6;
+}
+
+.autocomplete-list-search .park-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.autocomplete-list-search .park-location {
+  font-size: 12px;
+  color: #6b7280;
+}
+
 /* 🔥 MENU OPÇÕES */
 .menu-options {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 8px;
 }
 
 .menu-section {
@@ -1038,23 +1032,102 @@ function handleOpacityChange(event: Event) {
   margin-top: 4px;
 }
 
-/* 🔥 RESULTADOS */
+/* 🔥 RESULTADOS CONTAINER */
+.results-container {
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+/* 🔥 HEADER (CLICÁVEL PARA EXPANDIR) */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  transition: background 0.2s;
+  user-select: none;
+}
+
+.results-header:hover {
+  background: #eef2ff;
+}
+
+.results-toggle {
+  font-size: 12px;
+  color: #6b7280;
+  transition: transform 0.3s;
+}
+
+/* 🔥 LISTA */
 .results-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  max-height: 250px;
+  overflow-y: auto;
+  border-top: 1px solid #e5e7eb;
 }
 
+/* 🔥 ITEM DA LISTA */
 .result-item {
-  padding: 8px 12px;
+  padding: 10px 14px;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.15s;
-  font-size: 14px;
+  border-bottom: 1px solid #f3f4f6;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-item:last-child {
+  border-bottom: none;
 }
 
 .result-item:hover {
-  background: #f3f4f6;
+  background: #f0f7ff;
+  padding-left: 18px;
+}
+
+.result-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.result-location {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.result-osm-id {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+/* 🔥 SCROLLBAR */
+.results-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.results-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.results-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.results-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .stats-header {
