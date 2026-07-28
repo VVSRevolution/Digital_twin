@@ -1,5 +1,5 @@
 # services/analysis_service.py
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
 from geoalchemy2.shape import to_shape
@@ -14,6 +14,15 @@ from services.earth_engine_service import EarthEngineService
 
 class AnalysisService:
     """Serviço para gerenciar análises de cooling island"""
+
+    @staticmethod
+    def _parse_bool(value: Any) -> bool:
+        """Converte valores comuns para booleano real."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {'1', 'true', 't', 'yes', 'y', 'on'}
+        return bool(value)
 
     @staticmethod
     def find_or_create_park(geometry: Any, osm_id: Optional[str], name: str, city: str, country: str, park_id: str):
@@ -97,45 +106,91 @@ class AnalysisService:
         return None
 
     @staticmethod
+    def find_existing_analysis_by_image_date(
+            park_id: int,
+            num_buffers: int,
+            buffer_distance: int,
+            image_date: str
+    ) -> Optional[CoolingAnalysis]:
+        """Busca análise existente para a mesma imagem e configuração."""
+        existing = CoolingAnalysis.query.filter(
+            CoolingAnalysis.park_id == park_id,
+            CoolingAnalysis.num_buffers == num_buffers,
+            CoolingAnalysis.buffer_distance == buffer_distance,
+            CoolingAnalysis.image_date == image_date
+        ).first()
+        if existing:
+            print(f"✅ Análise existente para imagem {image_date} (ID: {existing.id})")
+        return existing
+
+    @staticmethod
     def process_analysis(park: Park, geometry: Any, metadata: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Processa a análise de cooling island.
-        Verifica se já existe, se não, calcula e salva.
         """
         num_buffers = metadata.get('numBuffers', 11)
         buffer_distance = metadata.get('bufferDistance', 90)
         satellites = metadata.get('satellites', ['Landsat 8'])
         park_id = metadata.get('id', 'unknown')
+
+        # 🔥 PEGA OS PARÂMETROS
         start_date = metadata.get('startDate')
         end_date = metadata.get('endDate')
+        is_up_to_date = metadata.get('isUpToDate', True)
 
         satellite_name = satellites[0] if satellites and len(satellites) > 0 else 'Landsat 8'
         print(f"🛰️ SATÉLITE: {satellite_name}")
+        print(f"📅 isUpToDate: {is_up_to_date}")
+        print(f"📅 startDate: {start_date}")
+        print(f"📅 endDate: {end_date}")
 
-        # 🔥 1. PEGA A DATA MAIS RECENTE DO GEE
-        latest_gee_date = EarthEngineService.get_latest_single_date(geometry, satellite_name)
-        if not latest_gee_date:
-            print("⚠️ Não foi possível obter data do GEE")
+        # ============================================================
+        # 🔥 VALIDAÇÃO DOS PARÂMETROS
+        # ============================================================
+
+        # 🔥 CASO 3: isUpToDate=false E endDate=null → ERRO
+        if not is_up_to_date and not end_date:
+            print("❌ ERRO: isUpToDate=false requer endDate")
             return None
 
-        print(f"📅 Data mais recente no GEE: {latest_gee_date}")
+        # 🔥 CASO 4: isUpToDate=true E endDate não é null → ERRO
+        if is_up_to_date and end_date:
+            print("❌ ERRO: isUpToDate=true não deve ter endDate")
+            return None
 
-        # 🔥 2. BUSCA A ANÁLISE MAIS RECENTE DO PARQUE NO BANCO
-        latest_analysis = CoolingAnalysis.query.filter_by(
-            park_id=park.id,
-            num_buffers=num_buffers,
-            buffer_distance=buffer_distance
-        ).order_by(CoolingAnalysis.image_date.desc()).first()
+        # 🔥 CASO 2: isUpToDate=false E endDate é definido
+        # 🔥 CASO 1: isUpToDate=true E endDate=null
 
-        # 🔥 3. COMPARA AS DATAS
-        if latest_analysis:
-            latest_db_date = latest_analysis.image_date
-            print(f"📅 Data mais recente no DB: {latest_db_date}")
+        # ============================================================
+        # 🔥 DEFINE AS DATAS
+        # ============================================================
 
-            # 🔥 COMPARA SÓ A DATA (YYYY-MM-DD) IGNORANDO A HORA
-            if latest_db_date[:10] == latest_gee_date[:10]:
-                print(
-                    f"✅ Data do DB ({latest_db_date[:10]}) é igual à do GEE ({latest_gee_date[:10]}) - RETORNANDO DO CACHE")
+        if is_up_to_date:
+            # 🔥 CASO 1: Manter atualizado - SEMPRE PEGA A MAIS RECENTE
+            print("📅 Modo: Manter atualizado - buscando imagem mais recente")
+
+            # Pega a data mais recente do GEE
+            latest_gee_date = EarthEngineService.get_latest_single_date(geometry, satellite_name)
+            if not latest_gee_date:
+                print("⚠️ Não foi possível obter data do GEE")
+                return None
+
+            # 🔥 USA A DATA MAIS RECENTE
+            filter_start = latest_gee_date[:10]
+            filter_end = latest_gee_date[:10]
+            compare_date = latest_gee_date[:10]
+            image_datetime = latest_gee_date
+            print(f"📅 Data mais recente no GEE: {image_datetime}")
+
+            # 🔥 VERIFICA SE JÁ EXISTE ANÁLISE COM ESSA DATA
+            latest_analysis = CoolingAnalysis.query.filter_by(
+                park_id=park.id,
+                num_buffers=num_buffers,
+                buffer_distance=buffer_distance
+            ).order_by(CoolingAnalysis.image_date.desc()).first()
+
+            if latest_analysis and latest_analysis.image_date[:10] == compare_date:
+                print(f"✅ Análise já existe para {compare_date} - RETORNANDO DO CACHE")
                 return {
                     'success': True,
                     'park_id': park.id,
@@ -157,32 +212,93 @@ class AnalysisService:
                     'timestamp': latest_analysis.analyzed_at.isoformat() if latest_analysis.analyzed_at else datetime.now().isoformat(),
                     'from_cache': True
                 }
-            else:
-                print(
-                    f"⚠️ Data do DB ({latest_db_date[:10]}) é diferente da do GEE ({latest_gee_date[:10]}) - CALCULANDO NOVA...")
+
+            # 🔥 CALCULA A MAIS RECENTE
+            print(f"⚠️ Calculando nova análise para {compare_date}...")
+
+            result = EarthEngineService.calculate_lst(
+                geometry=geometry,
+                start_date=filter_start,
+                end_date=filter_end,
+                num_buffers=num_buffers,
+                buffer_distance=buffer_distance,
+                satellite_name=satellite_name,
+                image_datetime=image_datetime
+            )
+
         else:
-            print("⚠️ Nenhuma análise encontrada para este parque - CALCULANDO...")
+            # 🔥 CASO 2: Período específico - USA ATÉ A DATA DEFINIDA
+            print(f"📅 Modo: Período específico - até {end_date}")
 
-        # 🔥 4. NÃO EXISTE OU DATA DIFERENTE, CALCULA
+            if not start_date:
+                # Se não tem start_date, usa 30 dias atrás
+                today = datetime.now()
+                start_date = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+                print(f"⚠️ startDate não fornecido, usando 30 dias atrás: {start_date}")
 
-        print(f"📅 Calculando nova análise para data: {start_date}")
+            # 🔥 USA O PERÍODO DEFINIDO PELO USUÁRIO
+            filter_start = start_date
+            filter_end = end_date
+            compare_date = end_date  # 🔥 COMPARA A DATA FINAL
+            image_datetime = end_date
 
-        result = EarthEngineService.calculate_lst(
-            geometry=geometry,
-            start_date=start_date,
-            end_date=end_date,
-            num_buffers=num_buffers,
-            buffer_distance=buffer_distance,
-            satellite_name=satellite_name
-        )
+            print(f"📅 Período: {filter_start} a {filter_end}")
+
+            # 🔥 VERIFICA SE JÁ EXISTE ANÁLISE COM A DATA FINAL
+            latest_analysis = CoolingAnalysis.query.filter_by(
+                park_id=park.id,
+                num_buffers=num_buffers,
+                buffer_distance=buffer_distance
+            ).filter(
+                CoolingAnalysis.image_date.like(f"{end_date}%")
+            ).first()
+
+            if latest_analysis:
+                print(f"✅ Análise já existe para {end_date} - RETORNANDO DO CACHE")
+                return {
+                    'success': True,
+                    'park_id': park.id,
+                    'osm_id': park.osm_id,
+                    'analysis_id': latest_analysis.id,
+                    'park_lst': {
+                        'celsius': latest_analysis.park_lst_celsius,
+                        'kelvin': latest_analysis.park_lst_kelvin
+                    },
+                    'pci': latest_analysis.pci,
+                    'pcd': latest_analysis.pcd,
+                    'pca': {
+                        'ha': latest_analysis.pca_ha,
+                        'm2': latest_analysis.pca_m2
+                    },
+                    'buffers': latest_analysis.buffers_data or [],
+                    'image_date': latest_analysis.image_date,
+                    'ditto_updated': latest_analysis.ditto_updated,
+                    'timestamp': latest_analysis.analyzed_at.isoformat() if latest_analysis.analyzed_at else datetime.now().isoformat(),
+                    'from_cache': True
+                }
+
+            # 🔥 CALCULA PARA O PERÍODO
+            print(f"⚠️ Calculando nova análise para o período {filter_start} a {filter_end}...")
+
+            result = EarthEngineService.calculate_lst(
+                geometry=geometry,
+                start_date=filter_start,
+                end_date=filter_end,
+                num_buffers=num_buffers,
+                buffer_distance=buffer_distance,
+                satellite_name=satellite_name,
+                image_datetime=None  # 🔥 NÃO USA IMAGEM ESPECÍFICA, USA PERÍODO
+            )
+
+        # ============================================================
+        # 🔥 SALVA RESULTADO
+        # ============================================================
 
         if not result:
             return None
 
-        # 🔥 EXTRAI A DATA COMPLETA DA IMAGEM
-        image_datetime = result.get('image_date', latest_gee_date)
+        image_datetime = result.get('image_date', image_datetime)
 
-        # 🔥 SALVA ANÁLISE
         analysis = DatabaseService.save_analysis(
             park_id=park.id,
             satellite_name=satellite_name,

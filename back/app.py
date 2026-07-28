@@ -59,10 +59,18 @@ def analyze_park():
         country = data.get('country', 'BR')
         num_buffers = data.get('numBuffers', 11)
         buffer_distance = data.get('bufferDistance', 90)
+        start_date = data.get('startDate'),
+        end_date = data.get('endDate')
+        is_up_to_date = data.get('isUpToDate', True)
 
         # 🔥 VALIDA
         if not osm_id and not geometry:
             return jsonify({'error': 'É necessário fornecer osm_id ou geometry'}), 400
+        
+        if is_up_to_date and end_date:
+            return jsonify({
+                'error': 'Quando isUpToDate=true, endDate deve ser null'
+            }), 400
 
         satellites = data.get('satellites', ['Landsat 8'])
         if isinstance(satellites, str):
@@ -83,7 +91,10 @@ def analyze_park():
             'numBuffers': num_buffers,
             'bufferDistance': buffer_distance,
             'satellites': satellites,
-            'id': park_id
+            'id': park_id,
+            'startDate': data.get('startDate'),
+            'endDate': data.get('endDate'),
+            'isUpToDate': data.get('isUpToDate', False)
         }
 
         result = AnalysisService.process_analysis(park, geometry, metadata)
