@@ -287,7 +287,6 @@
       </div>
     </div>
 
-    <!-- 🔥 CARD 3: RESULTADOS -->
     <div v-if="results.length" class="results-container">
       <!-- HEADER PARA EXPANDIR -->
       <div class="results-header" @click="toggleResults">
@@ -310,6 +309,112 @@
       </div>
     </div>
 
+    <!-- 🔥 CARD 3: RESULTADOS -->
+    <Card v-if="(showStats && coolingData)" class="results-card">
+      <template #content>
+
+
+        <!-- RESULTADOS DA ANÁLISE -->
+        <template v-if="showStats && coolingData">
+
+          <div class="stats-header">
+            <h4>🌳 {{ parkName }}</h4>
+            <Tag
+                :severity="coolingData.success ? 'success' : 'danger'"
+                :value="coolingData.success ? 'OK' : 'Falha'"
+            />
+          </div>
+
+          <!-- 🔥 DATA DA IMAGEM -->
+          <div v-if="coolingData.image_date" class="stat-item image-date">
+            <span>📅 Data da Imagem</span>
+            <strong>{{ formatDate(coolingData.image_date) }}</strong>
+          </div>
+
+          <div
+              v-for="stat in formatCoolingStats(coolingData)"
+              :key="stat.label"
+              class="stat-item"
+          >
+            <span>{{ stat.label }}</span>
+            <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
+          </div>
+
+          <!-- 🔥 INFO DOS BUFFERS USADOS -->
+          <div class="stat-item buffer-info">
+            <span>📐 Buffers</span>
+            <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
+          </div>
+
+          <div v-if="coolingData.error" class="error-msg">
+            ⚠️ {{ coolingData.error }}
+          </div>
+          <!-- PIXELS -->
+          <template v-if="coolingData?.buffers">
+            <Divider/>
+            <div class="controls">
+              <div class="toggle-wrapper">
+                <Checkbox v-model="showPixels"
+                          binary
+                          @update:model-value="handleTogglePixels"
+                />
+                <label>Mostrar pixels de temperatura</label>
+              </div>
+
+              <!-- 🔥 CONTROLE DE OPACIDADE (NOVO) -->
+              <div v-if="showPixels" class="opacity-control">
+                <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
+                <input
+                    :value="pixelOpacity * 100"
+                    class="opacity-slider"
+                    max="100"
+                    min="0"
+                    type="range"
+                    @input="handleOpacityChange($event)"
+                />
+              </div>
+
+              <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
+                <div class="gradient-header">
+                  <span>🌡️ Temperatura</span>
+                  <Badge :value="`${totalPixels} px`"/>
+                </div>
+                <div class="gradient-bar"></div>
+                <div class="gradient-labels">
+                  <span>{{ gradientMin.toFixed(1) }}°C</span>
+                  <span>{{ gradientMax.toFixed(1) }}°C</span>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- BUFFERS -->
+          <template v-if="coolingData?.buffers">
+            <Divider/>
+            <div class="buffer-stats">
+              <h4>📊 Anéis</h4>
+              <div class="stats-grid">
+                <div
+                    v-for="buffer in coolingData.buffers"
+                    :key="buffer.distance"
+                    :style="{
+                    background: (buffer.statistics?.mean ?? null) !== null
+                      ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
+                      : '#f5f5f5'
+                  }"
+                    class="stats-item"
+                >
+                  <span>{{ buffer.distance }}m</span>
+                  <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
+                  <span>{{ buffer.statistics?.count ?? 0 }}px</span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </template>
+      </template>
+    </Card>
+
   </div>
 </template>
 
@@ -319,8 +424,9 @@ import {
   analyzeParkCooling,
   type CoolingAnalysisResult,
   formatCoolingStats,
-  getParkAnalyses,
   getParks,
+  type Park,
+  parkToSearchResult,
   type SearchParkResult
 } from '@/services'
 import {useNotifications} from '~/composables/useErrorHandler'
@@ -399,7 +505,7 @@ const props = defineProps<{
 
 // EMITS
 const emit = defineEmits<{
-  (e: 'search'): void
+  (e: 'search', selectedPark?: ParkSuggestion | null): void
   (e: 'select', park: SearchParkResult): void
   (e: 'addPark', data: AddParkData & { numBuffers: number; bufferDistance: number }): void
   (e: 'refresh'): void
@@ -427,7 +533,7 @@ const autocompleteStyle = computed(() => {
 
   const rect = searchInputRef.value.getBoundingClientRect()
   return {
-    position: 'fixed',
+    position: 'fixed' as const,
     top: `${rect.bottom + 4}px`,
     left: `${rect.left}px`,
     width: `${rect.width}px`,
@@ -473,8 +579,8 @@ const debouncedSearchCities = debounce(async (query: string) => {
   }
 }, 600)
 
-const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
-const parkList = ref<Array<{ id: number, name: string, city: string, country: string }>>([])
+const parkList = ref<Park[]>([])
+
 const loadingParks = ref(false)
 
 async function loadParks() {
@@ -491,40 +597,6 @@ async function loadParks() {
   }
 }
 
-// ============================================================
-// 🔥 BUSCAR ANÁLISES DE UM PARQUE
-// ============================================================
-async function loadParkAnalyses(parkId: number) {
-  try {
-    const data = await getParkAnalyses(parkId)
-
-    // 🔥 NOVO FORMATO: data.analysis é o objeto, não data.analyses[0]
-    if (data.success && data.analysis) {
-      const coolingResult: CoolingAnalysisResult = {
-        success: true,
-        park_lst: data.analysis.park_lst,
-        buffers: data.analysis.buffers || [],
-        pci: data.analysis.pci,
-        pcd: data.analysis.pcd,
-        pca: data.analysis.pca,
-        image_date: data.analysis.image_date,
-        timestamp: data.analysis.timestamp,
-        num_buffers: data.analysis.num_buffers,
-        buffer_distance: data.analysis.buffer_distance,
-        total_pixels: data.analysis.total_pixels || 0
-      }
-
-      emit('updateCoolingData', coolingResult)
-
-      handleSuccess(`Análise do parque "${data.park_name || 'selecionado'}" carregada!`)
-    } else {
-      handleInfo('Este parque ainda não tem análises')
-    }
-  } catch (error) {
-    console.error('Erro ao carregar análises:', error)
-    handleError('Falha ao carregar análises do parque')
-  }
-}
 
 // ============================================================
 // 🔥 CARREGAR SATÉLITES
@@ -561,8 +633,14 @@ function toggleResults() {
 function handleSelectParkFromList() {
   if (selectedPark.value) {
     isMenuOpen.value = false
-    // Carregar as análises do parque selecionado
-    loadParkAnalyses(selectedPark.value.id)
+
+    // 🔥 CRIA UM OBJETO SearchParkResult COMPLETO COM A GEOMETRIA
+    const parkData = parkToSearchResult(selectedPark.value)
+
+
+    // Emite o select com os dados completos
+    emit('select', parkData)
+    handleSuccess(`Parque "${selectedPark.value.name}" selecionado!`)
   }
 }
 
@@ -591,6 +669,7 @@ function selectPark(park: ParkSuggestion) {
       if (country) selectedCountryCode.value = country.code
     }
   }
+  search.value = park.name
   showParkSuggestions.value = false
   handleSuccess(`Parque "${park.name}" selecionado!`)
 }
@@ -715,6 +794,10 @@ async function confirmAddPark() {
     }
 
     const element = result.results[0]
+    if (!element) {
+      handleError('Parque não encontrado no backend')
+      return
+    }
 
     if (!element.geometry) {
       handleError('Parque encontrado mas sem geometria')
@@ -744,11 +827,12 @@ function handleSelectPark() {
 }
 
 function handleSearch() {
+  console.log(selectedParkData.value)
   if (!search.value || search.value.trim().length < 2) {
     handleError('Digite pelo menos 2 caracteres para buscar')
     return
   }
-  emit('search')
+  emit('search', selectedParkData.value)
 }
 
 function handleSelect(item: SearchParkResult) {
