@@ -378,23 +378,37 @@ export async function getParks(): Promise<{ success: boolean; count: number; par
  */
 export async function getParkAnalyses(parkId: number): Promise<{
     success: boolean;
-    park_id?: number;
+    analysis?: CoolingAnalysisResult;
     park_name?: string;
-    count?: number;
-    analyses?: any[];
     error?: string;
 }> {
     try {
         const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses`)
+        const data = await response.json()
 
-        if (!response.ok) {
-            throw new Error(`Erro HTTP ${response.status}`)
+        if (data.success) {
+            // 🔥 O RETORNO AGORA É O DETALHE COMPLETO
+            return {
+                success: true,
+                analysis: {
+                    success: true,
+                    park_lst: data.park_lst,
+                    buffers: data.buffers,
+                    pci: data.pci,
+                    pcd: data.pcd,
+                    pca: data.pca,
+                    image_date: data.image_date,
+                    timestamp: data.analyzed_at,
+                    num_buffers: data.num_buffers,
+                    buffer_distance: data.buffer_distance,
+                    total_pixels: data.total_pixels
+                },
+                park_name: data.park_name
+            }
         }
 
-        return await response.json()
-
+        return {success: false, error: data.error}
     } catch (error) {
-        console.error('❌ Erro ao buscar análises:', error)
         return {success: false, error: String(error)}
     }
 }

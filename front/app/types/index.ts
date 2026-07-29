@@ -86,6 +86,8 @@ export interface CoolingAnalysisResult {
     num_buffers?: number
     buffer_distance?: number
     error?: string
+    total_pixels?: number
+
 }
 
 // Tipos de série temporal

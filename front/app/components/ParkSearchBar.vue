@@ -497,30 +497,26 @@ async function loadParks() {
 async function loadParkAnalyses(parkId: number) {
   try {
     const data = await getParkAnalyses(parkId)
-    if (data.success && data.analyses && data.analyses.length > 0) {
-      const latestAnalysis = data.analyses[0]
 
+    // 🔥 NOVO FORMATO: data.analysis é o objeto, não data.analyses[0]
+    if (data.success && data.analysis) {
       const coolingResult: CoolingAnalysisResult = {
         success: true,
-        park_lst: {
-          celsius: latestAnalysis.park_lst_celsius,
-          kelvin: latestAnalysis.park_lst_celsius + 273.15
-        },
-        buffers: [],
-        pci: latestAnalysis.pci,
-        pcd: latestAnalysis.pcd,
-        pca: {
-          ha: latestAnalysis.pca_ha,
-          m2: latestAnalysis.pca_m2
-        },
-        image_date: latestAnalysis.image_date,
-        timestamp: latestAnalysis.analyzed_at,
-        num_buffers: latestAnalysis.num_buffers,
-        buffer_distance: latestAnalysis.buffer_distance
+        park_lst: data.analysis.park_lst,
+        buffers: data.analysis.buffers || [],
+        pci: data.analysis.pci,
+        pcd: data.analysis.pcd,
+        pca: data.analysis.pca,
+        image_date: data.analysis.image_date,
+        timestamp: data.analysis.timestamp,
+        num_buffers: data.analysis.num_buffers,
+        buffer_distance: data.analysis.buffer_distance,
+        total_pixels: data.analysis.total_pixels || 0
       }
 
       emit('updateCoolingData', coolingResult)
-      handleSuccess(`Análise do parque "${data.park_name}" carregada!`)
+
+      handleSuccess(`Análise do parque "${data.park_name || 'selecionado'}" carregada!`)
     } else {
       handleInfo('Este parque ainda não tem análises')
     }
@@ -705,11 +701,6 @@ async function confirmAddPark() {
       handleError('Não foi possível obter o ID do parque')
       return
     }
-    // const result = await searchPark(
-    //     newParkName.value,
-    //     newParkCity.value,
-    //     newParkCountry.value
-    // )
     // 🔥 ENVIA PARA O BACKEND
     const result = await searchPark({
       query: name,

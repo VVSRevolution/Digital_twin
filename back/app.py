@@ -7,6 +7,7 @@ from flask_cors import CORS
 
 from config import Config
 from extensions import db, migrate
+from models import Park, CoolingAnalysis, SatelliteSource
 from services.analysis_service import AnalysisService
 from services.database_service import DatabaseService
 from services.earth_engine_service import EarthEngineService
@@ -66,7 +67,7 @@ def analyze_park():
         # 🔥 VALIDA
         if not osm_id and not geometry:
             return jsonify({'error': 'É necessário fornecer osm_id ou geometry'}), 400
-        
+
         if is_up_to_date and end_date:
             return jsonify({
                 'error': 'Quando isUpToDate=true, endDate deve ser null'
@@ -195,12 +196,11 @@ def get_park_detail(park_id):
         }), 500
 
 
-@app.route('/api/parks/<int:park_id>/analyses', methods=['GET'])
+@app.route('/api/parks/<int:park_id>/analyses/list', methods=['GET'])
 def get_park_analyses(park_id):
-    """Retorna todas as análises de um parque"""
+    """Retorna lista de análises do parque (apenas metadados, sem buffers)"""
     try:
-        from models import Park, CoolingAnalysis
-
+        # Verifica se o parque existe
         park = Park.query.get(park_id)
         if not park:
             return jsonify({
@@ -208,20 +208,226 @@ def get_park_analyses(park_id):
                 'error': 'Parque não encontrado'
             }), 404
 
-        analyses = CoolingAnalysis.query.filter_by(park_id=park_id) \
-            .order_by(CoolingAnalysis.analyzed_at.desc()) \
-            .all()
+        # Parâmetros de paginação
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        per_page = min(per_page, 50)  # Limite de segurança
+
+        # Query paginada (mais recentes primeiro)
+        pagination = CoolingAnalysis.query.filter_by(park_id=park_id) \
+            .order_by(CoolingAnalysis.image_date.desc()) \
+            .paginate(page=page, per_page=per_page, error_out=False)
+
+        # Monta resposta com metadados (sem buffers/pixels)
+        analyses = []
+        for analysis in pagination.items:
+            # Busca o nome do satélite
+            satellite_name = None
+            if analysis.satellite_id:
+                satellite = SatelliteSource.query.get(analysis.satellite_id)
+                if satellite:
+                    satellite_name = satellite.name
+
+            analyses.append({
+                'analysis_id': analysis.id,
+                'image_date': analysis.image_date,
+                'analyzed_at': analysis.analyzed_at.isoformat() if analysis.analyzed_at else None,
+                'park_lst_celsius': analysis.park_lst_celsius,
+                'park_lst_kelvin': analysis.park_lst_kelvin,
+                'pci': analysis.pci,
+                'pcd': analysis.pcd,
+                'pca_ha': analysis.pca_ha,
+                'pca_m2': analysis.pca_m2,
+                'num_buffers': analysis.num_buffers,
+                'buffer_distance': analysis.buffer_distance,
+                'satellite_name': satellite_name,
+                'ditto_updated': analysis.ditto_updated,
+                'has_buffers': bool(analysis.buffers_data)  # Indica se tem dados
+            })
 
         return jsonify({
             'success': True,
             'park_id': park_id,
             'park_name': park.name,
-            'count': len(analyses),
-            'analyses': [a.to_dict() for a in analyses]
+            'page': page,
+            'per_page': per_page,
+            'total': pagination.total,
+            'total_pages': pagination.pages,
+            'has_next': pagination.has_next,
+            'has_prev': pagination.has_prev,
+            'analyses': analyses
         })
 
     except Exception as e:
-        print(f"❌ Erro ao buscar análises: {e}")
+        print(f"❌ Erro: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/parks/<int:park_id>/analyses', methods=['GET'])
+def get_latest_analysis_detail(park_id):
+    """Retorna o detalhe completo da análise mais recente (com buffers/pixels)"""
+    try:
+        # Verifica se o parque existe
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        # 🔥 BUSCA A ANÁLISE MAIS RECENTE POR image_date
+        analysis = CoolingAnalysis.query.filter_by(park_id=park_id) \
+            .order_by(CoolingAnalysis.image_date.desc()) \
+            .first()
+
+        if not analysis:
+            return jsonify({
+                'success': False,
+                'error': 'Nenhuma análise encontrada para este parque'
+            }), 404
+
+        # Busca o nome do satélite
+        satellite_name = None
+        if analysis.satellite_id:
+            satellite = SatelliteSource.query.get(analysis.satellite_id)
+            if satellite:
+                satellite_name = satellite.name
+
+        # Parâmetro opcional para limitar buffers
+        buffer_limit = request.args.get('buffer_limit', type=int)
+        include_stats = request.args.get('include_stats', 'true').lower() == 'true'
+
+        # Prepara buffers
+        buffers = analysis.buffers_data or []
+
+        # Aplica limite de buffers se especificado
+        if buffer_limit and buffer_limit > 0:
+            buffers = buffers[:buffer_limit]
+
+        # Se não quiser estatísticas agregadas
+        if not include_stats:
+            for buffer in buffers:
+                buffer.pop('statistics', None)
+
+        # Calcula total de pixels
+        total_pixels = sum(len(b.get('pixels', [])) for b in buffers)
+
+        return jsonify({
+            'success': True,
+            'analysis_id': analysis.id,
+            'park_id': park_id,
+            'park_name': park.name,
+            'image_date': analysis.image_date,
+            'analyzed_at': analysis.analyzed_at.isoformat() if analysis.analyzed_at else None,
+            'satellite_name': satellite_name,
+            'park_lst': {
+                'celsius': analysis.park_lst_celsius,
+                'kelvin': analysis.park_lst_kelvin
+            },
+            'pci': analysis.pci,
+            'pcd': analysis.pcd,
+            'pca': {
+                'ha': analysis.pca_ha,
+                'm2': analysis.pca_m2
+            },
+            'num_buffers': analysis.num_buffers,
+            'buffer_distance': analysis.buffer_distance,
+            'ditto_updated': analysis.ditto_updated,
+            'buffers': buffers,  # Aqui vêm os pixels!
+            'total_pixels': total_pixels
+        })
+
+    except Exception as e:
+        print(f"❌ Erro: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/parks/<int:park_id>/analyses/<int:analysis_id>', methods=['GET'])
+def get_analysis_detail(park_id, analysis_id):
+    """Retorna detalhes completos de uma análise específica (com buffers/pixels)"""
+    try:
+        # Verifica se o parque existe
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        # Busca a análise específica
+        analysis = CoolingAnalysis.query.filter_by(
+            park_id=park_id,
+            id=analysis_id
+        ).first()
+
+        if not analysis:
+            return jsonify({
+                'success': False,
+                'error': 'Análise não encontrada'
+            }), 404
+
+        # Busca o nome do satélite
+        satellite_name = None
+        if analysis.satellite_id:
+            satellite = SatelliteSource.query.get(analysis.satellite_id)
+            if satellite:
+                satellite_name = satellite.name
+
+        # Parâmetro opcional para limitar buffers
+        buffer_limit = request.args.get('buffer_limit', type=int)
+        include_stats = request.args.get('include_stats', 'true').lower() == 'true'
+
+        # Prepara buffers
+        buffers = analysis.buffers_data or []
+
+        # Aplica limite de buffers se especificado
+        if buffer_limit and buffer_limit > 0:
+            buffers = buffers[:buffer_limit]
+
+        # Se não quiser estatísticas agregadas
+        if not include_stats:
+            for buffer in buffers:
+                buffer.pop('statistics', None)
+
+        # Calcula total de pixels
+        total_pixels = sum(len(b.get('pixels', [])) for b in buffers)
+
+        return jsonify({
+            'success': True,
+            'analysis_id': analysis.id,
+            'park_id': park_id,
+            'park_name': park.name,
+            'image_date': analysis.image_date,
+            'analyzed_at': analysis.analyzed_at.isoformat() if analysis.analyzed_at else None,
+            'satellite_name': satellite_name,
+            'park_lst': {
+                'celsius': analysis.park_lst_celsius,
+                'kelvin': analysis.park_lst_kelvin
+            },
+            'pci': analysis.pci,
+            'pcd': analysis.pcd,
+            'pca': {
+                'ha': analysis.pca_ha,
+                'm2': analysis.pca_m2
+            },
+            'num_buffers': analysis.num_buffers,
+            'buffer_distance': analysis.buffer_distance,
+            'ditto_updated': analysis.ditto_updated,
+            'buffers': buffers,  # Aqui vêm os pixels!
+            'total_pixels': total_pixels
+        })
+
+    except Exception as e:
+        print(f"❌ Erro: {e}")
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)

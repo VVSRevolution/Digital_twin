@@ -17,7 +17,7 @@ class ParkSearchService:
     ):
         """Busca parque: DB primeiro, depois Overpass"""
 
-        try:  # 👈 TRY AQUI - NO COMEÇO DA FUNÇÃO
+        try:
 
             # 🔥 1. BUSCAR NO DB POR OSM_ID
             if osm_id:

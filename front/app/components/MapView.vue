@@ -110,6 +110,19 @@ function setupTooltip() {
   map.addOverlay(overlay)
 }
 
+// 🔥 FUNÇÃO PARA ATUALIZAR OS DADOS DE COOLING
+function updateCoolingData(data: CoolingAnalysisResult) {
+  coolingData.value = data
+
+  // Atualiza os pixels no mapa
+  if (data.buffers && data.buffers.length > 0) {
+    addPixelLayer(data.buffers)
+  }
+
+  showStats.value = true
+  handleSuccess('Análise carregada!')
+}
+
 // ===== FUNÇÃO COM GRID PERFEITO =====
 async function addPixelLayer(buffers: any[]) {
   if (pixelLayer) {
@@ -547,6 +560,7 @@ onUnmounted(() => {
           @select="selectPark"
           @settings="openSettings"
           @togglePixels="togglePixels"
+          @updateCoolingData="updateCoolingData"
           @updateOpacity="updatePixelOpacity"
       />
     </div>
