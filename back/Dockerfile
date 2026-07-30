@@ -21,4 +21,4 @@ EXPOSE 3001
 EXPOSE 3002
 
 # Comando padrão
-CMD ["python", "server.py"]
+CMD ["python", "app.py"]
