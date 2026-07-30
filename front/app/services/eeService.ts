@@ -158,6 +158,52 @@ export async function getParkAnalyses(parkId: number): Promise<CoolingAnalysisRe
     }
 }
 
+export async function getParkAnalysesList(parkId: number): Promise<CoolingAnalysisResult[]> {
+    try {
+        const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses/list`)
+        const {handleError} = useNotifications()
+        if (!response.ok) {
+            handleError(`❌ Erro ao buscar análises: ${response.status}`)
+            return []
+        }
+        const data = await response.json()
+        if (!data.success || !data.analyses) {
+            return []
+        }
+        return data.analyses
+
+    } catch (error) {
+        const {handleError} = useNotifications()
+        handleError('❌ Erro ao buscar lista de análises:', String(error))
+        console.error('❌ Erro ao buscar lista de análises:', error)
+        return []
+    }
+}
+
+export async function getParkAnalysisDetail(parkId: number, analysisId: number): Promise<CoolingAnalysisResult | null> {
+    try {
+        const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses/${analysisId}`)
+
+        if (!response.ok) {
+            console.error(`❌ Erro ao buscar detalhe da análise: ${response.status}`)
+            return null
+        }
+
+        const data = await response.json()
+        console.log(`📥 Detalhe da análise ${analysisId}:`, data)
+
+        if (!data.success) {
+            return null
+        }
+
+        return data
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar detalhe da análise:', error)
+        return null
+    }
+}
+
 /**
  * Busca detalhes de um parque específico
  */

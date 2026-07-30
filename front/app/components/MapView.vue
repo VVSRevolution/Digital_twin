@@ -2,7 +2,7 @@
 import {onMounted, onUnmounted, ref} from "vue"
 import type {SearchParkResult} from '~/services/parkService'
 import {searchPark} from "~/services/parkService"
-import {analyzeParkCooling, getParkAnalyses} from "~/services/eeService"
+import {analyzeParkCooling, getParkAnalyses, getParkAnalysesList, getParkAnalysisDetail} from "~/services/eeService"
 import Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
 import Style from "ol/style/Style"
@@ -23,6 +23,7 @@ const mapEl = ref<HTMLDivElement | null>(null)
 const search = ref("")
 const results = ref<SearchParkResult[]>([])
 const coolingData = ref<CoolingAnalysisResult | null>(null)
+const parkAnalyses = ref<CoolingAnalysisResult[]>([])  // 🔥 LISTA DE ANÁLISES
 const showStats = ref(false)
 const parkName = ref("")
 const analyzing = ref(false)
@@ -113,7 +114,7 @@ function setupTooltip() {
 }
 
 // ============================================================
-// 🔥 FUNÇÃO CENTRALIZADA PARA DESENHAR PARQUE
+// 🔥  DESENHAR PARQUE
 // ============================================================
 function drawParkOnMap(park: SearchParkResult): Feature<Geometry> | null {
   results.value = [park]
@@ -178,7 +179,7 @@ function drawParkOnMap(park: SearchParkResult): Feature<Geometry> | null {
 }
 
 // ============================================================
-// 🔥 FUNÇÃO CENTRALIZADA PARA CARREGAR ANÁLISE
+// 🔥  CARREGAR ANÁLISE
 // ============================================================
 async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometry>) {
   console.log('📊 Carregando análise para:', park.name)
@@ -189,27 +190,17 @@ async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometr
       const data = await getParkAnalyses(park.id)
       console.log('📥 Dados do cache:', data)
 
-      if (data.success && data.analysis) {
+      const analyses = await getParkAnalysesList(park.id)
+      console.log('📊 Lista Análises encontradas:', analyses.length)
+      parkAnalyses.value = analyses
+
+      if (data.success) {
         // Tem análise em cache
-        const analysis = data.analysis
-        console.log('📊 Buffers do cache:', analysis.buffers?.length || 0)
+        console.log('📊 Buffers do cache:', data.buffers?.length || 0)
 
-        const coolingResult: CoolingAnalysisResult = {
-          success: true,
-          park_lst: analysis.park_lst || {celsius: 0, kelvin: 273.15},
-          buffers: analysis.buffers || [],
-          pci: analysis.pci || 0,
-          pcd: analysis.pcd || 0,
-          pca: analysis.pca || {ha: 0, m2: 0},
-          image_date: analysis.image_date || '',
-          timestamp: analysis.timestamp || new Date().toISOString(),
-          num_buffers: analysis.num_buffers || 0,
-          buffer_distance: analysis.buffer_distance || 0,
-          total_pixels: analysis.total_pixels || 0
-        }
-
-        updateCoolingData(coolingResult)
+        updateCoolingData(data)
         handleSuccess(`Análise do parque "${park.name}" carregada!`)
+        isSearching.value = false
         return
       }
       isSearching.value = false
@@ -218,16 +209,15 @@ async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometr
       isSearching.value = false
     }
   }
-
-  // Se não tem cache, faz análise nova
   console.log('🔄 Sem cache, analisando...')
   await analyzePark(feature, park)
 }
 
 // ============================================================
-// 🔥 FUNÇÃO CENTRALIZADA PARA SELECIONAR PARQUE
+// 🔥  SELECIONAR PARQUE
 // ============================================================
 async function selectPark(park: SearchParkResult) {
+
   if (analyzing.value) {
     handleError(`analyzing=${analyzing.value}`)
     return
@@ -253,6 +243,7 @@ async function selectPark(park: SearchParkResult) {
   gradientMin.value = null
   gradientMax.value = null
   totalPixels.value = 0
+  parkAnalyses.value = []
 
   // Desenha o polígono
   const feature = drawParkOnMap(park)
@@ -260,12 +251,10 @@ async function selectPark(park: SearchParkResult) {
     handleError('Falha ao desenhar polígono')
     return
   }
-
   // Carrega a análise
   await loadParkAnalysis(park, feature)
 
   // Limpa resultados da busca
-  // results.value = []
   search.value = ""
 }
 
@@ -274,7 +263,6 @@ async function selectPark(park: SearchParkResult) {
 // ============================================================
 function updateCoolingData(data: CoolingAnalysisResult) {
   console.log('🔥 updateCoolingData:', data)
-
   coolingData.value = data
 
   // Atualiza os pixels no mapa
@@ -284,8 +272,41 @@ function updateCoolingData(data: CoolingAnalysisResult) {
   } else {
     console.log('⚠️ Nenhum buffer para adicionar')
   }
-
   showStats.value = true
+}
+
+// ============================================================
+// 🔥 FUNÇÃO PARA SELECIONAR UMA ANÁLISE DO TIMELINE
+// ============================================================
+async function handleAnalysisSelect(analysis: CoolingAnalysisResult) {
+  console.log('🎯 Análise selecionada:', analysis)
+
+  // 🔥 SE NÃO TEM BUFFERS, BUSCA O DETALHE
+  if (!analysis.buffers || analysis.buffers.length === 0) {
+    const parkId = analysis.park_id
+    const analysisId = analysis.analysis_id
+
+    if (parkId && analysisId) {
+      const detail = await getParkAnalysisDetail(parkId, analysisId)
+      if (detail) {
+        coolingData.value = detail
+        if (detail.buffers && detail.buffers.length > 0) {
+          await addPixelLayer(detail.buffers)
+        }
+        showStats.value = true
+        handleSuccess(`Análise de ${detail.image_date} carregada!`)
+        return
+      }
+    }
+  }
+
+  // 🔥 SE JÁ TEM BUFFERS, USA DIRETO
+  coolingData.value = analysis
+  if (analysis.buffers && analysis.buffers.length > 0) {
+    await addPixelLayer(analysis.buffers)
+  }
+  showStats.value = true
+  handleSuccess(`Análise de ${analysis.image_date} carregada!`)
 }
 
 // ============================================================
@@ -495,6 +516,7 @@ async function togglePixels() {
   }
 }
 
+
 // ===== SETUP DO MAPA =====
 onMounted(async () => {
   const {Map, View} = await import("ol")
@@ -605,7 +627,6 @@ onUnmounted(() => {
 <template>
   <div class="page">
     <div class="map-wrapper">
-
       <!-- MAPA -->
       <div ref="mapEl" class="map"></div>
 
@@ -634,6 +655,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+
+/* 🔥 TODOS OS COMPONENTES FLUTUANTES USAM A MESMA CLASSE */
 .page {
   position: relative;
   height: 100vh;
@@ -650,173 +673,6 @@ onUnmounted(() => {
   height: 100%;
 }
 
-
-/* STATS */
-
-.stats-header h4 {
-  margin: 0;
-  color: #333;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.stat-item:last-child {
-  border-bottom: none;
-}
-
-.stat-item span {
-  color: #666;
-}
-
-.stat-item strong {
-  font-weight: 600;
-}
-
-.error-msg {
-  margin-top: 8px;
-  padding: 8px 12px;
-  background: #f8d7da;
-  color: #721c24;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-/* CONTROLS */
-.controls {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 2px solid #eee;
-}
-
-.toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  color: #333;
-}
-
-/* GRADIENT LEGEND */
-.gradient-legend {
-  margin-top: 8px;
-  padding: 10px 12px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border: 1px solid #e9ecef;
-}
-
-.gradient-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #555;
-  margin-bottom: 6px;
-}
-
-.gradient-header span {
-  font-weight: 600;
-}
-
-.pixel-count {
-  font-weight: 400;
-  color: #999;
-  font-size: 11px;
-}
-
-.gradient-bar {
-  width: 100%;
-  height: 14px;
-  border-radius: 4px;
-  background: linear-gradient(to right,
-  rgb(0, 0, 200),
-  rgb(0, 100, 150),
-  rgb(0, 180, 80),
-  rgb(50, 200, 50),
-  rgb(200, 200, 0),
-  rgb(255, 150, 0),
-  rgb(255, 80, 0),
-  rgb(200, 0, 0)
-  );
-  border: 1px solid #dee2e6;
-}
-
-.gradient-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  font-weight: 600;
-  color: #495057;
-  margin-top: 3px;
-}
-
-/* BUFFER STATS */
-.buffer-stats {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 2px solid #eee;
-}
-
-.buffer-stats h4 {
-  font-size: 13px;
-  margin: 0 0 8px 0;
-  color: #333;
-}
-
-
-.stats-item .label {
-  font-weight: 600;
-  color: #555;
-}
-
-.stats-item .mean {
-  font-weight: 700;
-  color: #1a1a1a;
-}
-
-.stats-item .count {
-  font-size: 9px;
-  color: #999;
-}
-
-/* DROPDOWN */
-.dropdown {
-  max-height: 200px;
-  overflow: auto;
-  background: white;
-  border-radius: 6px;
-  margin-top: 4px;
-  border: 1px solid #eee;
-}
-
-.dropdown-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
-  font-size: 14px;
-  transition: background 0.15s;
-}
-
-.dropdown-item:hover {
-  background: #f0f7ff;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-/* RESPONSIVIDADE */
-@media (max-width: 360px) {
-  .search-bar {
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 90%;
-    max-width: 400px;
-    min-width: unset;
-  }
-}
 
 /* SCROLLBAR */
 .search-bar::-webkit-scrollbar {

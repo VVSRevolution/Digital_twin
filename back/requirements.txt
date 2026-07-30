@@ -1,18 +1,36 @@
-# Recriar com a versão correta do geojson
+# 🔥 WEB FRAMEWORK
 Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.5
+
+# 🔥 BANCO DE DADOS
 psycopg2-binary==2.9.9
 GeoAlchemy2==0.14.0
+SQLAlchemy==2.0.23
+
+# 🔥 GEOPROCESSAMENTO (NECESSÁRIO!)
 Shapely==2.0.2
+pyproj==3.6.1
+numpy==1.24.3
+
+# 🔥 GOOGLE EARTH ENGINE
 earthengine-api==0.1.376
 google-auth==2.23.4
 google-auth-oauthlib==1.1.0
+
+# 🔥 VALIDAÇÃO E CONFIGURAÇÃO
 pydantic==2.5.0
 pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# 🔥 REQUISIÇÕES
 requests==2.34.0
 httpx==0.25.2
-python-dotenv==1.0.0
+
+# 🔥 UTILITÁRIOS
 python-dateutil==2.8.2
 geojson==3.3.0
+
+# 🔥 (Opcional) Para melhor performance
+geographiclib==2.0
