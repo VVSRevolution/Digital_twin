@@ -1,9 +1,14 @@
 # services/earth_engine_service.py
-import ee
 import json
 import os
 import traceback
+from datetime import datetime, timedelta, timezone
+
+import ee
+
 from config import Config
+from models import SatelliteSource
+
 
 class EarthEngineService:
     """Serviço para interagir com Google Earth Engine"""
@@ -40,12 +45,36 @@ class EarthEngineService:
             return False
 
     @staticmethod
-    def get_latest_single_date(geometry):
-        """Retorna a data mais recente (como intervalo de 1 dia)"""
+    def get_satellite_collection(satellite_name=None):
+        """
+        Retorna a coleção de imagens do satélite especificado
+        """
+        # 🔥 BUSCA SATÉLITE NO BANCO
+        if satellite_name:
+            satellite = SatelliteSource.query.filter_by(name=satellite_name, active=True).first()
+        else:
+            # Pega o primeiro ativo
+            satellite = SatelliteSource.query.filter_by(active=True).first()
+
+        if not satellite:
+            print(f"⚠️ Nenhum satélite ativo encontrado, usando LANDSAT_8 padrão")
+            return ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+
+        # 🔥 USA A COLLECTION_ID DO SATÉLITE CADASTRADO
+        collection_id = satellite.collection_id
+        print(f"🛰️ Usando satélite: {satellite.name} -> {collection_id}")
+
+        return ee.ImageCollection(collection_id)
+
+    # services/earth_engine_service.py
+
+    @staticmethod
+    def get_latest_single_date(geometry, satellite_name=None):
+        """Retorna a data mais recente completa (YYYY-MM-DDTHH:MM:SSZ)"""
         try:
             park_geom = ee.Geometry(geometry)
 
-            collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2") \
+            collection = EarthEngineService.get_satellite_collection(satellite_name) \
                 .filterBounds(park_geom)
 
             try:
@@ -53,32 +82,123 @@ class EarthEngineService:
                 print(f'📊 Total de imagens na região: {count}')
             except Exception as e:
                 print(f'⚠️ Erro ao contar imagens: {e}')
-                return None, None
+                return None
 
             if count == 0:
-                print('⚠️ Nenhuma imagem Landsat disponível para esta região')
-                return None, None
+                print('⚠️ Nenhuma imagem disponível para esta região')
+                return None
 
-            # 🔥 PEGA A IMAGEM MAIS RECENTE
             latest_image = collection.sort('system:time_start', False).first()
 
-            if latest_image:
-                date = ee.Date(latest_image.get('system:time_start'))
-                date_str = date.format('YYYY-MM-dd').getInfo()
+            if latest_image is None:
+                print('⚠️ Nenhuma imagem encontrada')
+                return None
 
-                # 🔥 CRIA UM INTERVALO DE 1 DIA (24 HORAS)
-                start = date_str
-                end = ee.Date(date_str).advance(1, 'day').format('YYYY-MM-dd').getInfo()
+            # 🔥 RETORNA SÓ A DATA COMPLETA
+            try:
+                date_acquired = latest_image.get('DATE_ACQUIRED').getInfo()
+                scene_time = latest_image.get('SCENE_CENTER_TIME').getInfo()
+                scene_time = scene_time.split('.')[0]
+                image_datetime = f"{date_acquired}T{scene_time}Z"
 
-                print(f'📅 Data mais recente: {date_str}')
-                print(f'📅 Intervalo: {start} a {end}')
-                return start, end
+                print(f'📅 Data mais recente: {image_datetime}')
+                return image_datetime
 
-            return None, None
+            except Exception as e:
+                print(f'⚠️ Erro ao processar data da imagem: {e}')
+                try:
+                    timestamp = latest_image.get('system:time_start').getInfo()
+                    from datetime import datetime
+                    image_datetime = datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%dT%H:%M:%SZ')
+                    print(f'📅 Data mais recente: {image_datetime}')
+                    return image_datetime
+                except:
+                    return None
 
         except Exception as e:
             print(f'⚠️ Erro ao buscar data mais recente: {e}')
-            return None, None
+            return None
+
+    @staticmethod
+    def list_image_datetimes(geometry, start_date, end_date, satellite_name=None):
+        """Lista todas as datas/hora de imagens no período (ISO UTC)."""
+        try:
+            print(f"\n🔍 DEBUG: list_image_datetimes()")
+            print(f"   start_date: {start_date}")
+            print(f"   end_date: {end_date}")
+            print(f"   satellite_name: {satellite_name}")
+
+            park_geom = ee.Geometry(geometry)
+            print(f"   ✅ Geometria criada")
+
+            collection = EarthEngineService.get_satellite_collection(satellite_name).filterBounds(park_geom)
+            print(f"   ✅ Coleção filtrada por bounds")
+
+            # 🔥 CONTA TOTAL ANTES DO FILTRO DE DATA
+            try:
+                total_count = collection.size().getInfo()
+                print(f"   📊 Total de imagens na região (sem filtro de data): {total_count}")
+            except Exception as e:
+                print(f"   ⚠️ Erro ao contar total: {e}")
+                total_count = 0
+
+            # 🔥 FILTRO DE DATA
+            if start_date and end_date:
+                print(f"   📅 Aplicando filtro de data: {start_date} a {end_date}")
+                try:
+                    inclusive_end = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_exclusive = (inclusive_end + timedelta(days=1)).strftime('%Y-%m-%d')
+                    print(f"   📅 End_date exclusivo: {end_exclusive}")
+                except ValueError:
+                    end_exclusive = end_date
+                    print(f"   ⚠️ End_date não é YYYY-MM-DD, usando como está: {end_exclusive}")
+                collection = collection.filterDate(start_date, end_exclusive)
+            elif start_date and not end_date:
+                today_utc = datetime.now(timezone.utc).date()
+                end_exclusive = (today_utc + timedelta(days=1)).strftime('%Y-%m-%d')
+                print(f"   📅 Sem end_date, usando até hoje: {end_exclusive}")
+                collection = collection.filterDate(start_date, end_exclusive)
+            else:
+                print(f"   ⚠️ Sem start_date e end_date, sem filtro de data")
+
+            # 🔥 CONTA DEPOIS DO FILTRO
+            try:
+                filtered_count = collection.size().getInfo()
+                print(f"   📊 Total de imagens após filtro de data: {filtered_count}")
+            except Exception as e:
+                print(f"   ⚠️ Erro ao contar após filtro: {e}")
+                filtered_count = 0
+
+            if filtered_count == 0:
+                print(f"   ⚠️ NENHUMA IMAGEM ENCONTRADA no período!")
+                return []
+
+            # 🔥 PEGA OS TIMESTAMPS
+            print(f"   🔍 Buscando timestamps das imagens...")
+            timestamps = collection.aggregate_array('system:time_start').getInfo() or []
+            print(f"   📊 Total de timestamps retornados: {len(timestamps)}")
+
+            # 🔥 FILTRA E ORDENA
+            timestamps = sorted({int(ts) for ts in timestamps if ts is not None})
+            print(f"   📊 Timestamps únicos após filtro: {len(timestamps)}")
+
+            # 🔥 CONVERTE PARA DATAS
+            image_datetimes = [
+                datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                for ts in timestamps
+            ]
+
+            print(f"   📅 Datas encontradas:")
+            for i, dt in enumerate(image_datetimes):
+                print(f"      {i + 1}. {dt}")
+
+            print(f"   ✅ Total de imagens no período: {len(image_datetimes)}")
+            return image_datetimes
+
+        except Exception as e:
+            print(f'❌ Erro ao listar imagens do período: {e}')
+            traceback.print_exc()
+            return []
 
     @staticmethod
     def calculate_lst_in_geometry(geometry):
@@ -106,163 +226,323 @@ class EarthEngineService:
             return None
 
     @staticmethod
-    def calculate_lst(geometry, start_date=None, end_date=None, num_buffers=10, buffer_distance=90):
-        """Calcula o LST e buffers para um parque"""
+    def calculate_lst(geometry, start_date=None, end_date=None, num_buffers=11, buffer_distance=90,
+                      satellite_name=None, image_datetime=None):
+        """Calcula o LST e buffers para um parque usando o satélite especificado"""
         try:
             park_geom = ee.Geometry(geometry)
             print(f'🔍 Geometria processada')
 
-            # 🔥 SE NÃO TIVER DATA, BUSCA A MAIS RECENTE (INTERVALO DE 1 DIA)
-            if not start_date or not end_date:
-                start_date, end_date = EarthEngineService.get_latest_single_date(geometry)
-                if start_date and end_date:
-                    print(f'📅 Usando intervalo de 1 dia: {start_date} a {end_date}')
-                else:
-                    start_date = '2023-01-01'
-                    end_date = '2023-12-31'
-                    print(f'⚠️ Usando data padrão: {start_date} a {end_date}')
+            collection = EarthEngineService.get_satellite_collection(satellite_name)
+            collection = collection.filterBounds(park_geom)
 
-            print(f'📅 Datas finais: {start_date} a {end_date}')
+            # 🔥 SE TEM image_datetime, USA UMA IMAGEM ESPECÍFICA
+            if image_datetime:
+                print(f'📅 Usando imagem específica: {image_datetime}')
+                target_start = ee.Date(image_datetime)
+                target_end = target_start.advance(1, 'second')
+                collection = collection.filterDate(target_start, target_end)
 
-            # 🔥 CRIA A COLEÇÃO
-            collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2") \
-                .filterBounds(park_geom) \
-                .filterDate(start_date, end_date)
+                try:
+                    count = collection.size().getInfo()
+                    print(f'📊 Encontradas {count} imagens')
+                except Exception as e:
+                    print(f'⚠️ Erro ao contar imagens: {e}')
+                    return {}
 
-            # 🔥 VERIFICA SE EXISTEM IMAGENS
-            try:
-                count = collection.size().getInfo()
-                print(f'📊 Encontradas {count} imagens')
-            except Exception as e:
-                print(f'⚠️ Erro ao contar imagens: {e}')
-                return {}
+                if count == 0:
+                    print(f'❌ Nenhuma imagem encontrada para {image_datetime}')
+                    return {}
 
-            if count == 0:
-                print(f'❌ Nenhuma imagem encontrada para {start_date} a {end_date}')
-                return {}
+                image = collection.sort('system:time_start', False).first()
 
-            # 🔥 PEGA A IMAGEM MAIS RECENTE (NÃO A MEDIANA!)
-            image = collection.sort('system:time_start', False).first()
+                # 🔥 EXTRAI A DATA
+                try:
+                    date_acquired = image.get('DATE_ACQUIRED').getInfo()
+                    scene_time = image.get('SCENE_CENTER_TIME').getInfo()
+                    scene_time = scene_time.split('.')[0]
+                    image_datetime = f"{date_acquired}T{scene_time}Z"
+                    print(f'📸 Data e hora da captura: {image_datetime}')
+                except Exception as e:
+                    print(f'⚠️ Erro ao extrair data/hora: {e}')
+                    try:
+                        timestamp = image.get('system:time_start').getInfo()
+                        image_datetime = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc).strftime(
+                            '%Y-%m-%dT%H:%M:%SZ')
+                        print(f'📸 Data e hora (fallback): {image_datetime}')
+                    except:
+                        image_datetime = start_date
+                        print(f'📸 Data e hora: {image_datetime} (fallback)')
 
-            # 🔥 EXTRAI A DATA DA IMAGEM USADA
-            try:
-                image_date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd').getInfo()
-                print(f'📸 Data da imagem usada: {image_date}')
-            except:
-                image_date = start_date
-                print(f'📸 Data da imagem: {image_date} (fallback)')
+                # 🔥 CALCULA PARA UMA IMAGEM (MESMA LÓGICA DE ANTES)
+                lst_raw = image.select("ST_B10")
+                lst_kelvin = lst_raw.multiply(0.00341802).add(149.0)
+                lst_celsius = lst_kelvin.subtract(273.15)
 
-            # 🔥 CALCULA LST
-            lst_raw = image.select("ST_B10")
-            lst_kelvin = lst_raw.multiply(0.00341802).add(149.0)
-            lst_celsius = lst_kelvin.subtract(273.15)
-
-            # 🔥 CALCULA O LST DO PARQUE
-            park_lst = lst_celsius.reduceRegion(
-                reducer=ee.Reducer.mean(),
-                geometry=park_geom,
-                scale=30,
-                maxPixels=1e9
-            ).getInfo()
-
-            park_lst_celsius = park_lst.get('ST_B10')
-            print(f'🌡️ LST do parque: {park_lst_celsius}°C')
-
-            # 🔥 CALCULA BUFFERS (DINÂMICOS)
-            buffer_distances = [buffer_distance * (i + 1) for i in range(num_buffers)]
-            buffers = []
-
-            for i, dist in enumerate(buffer_distances):
-                buffer_geom = park_geom.buffer(dist)
-
-                if i > 0:
-                    prev_buffer = park_geom.buffer(buffer_distances[i - 1])
-                    buffer_geom = buffer_geom.difference(prev_buffer)
-
-                sampled = lst_celsius.sampleRegions(
-                    collection=ee.FeatureCollection([ee.Feature(buffer_geom)]),
+                park_lst = lst_celsius.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=park_geom,
                     scale=30,
-                    geometries=True
-                )
+                    maxPixels=1e9
+                ).getInfo()
 
-                pixels = sampled.getInfo()
+                park_lst_celsius = park_lst.get('ST_B10')
+                print(f'🌡️ LST do parque: {park_lst_celsius}°C')
 
-                pixel_temps = []
-                if pixels and 'features' in pixels:
-                    for feature in pixels['features']:
-                        props = feature.get('properties', {})
-                        temp = props.get('ST_B10')
-                        if temp is not None:
-                            coords = feature.get('geometry', {}).get('coordinates', [])
-                            pixel_temps.append({
-                                'lat': coords[1] if len(coords) > 1 else None,
-                                'lon': coords[0] if len(coords) > 0 else None,
-                                'temperature': temp
-                            })
+                # 🔥 CALCULA BUFFERS
+                buffer_distances = [buffer_distance * (i + 1) for i in range(num_buffers)]
+                buffers = []
 
-                temps = [p['temperature'] for p in pixel_temps if p['temperature'] is not None]
+                for i, dist in enumerate(buffer_distances):
+                    buffer_geom = park_geom.buffer(dist)
 
-                buffers.append({
-                    'distance': dist,
-                    'distance_prev': buffer_distances[i - 1] if i > 0 else 0,
-                    'buffer_index': i + 1,
-                    'pixels': pixel_temps,
-                    'statistics': {
-                        'count': len(temps),
-                        'mean': sum(temps) / len(temps) if temps else None,
-                        'min': min(temps) if temps else None,
-                        'max': max(temps) if temps else None,
-                        'std': EarthEngineService._calculate_std(temps) if temps else None
+                    if i > 0:
+                        prev_buffer = park_geom.buffer(buffer_distances[i - 1])
+                        buffer_geom = buffer_geom.difference(prev_buffer)
+
+                    sampled = lst_celsius.sampleRegions(
+                        collection=ee.FeatureCollection([ee.Feature(buffer_geom)]),
+                        scale=30,
+                        geometries=True
+                    )
+
+                    pixels = sampled.getInfo()
+
+                    pixel_temps = []
+                    if pixels and 'features' in pixels:
+                        for feature in pixels['features']:
+                            props = feature.get('properties', {})
+                            temp = props.get('ST_B10')
+                            if temp is not None:
+                                coords = feature.get('geometry', {}).get('coordinates', [])
+                                pixel_temps.append({
+                                    'lat': coords[1] if len(coords) > 1 else None,
+                                    'lon': coords[0] if len(coords) > 0 else None,
+                                    'temperature': temp
+                                })
+
+                    temps = [p['temperature'] for p in pixel_temps if p['temperature'] is not None]
+
+                    buffers.append({
+                        'distance': dist,
+                        'distance_prev': buffer_distances[i - 1] if i > 0 else 0,
+                        'buffer_index': i + 1,
+                        'pixels': pixel_temps,
+                        'statistics': {
+                            'count': len(temps),
+                            'mean': sum(temps) / len(temps) if temps else None,
+                            'min': min(temps) if temps else None,
+                            'max': max(temps) if temps else None,
+                            'std': EarthEngineService._calculate_std(temps) if temps else None
+                        },
+                        'area_ha': buffer_geom.area().getInfo() / 10000
+                    })
+
+                    print(f'📊 Buffer {i + 1}: {dist}m, {len(temps)} pixels')
+
+                # 🔥 ENCONTRA PCI, PCD, PCA
+                pci = None
+                pcd = None
+                pca_ha = None
+
+                for i in range(1, len(buffers)):
+                    prev_mean = buffers[i - 1]['statistics']['mean']
+                    curr_mean = buffers[i]['statistics']['mean']
+                    if prev_mean is not None and curr_mean is not None:
+                        diff = curr_mean - prev_mean
+                        if diff < 0.1:
+                            if park_lst_celsius is not None:
+                                pci = prev_mean - park_lst_celsius
+                            pcd = buffers[i - 1]['distance']
+                            pca_ha = buffers[i - 1]['area_ha']
+                            break
+
+                if pci is None and buffers:
+                    last = buffers[-1]
+                    if last['statistics']['mean'] is not None and park_lst_celsius is not None:
+                        pci = last['statistics']['mean'] - park_lst_celsius
+                        pcd = last['distance']
+                        pca_ha = last['area_ha']
+
+                print(f'❄️ PCI: {pci}°C, PCD: {pcd}m, PCA: {pca_ha}ha')
+
+                # 🔥 RETORNA UMA IMAGEM
+                return {
+                    'park_lst': {
+                        'kelvin': park_lst_celsius + 273.15 if park_lst_celsius is not None else None,
+                        'celsius': park_lst_celsius
                     },
-                    'area_ha': buffer_geom.area().getInfo() / 10000
-                })
+                    'buffers': buffers,
+                    'pci': pci,
+                    'pcd': pcd,
+                    'pca': {
+                        'ha': pca_ha,
+                        'm2': pca_ha * 10000 if pca_ha else None
+                    },
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'image_date': image_datetime,
+                    'num_images': 1
+                }
 
-                print(f'📊 Buffer {i+1}: {dist}m, {len(temps)} pixels')
+            # ============================================================
+            # 🔥 SE NÃO TEM image_datetime, USA PERÍODO
+            # ============================================================
+            else:
+                print(f'📅 Período: {start_date} a {end_date}')
 
-            # 🔥 ENCONTRA PCI, PCD, PCA
-            pci = None
-            pcd = None
-            pca_ha = None
+                # AJUSTA END_DATE
+                if start_date and end_date:
+                    try:
+                        inclusive_end = datetime.strptime(end_date, '%Y-%m-%d')
+                        end_exclusive = (inclusive_end + timedelta(days=1)).strftime('%Y-%m-%d')
+                    except ValueError:
+                        end_exclusive = end_date
+                    collection = collection.filterDate(start_date, end_exclusive)
+                    print(f'📅 Filtro: {start_date} a {end_exclusive}')
 
-            for i in range(1, len(buffers)):
-                prev_mean = buffers[i - 1]['statistics']['mean']
-                curr_mean = buffers[i]['statistics']['mean']
-                if prev_mean is not None and curr_mean is not None:
-                    diff = curr_mean - prev_mean
-                    if diff < 0.1:
-                        if park_lst_celsius is not None:
-                            pci = prev_mean - park_lst_celsius
-                        pcd = buffers[i - 1]['distance']
-                        pca_ha = buffers[i - 1]['area_ha']
-                        break
+                try:
+                    count = collection.size().getInfo()
+                    print(f'📊 Total de imagens no período: {count}')
+                except Exception as e:
+                    print(f'⚠️ Erro ao contar imagens: {e}')
+                    return {}
 
-            if pci is None and buffers:
-                last = buffers[-1]
-                if last['statistics']['mean'] is not None and park_lst_celsius is not None:
-                    pci = last['statistics']['mean'] - park_lst_celsius
-                    pcd = last['distance']
-                    pca_ha = last['area_ha']
+                if count == 0:
+                    print(f'❌ Nenhuma imagem encontrada para {start_date} a {end_date}')
+                    return {}
 
-            print(f'❄️ PCI: {pci}°C, PCD: {pcd}m, PCA: {pca_ha}ha')
+                # 🔥 PEGA A IMAGEM MAIS RECENTE DO PERÍODO (MANTÉM COMPORTAMENTO ANTIGO)
+                image = collection.sort('system:time_start', False).first()
 
-            # 🔥 RETORNA COM A DATA DA LEITURA
-            return {
-                'park_lst': {
-                    'kelvin': park_lst_celsius + 273.15 if park_lst_celsius is not None else None,
-                    'celsius': park_lst_celsius
-                },
-                'buffers': buffers,
-                'pci': pci,
-                'pcd': pcd,
-                'pca': {
-                    'ha': pca_ha,
-                    'm2': pca_ha * 10000 if pca_ha else None
-                },
-                'start_date': start_date,
-                'end_date': end_date,
-                'image_date': image_date,  # 🔥 DATA DA IMAGEM USADA
-                'num_images': count
-            }
+                # EXTRAI DATA
+                try:
+                    date_acquired = image.get('DATE_ACQUIRED').getInfo()
+                    scene_time = image.get('SCENE_CENTER_TIME').getInfo()
+                    scene_time = scene_time.split('.')[0]
+                    image_datetime = f"{date_acquired}T{scene_time}Z"
+                    print(f'📸 Data e hora da captura: {image_datetime}')
+                except Exception as e:
+                    print(f'⚠️ Erro ao extrair data/hora: {e}')
+                    try:
+                        timestamp = image.get('system:time_start').getInfo()
+                        image_datetime = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc).strftime(
+                            '%Y-%m-%dT%H:%M:%SZ')
+                        print(f'📸 Data e hora (fallback): {image_datetime}')
+                    except:
+                        image_datetime = start_date
+                        print(f'📸 Data e hora: {image_datetime} (fallback)')
+
+                # 🔥 CALCULA A MAIS RECENTE DO PERÍODO (MESMA LÓGICA)
+                lst_raw = image.select("ST_B10")
+                lst_kelvin = lst_raw.multiply(0.00341802).add(149.0)
+                lst_celsius = lst_kelvin.subtract(273.15)
+
+                park_lst = lst_celsius.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=park_geom,
+                    scale=30,
+                    maxPixels=1e9
+                ).getInfo()
+
+                park_lst_celsius = park_lst.get('ST_B10')
+                print(f'🌡️ LST do parque: {park_lst_celsius}°C')
+
+                # BUFFERS
+                buffer_distances = [buffer_distance * (i + 1) for i in range(num_buffers)]
+                buffers = []
+
+                for i, dist in enumerate(buffer_distances):
+                    buffer_geom = park_geom.buffer(dist)
+
+                    if i > 0:
+                        prev_buffer = park_geom.buffer(buffer_distances[i - 1])
+                        buffer_geom = buffer_geom.difference(prev_buffer)
+
+                    sampled = lst_celsius.sampleRegions(
+                        collection=ee.FeatureCollection([ee.Feature(buffer_geom)]),
+                        scale=30,
+                        geometries=True
+                    )
+
+                    pixels = sampled.getInfo()
+
+                    pixel_temps = []
+                    if pixels and 'features' in pixels:
+                        for feature in pixels['features']:
+                            props = feature.get('properties', {})
+                            temp = props.get('ST_B10')
+                            if temp is not None:
+                                coords = feature.get('geometry', {}).get('coordinates', [])
+                                pixel_temps.append({
+                                    'lat': coords[1] if len(coords) > 1 else None,
+                                    'lon': coords[0] if len(coords) > 0 else None,
+                                    'temperature': temp
+                                })
+
+                    temps = [p['temperature'] for p in pixel_temps if p['temperature'] is not None]
+
+                    buffers.append({
+                        'distance': dist,
+                        'distance_prev': buffer_distances[i - 1] if i > 0 else 0,
+                        'buffer_index': i + 1,
+                        'pixels': pixel_temps,
+                        'statistics': {
+                            'count': len(temps),
+                            'mean': sum(temps) / len(temps) if temps else None,
+                            'min': min(temps) if temps else None,
+                            'max': max(temps) if temps else None,
+                            'std': EarthEngineService._calculate_std(temps) if temps else None
+                        },
+                        'area_ha': buffer_geom.area().getInfo() / 10000
+                    })
+
+                    print(f'📊 Buffer {i + 1}: {dist}m, {len(temps)} pixels')
+
+                # PCI, PCD, PCA
+                pci = None
+                pcd = None
+                pca_ha = None
+
+                for i in range(1, len(buffers)):
+                    prev_mean = buffers[i - 1]['statistics']['mean']
+                    curr_mean = buffers[i]['statistics']['mean']
+                    if prev_mean is not None and curr_mean is not None:
+                        diff = curr_mean - prev_mean
+                        if diff < 0.1:
+                            if park_lst_celsius is not None:
+                                pci = prev_mean - park_lst_celsius
+                            pcd = buffers[i - 1]['distance']
+                            pca_ha = buffers[i - 1]['area_ha']
+                            break
+
+                if pci is None and buffers:
+                    last = buffers[-1]
+                    if last['statistics']['mean'] is not None and park_lst_celsius is not None:
+                        pci = last['statistics']['mean'] - park_lst_celsius
+                        pcd = last['distance']
+                        pca_ha = last['area_ha']
+
+                print(f'❄️ PCI: {pci}°C, PCD: {pcd}m, PCA: {pca_ha}ha')
+
+                # RETORNA A MAIS RECENTE DO PERÍODO (MANTÉM COMPORTAMENTO)
+                return {
+                    'park_lst': {
+                        'kelvin': park_lst_celsius + 273.15 if park_lst_celsius is not None else None,
+                        'celsius': park_lst_celsius
+                    },
+                    'buffers': buffers,
+                    'pci': pci,
+                    'pcd': pcd,
+                    'pca': {
+                        'ha': pca_ha,
+                        'm2': pca_ha * 10000 if pca_ha else None
+                    },
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'image_date': image_datetime,
+                    'num_images': count
+                }
 
         except Exception as e:
             print(f'❌ Erro no cálculo LST: {e}')

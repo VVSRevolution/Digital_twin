@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
-import {convertParkToFeature} from "~/services/geoService"
+import type {SearchParkResult} from '~/services/parkService'
 import {searchPark} from "~/services/parkService"
-import {analyzeParkCooling, formatCoolingStats} from "~/services/eeService"
-import type Feature from 'ol/Feature'
+import {analyzeParkCooling, getParkAnalyses} from "~/services/eeService"
+import Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
 import Style from "ol/style/Style"
 import {Fill, Stroke} from "ol/style"
@@ -12,14 +12,16 @@ import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
-import type { SearchResult, CoolingAnalysisResult } from '~/types'
+import type {CoolingAnalysisResult} from '~/types'
 import {Overlay} from "ol";
+import {Polygon} from "ol/geom";
+import type {ParkSuggestion} from "~/types/parkSearch";
 
 // ===== REFS =====
 const loading = ref(false)
 const mapEl = ref<HTMLDivElement | null>(null)
 const search = ref("")
-const results = ref<SearchResult['elements']>([])
+const results = ref<SearchParkResult[]>([])
 const coolingData = ref<CoolingAnalysisResult | null>(null)
 const showStats = ref(false)
 const parkName = ref("")
@@ -33,47 +35,42 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const tooltipOverlay = ref<Overlay | null>(null)
 const tooltipElement = ref<HTMLElement | null>(null)
 const pixelOpacity = ref(0.50)
+const predefinedParks = ref<SearchParkResult[]>([])
+const {handleError, handleSuccess, handleInfo} = useNotifications()
 
 // ===== VARIÁVEIS OPENLAYERS =====
 let map: any
 let vectorSource: any
+let parkFeature: Feature<Geometry> | null = null
 let pixelLayer: any = null
 let fromLonLat: (coord: number[]) => number[]
 const format = new GeoJSON()
 
 // ===== FUNÇÃO PARA GERAR COR DO GRADIENTE =====
 function getGradientColor(t: number): string {
-  // t = 0 (frio) → t = 1 (quente)
-  // Gradiente: Azul → Ciano → Verde → Amarelo → Laranja → Vermelho
-
   let r: number, g: number, b: number
 
   if (t < 0.2) {
-    // Azul → Ciano (0 → 0.2)
     const p = t / 0.2
     r = 0
     g = Math.round(50 * p)
     b = Math.round(200 - 50 * p)
   } else if (t < 0.4) {
-    // Ciano → Verde (0.2 → 0.4)
     const p = (t - 0.2) / 0.2
     r = 0
     g = Math.round(50 + 150 * p)
     b = Math.round(150 - 150 * p)
   } else if (t < 0.6) {
-    // Verde → Amarelo (0.4 → 0.6)
     const p = (t - 0.4) / 0.2
     r = Math.round(150 * p)
     g = Math.round(200)
     b = Math.round(50 - 50 * p)
   } else if (t < 0.8) {
-    // Amarelo → Laranja (0.6 → 0.8)
     const p = (t - 0.6) / 0.2
     r = Math.round(150 + 105 * p)
     g = Math.round(200 - 100 * p)
     b = 0
   } else {
-    // Laranja → Vermelho (0.8 → 1.0)
     const p = (t - 0.8) / 0.2
     r = 255
     g = Math.round(100 - 100 * p)
@@ -85,7 +82,6 @@ function getGradientColor(t: number): string {
 
 // ===== FUNÇÃO PARA CRIAR/ATUALIZAR O TOOLTIP =====
 function setupTooltip() {
-  // Cria o elemento HTML do tooltip
   const el = document.createElement('div')
   el.style.cssText = `
     position: relative;
@@ -106,7 +102,6 @@ function setupTooltip() {
   `
   tooltipElement.value = el
 
-  // Cria o overlay do OpenLayers
   const overlay = new Overlay({
     element: el,
     positioning: 'bottom-center',
@@ -117,7 +112,226 @@ function setupTooltip() {
   map.addOverlay(overlay)
 }
 
-// ===== FUNÇÃO COM GRID PERFEITO (SEM ESPAÇOS) =====
+// ============================================================
+// 🔥 FUNÇÃO CENTRALIZADA PARA DESENHAR PARQUE
+// ============================================================
+function drawParkOnMap(park: SearchParkResult): Feature<Geometry> | null {
+  results.value = [park]
+  try {
+    const geom = park.geometry_3857 || park.geometry
+    if (!geom?.coordinates?.length) return null
+
+    // 🔥 PEGA AS COORDENADAS DIRETO
+    let coords = geom.coordinates
+
+    if (geom.type === 'MultiPolygon') {
+      coords = (coords as any)[0]
+    }
+
+    if (!coords?.length) {
+      handleError('❌ Geometria sem coordenadas')
+      return null
+    }
+
+    const feature = new Feature({
+      geometry: new Polygon(coords as number[][][])
+    })
+
+    feature.setStyle(
+        new Style({
+          stroke: new Stroke({
+            color: "#00aa00",
+            width: 3,
+            lineDash: [10, 10]
+          }),
+          fill: new Fill({
+            color: 'rgba(0, 170, 0, 0.1)'
+          })
+        })
+    )
+
+    // Limpa e adiciona ao source
+    vectorSource.clear()
+    vectorSource.addFeature(feature)
+
+    // Desenha os buffers (linhas vazias)
+    drawBuffers(feature, vectorSource)
+
+    // Ajusta a visão
+    const extent = feature.getGeometry()!.getExtent()
+    map.getView().fit(extent, {
+      padding: [50, 50, 50, 50],
+      duration: 800
+    })
+
+    // Atualiza o nome
+    parkName.value = park.tags?.name || park.name || "Parque sem nome"
+
+    console.log('✅ Polígono desenhado com sucesso!')
+    return feature
+
+  } catch (error) {
+    console.error('❌ Erro ao desenhar polígono:', error)
+    handleError('Erro ao desenhar polígono')
+    return null
+  }
+}
+
+// ============================================================
+// 🔥 FUNÇÃO CENTRALIZADA PARA CARREGAR ANÁLISE
+// ============================================================
+async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometry>) {
+  console.log('📊 Carregando análise para:', park.name)
+
+  // Se tem ID, tenta buscar do cache
+  if (park.id) {
+    try {
+      const data = await getParkAnalyses(park.id)
+      console.log('📥 Dados do cache:', data)
+
+      if (data.success && data.analysis) {
+        // Tem análise em cache
+        const analysis = data.analysis
+        console.log('📊 Buffers do cache:', analysis.buffers?.length || 0)
+
+        const coolingResult: CoolingAnalysisResult = {
+          success: true,
+          park_lst: analysis.park_lst || {celsius: 0, kelvin: 273.15},
+          buffers: analysis.buffers || [],
+          pci: analysis.pci || 0,
+          pcd: analysis.pcd || 0,
+          pca: analysis.pca || {ha: 0, m2: 0},
+          image_date: analysis.image_date || '',
+          timestamp: analysis.timestamp || new Date().toISOString(),
+          num_buffers: analysis.num_buffers || 0,
+          buffer_distance: analysis.buffer_distance || 0,
+          total_pixels: analysis.total_pixels || 0
+        }
+
+        updateCoolingData(coolingResult)
+        handleSuccess(`Análise do parque "${park.name}" carregada!`)
+        return
+      }
+      isSearching.value = false
+    } catch (error) {
+      console.warn('⚠️ Erro ao buscar cache:', error)
+      isSearching.value = false
+    }
+  }
+
+  // Se não tem cache, faz análise nova
+  console.log('🔄 Sem cache, analisando...')
+  await analyzePark(feature, park)
+}
+
+// ============================================================
+// 🔥 FUNÇÃO CENTRALIZADA PARA SELECIONAR PARQUE
+// ============================================================
+async function selectPark(park: SearchParkResult) {
+  if (analyzing.value) {
+    handleError(`analyzing=${analyzing.value}`)
+    return
+  }
+
+  console.log('🎯 Selecionando parque:', park.name)
+
+  // 🔥 VERIFICA SE TEM GEOMETRIA
+  if (!park.geometry && !park.geometry_3857) {
+    handleError('Parque sem geometria')
+    return
+  }
+
+  // Limpa pixels antigos
+  if (pixelLayer) {
+    map.removeLayer(pixelLayer)
+    pixelLayer = null
+  }
+
+  // Reseta dados
+  coolingData.value = null
+  showStats.value = false
+  gradientMin.value = null
+  gradientMax.value = null
+  totalPixels.value = 0
+
+  // Desenha o polígono
+  const feature = drawParkOnMap(park)
+  if (!feature) {
+    handleError('Falha ao desenhar polígono')
+    return
+  }
+
+  // Carrega a análise
+  await loadParkAnalysis(park, feature)
+
+  // Limpa resultados da busca
+  // results.value = []
+  search.value = ""
+}
+
+// ============================================================
+// 🔥 FUNÇÃO PARA ATUALIZAR OS DADOS DE COOLING
+// ============================================================
+function updateCoolingData(data: CoolingAnalysisResult) {
+  console.log('🔥 updateCoolingData:', data)
+
+  coolingData.value = data
+
+  // Atualiza os pixels no mapa
+  if (data.buffers && data.buffers.length > 0) {
+    console.log('✅ Chamando addPixelLayer com', data.buffers.length, 'buffers')
+    addPixelLayer(data.buffers)
+  } else {
+    console.log('⚠️ Nenhum buffer para adicionar')
+  }
+
+  showStats.value = true
+}
+
+// ============================================================
+// 🔥 FUNÇÃO DE ANÁLISE (quando não tem cache)
+// ============================================================
+async function analyzePark(feature: Feature<Geometry>, park: SearchParkResult) {
+  if (analyzing.value) return
+
+  console.log('🔬 Analisando parque:', park.name)
+  analyzing.value = true
+
+  try {
+    const geojson = format.writeFeatureObject(feature, {
+      featureProjection: "EPSG:3857",
+      dataProjection: "EPSG:4326"
+    })
+
+    if (!geojson.geometry) {
+      handleError('Geometria não encontrada')
+      return
+    }
+
+    const result = await analyzeParkCooling(
+        geojson.geometry as any,
+        park
+    )
+
+    if (!result.success) {
+      handleError(result.error || 'Erro desconhecido', 'Análise falhou')
+      coolingData.value = result
+      return
+    }
+
+    updateCoolingData(result)
+    handleSuccess('Análise concluída com sucesso!')
+
+  } catch (error) {
+    console.error("❌ Erro na análise:", error)
+    handleError(error, 'Erro na análise')
+    analyzing.value = false
+  } finally {
+    analyzing.value = false
+  }
+}
+
+// ===== FUNÇÃO COM GRID PERFEITO =====
 async function addPixelLayer(buffers: any[]) {
   if (pixelLayer) {
     map.removeLayer(pixelLayer)
@@ -126,7 +340,6 @@ async function addPixelLayer(buffers: any[]) {
 
   if (!showPixels.value) return
 
-  // 🔥 COLETA TODOS OS PIXELS
   const points: { lon: number; lat: number; temp: number }[] = []
 
   buffers.forEach((buffer) => {
@@ -141,14 +354,8 @@ async function addPixelLayer(buffers: any[]) {
     })
   })
 
-  if (points.length === 0) {
-    console.log('❌ Nenhum pixel encontrado')
-    return
-  }
+  if (points.length === 0) return
 
-  console.log(`📊 ${points.length} pixels encontrados`)
-
-  // 🔥 CALCULA GRADIENTE
   const temps = points.map(p => p.temp)
   const minTemp = Math.min(...temps)
   const maxTemp = Math.max(...temps)
@@ -161,7 +368,6 @@ async function addPixelLayer(buffers: any[]) {
   gradientMax.value = gradientMaxVal
   totalPixels.value = points.length
 
-  // 🔥 IMPORTAÇÕES
   const VectorLayer = (await import('ol/layer/Vector')).default
   const VectorSource = (await import('ol/source/Vector')).default
   const Feature = (await import('ol/Feature')).default
@@ -170,20 +376,15 @@ async function addPixelLayer(buffers: any[]) {
   const StrokeStyle = (await import('ol/style/Stroke')).default
   const Polygon = (await import('ol/geom/Polygon')).default
 
-  // 🔥 RESOLUÇÃO (30 METROS) - USA O MESMO DO TOOLTIP
   const pixelSizeDegrees = 0.00026
-
-  // 🔥 USA AS COORDENADAS REAIS DOS PIXELS (SEM ARREDONDAR)
   const source = new VectorSource()
   const features: any[] = []
 
   points.forEach(p => {
-    // 🔥 CALCULA COR
     let normalized = (p.temp - gradientMinVal) / gradientRange
     normalized = Math.max(0, Math.min(1, normalized))
     const color = getGradientColor(normalized)
 
-    // 🔥 CRIA QUADRADO CENTRADO NA POSIÇÃO EXATA DO PIXEL
     const half = pixelSizeDegrees / 2
     const [x1, y1] = fromLonLat([p.lon - half, p.lat - half]) as [number, number]
     const [x2, y2] = fromLonLat([p.lon + half, p.lat + half]) as [number, number]
@@ -202,15 +403,12 @@ async function addPixelLayer(buffers: any[]) {
     })
 
     feature.setStyle(new Style({
-      fill: new FillStyle({
-        color: color,
-      }),
+      fill: new FillStyle({color}),
       stroke: new StrokeStyle({
         color: 'rgba(255,255,255,0.2)',
         width: 0.5
       })
     }))
-
 
     features.push(feature)
   })
@@ -224,17 +422,13 @@ async function addPixelLayer(buffers: any[]) {
   })
 
   map.addLayer(pixelLayer)
-  console.log(`✅ ${features.length} quadrados criados`)
 }
 
-// ===== FUNÇÃO PRINCIPAL =====
-async function searchPlace() {
-  console.log('🔍 searchPlace chamado')
-
-  if (!search.value || loading.value || isSearching.value) {
-    console.log('⏭️ Ignorando (já em execução)')
-    return
-  }
+// ===== FUNÇÃO DE BUSCA =====
+async function searchPlace(selectedParkData: ParkSuggestion | null | undefined) {
+  console.log("searchPlace")
+  if (!search.value || loading.value || isSearching.value) return
+  // results.value = []
 
   loading.value = true
   isSearching.value = true
@@ -245,65 +439,35 @@ async function searchPlace() {
   gradientMax.value = null
   totalPixels.value = 0
 
-  // Remove camada de pixels anterior
   if (pixelLayer) {
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
 
   try {
-    const data = await searchPark(search.value)
+    const data = await searchPark({
+      query: search.value,
+      city: selectedParkData?.city || '',
+      country: selectedParkData?.country || 'Brazil',
+      osm_id: selectedParkData?.osm_id || undefined
+    })
 
-    // 🔥 CONVERSÃO SEGURA
-    const elements = (data?.elements || []) as any[]
-    results.value = elements
+    const elements = data.results || []
+    // results.value = elements
 
-    if (elements.length > 0) {
-      const element = elements[0]
-
-      // 🔥 VERIFICA SE O ELEMENTO É VÁLIDO
-      if (!element || !element.geometry || element.geometry.length === 0) {
-        console.warn('⚠️ Elemento inválido ou sem geometria')
-        const {handleInfo} = useNotifications()
-        handleInfo('Parque encontrado mas sem geometria disponível')
-        return
-      }
-
-      const feature = convertParkToFeature(element)
-
-      feature.setStyle(
-          new Style({
-            stroke: new Stroke({
-              color: "#00aa00",
-              width: 3,
-              lineDash: [10, 10]
-            })
-          }) as unknown as Style
-      )
-
-      vectorSource.clear()
-      vectorSource.addFeature(feature)
-
-      parkName.value = element?.tags?.name ?? "Parque sem nome"
-
-      drawBuffers(feature, vectorSource)
-      await analyzePark(feature)
-
-      const extent = feature.getGeometry()!.getExtent()
-      map.getView().fit(extent, {
-        padding: [50, 50, 50, 50],
-        duration: 800
-      })
-
-      results.value = []
-    } else {
-      const {handleInfo} = useNotifications()
+    if (elements.length === 0) {
       handleInfo('Nenhum parque encontrado')
+      return
+    }
+
+    // Seleciona o primeiro resultado automaticamente
+    const element = elements[0]
+    if (element && element.geometry) {
+      await selectPark(element)
     }
 
   } catch (error) {
     console.error("❌ Erro ao buscar parque:", error)
-    const {handleError} = useNotifications()
     handleError(error, 'Erro ao buscar parque')
     results.value = []
   } finally {
@@ -312,116 +476,6 @@ async function searchPlace() {
   }
 }
 
-// ===== FUNÇÃO DEBOUNCE MANUAL =====
-function debouncedSearch() {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
-  searchTimeout = setTimeout(() => {
-    searchPlace()
-  }, 500)
-}
-
-// ===== FUNÇÃO DE ANÁLISE =====
-async function analyzePark(feature: Feature<Geometry>) {
-  if (analyzing.value) {
-    console.log('⏭️ Análise já em execução')
-    return
-  }
-
-  analyzing.value = true
-
-  try {
-    const geojson = format.writeFeatureObject(feature, {
-      featureProjection: "EPSG:3857",
-      dataProjection: "EPSG:4326"
-    })
-
-    if (!geojson.geometry) {
-      console.error('❌ Geometria não encontrada')
-      const {handleError} = useNotifications()
-      handleError('Geometria não encontrada')
-      return
-    }
-
-    const result = await analyzeParkCooling(geojson.geometry as any)
-
-    if (!result.success) {
-      const {handleError} = useNotifications()
-      handleError(result.error || 'Erro desconhecido', 'Análise falhou')
-      coolingData.value = result
-      return
-    }
-
-    coolingData.value = result
-
-    // 🔥 VISUALIZA OS PIXELS COM GRADIENTE LOCAL
-    if (result.buffers && result.buffers.length > 0) {
-      await addPixelLayer(result.buffers)
-
-      // 🔥 CONTA TOTAL DE PIXELS
-      let count = 0
-      result.buffers.forEach((b: any) => {
-        count += b.statistics?.count || 0
-      })
-      totalPixels.value = count
-    }
-
-    console.log("🌡️ Análise do Cooling Island:")
-    console.log(`  🏠 Parque: ${parkName.value}`)
-    console.log(`  🌡️ LST do Parque: ${result.park_lst?.celsius?.toFixed(2) ?? 'N/A'}°C`)
-    console.log(`  ❄️ PCI: ${result.pci?.toFixed(2) ?? 'N/A'}°C`)
-    console.log(`  📏 PCD: ${result.pcd ?? 'N/A'}m`)
-    console.log(`  📐 PCA: ${result.pca?.ha?.toFixed(2) ?? 'N/A'} ha`)
-
-    console.log("\n📊 Estatísticas por buffer:")
-    result.buffers.forEach((b: any) => {
-      const stats = b.statistics
-      console.log(`  Anel ${b.buffer_index}: ${b.distance_prev}-${b.distance}m → ${stats.mean?.toFixed(2) ?? 'N/A'}°C (${stats.count} pixels)`)
-    })
-
-    showStats.value = true
-    const {handleSuccess} = useNotifications()
-    handleSuccess('Análise concluída com sucesso!')
-  } catch (error) {
-    console.error("❌ Erro na análise:", error)
-    const {handleError} = useNotifications()
-    handleError(error, 'Erro na análise')
-  } finally {
-    analyzing.value = false
-  }
-}
-
-// ===== SELEÇÃO DE PARQUE =====
-async function selectPark(item: SearchResult['elements'][0]) {
-  if (isSearching.value || analyzing.value) return
-
-  try {
-    const feature = convertParkToFeature(item)
-    vectorSource.clear()
-    vectorSource.addFeature(feature)
-
-    parkName.value = item.tags?.name || "Parque sem nome"
-
-    drawBuffers(feature, vectorSource)
-
-    const extent = feature.getGeometry()!.getExtent()
-    map.getView().fit(extent, {
-      padding: [50, 50, 50, 50],
-      duration: 800
-    })
-
-    await analyzePark(feature)
-
-    results.value = []
-    search.value = ""
-
-  } catch (error) {
-    console.error("❌ Erro ao selecionar parque:", error)
-    const {handleError} = useNotifications()
-    handleError(error, 'Erro ao selecionar parque')
-  }
-}
 
 // ===== FUNÇÃO PARA ATUALIZAR OPACIDADE =====
 function updatePixelOpacity(value: number) {
@@ -433,13 +487,9 @@ function updatePixelOpacity(value: number) {
 
 // ===== FUNÇÃO TOGGLE PIXELS =====
 async function togglePixels() {
-  // 🔥 INVERTE O VALOR
-
   if (showPixels.value && coolingData.value?.buffers) {
-    console.log(showPixels.value, "colocar mapa ")
     await addPixelLayer(coolingData.value.buffers)
   } else if (pixelLayer) {
-    console.log(showPixels.value, "remover mapa ")
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
@@ -474,7 +524,6 @@ onMounted(async () => {
     })
   })
 
-// ===== EVENTO PARA MOSTRAR TOOLTIP AO PASSAR O MOUSE =====
   map.on('pointermove', (evt: any) => {
     const overlay = tooltipOverlay.value
     const el = tooltipElement.value
@@ -483,14 +532,12 @@ onMounted(async () => {
     const coordinate = evt.coordinate
     const lonLat = proj.toLonLat(coordinate)
 
-    // 🔥 FORÇA O TIPO COMO ARRAY DE NÚMEROS
     if (!lonLat || !Array.isArray(lonLat) || lonLat.length < 2) {
       el.style.opacity = '0'
       overlay.setPosition(undefined)
       return
     }
 
-    // 🔥 USA AS VARIÁVEIS COM TIPO CERTO
     const lon = lonLat[0] as number
     const lat = lonLat[1] as number
 
@@ -503,7 +550,7 @@ onMounted(async () => {
           if (pixelData.lat != null && pixelData.lon != null && pixelData.temperature != null) {
             const dx = pixelData.lon - lon
             const dy = pixelData.lat - lat
-            const dist = Math.sqrt(dx*dx + dy*dy)
+            const dist = Math.sqrt(dx * dx + dy * dy)
 
             if (dist < 0.0003 && dist < closestDist) {
               closestDist = dist
@@ -525,7 +572,6 @@ onMounted(async () => {
     }
   })
 
-// ===== ESCONDE TOOLTIP AO SAIR DO MAPA =====
   map.getTargetElement().addEventListener('mouseleave', () => {
     if (tooltipElement.value) {
       tooltipElement.value.style.opacity = '0'
@@ -535,7 +581,6 @@ onMounted(async () => {
     }
   })
 
-// Inicializa o tooltip
   setupTooltip()
 })
 
@@ -547,17 +592,6 @@ onUnmounted(() => {
   if (pixelLayer) {
     map?.removeLayer(pixelLayer)
   }
-  if (map) {
-    map.setTarget(undefined)
-    map.dispose()
-  }
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
-  if (pixelLayer) {
-    map?.removeLayer(pixelLayer)
-  }
-  // Remove o overlay do tooltip
   if (tooltipOverlay.value) {
     map?.removeOverlay(tooltipOverlay.value)
   }
@@ -578,25 +612,21 @@ onUnmounted(() => {
       <ParkSearchBar
           v-model:search="search"
           v-model:showPixels="showPixels"
-          :loading="loading"
           :analyzing="analyzing"
-          :results="results"
-          :predefinedParks="predefinedParks"
-          :showStats="showStats"
           :coolingData="coolingData"
-          :parkName="parkName"
-          :gradientMin="gradientMin"
           :gradientMax="gradientMax"
-          :totalPixels="totalPixels"
+          :gradientMin="gradientMin"
+          :loading="loading"
+          :parkName="parkName"
           :pixelOpacity="pixelOpacity"
+          :predefinedParks="predefinedParks"
+          :results="results"
+          :showStats="showStats"
+          :totalPixels="totalPixels"
           @search="searchPlace"
           @select="selectPark"
-          @addPark="openAddParkModal"
-          @refresh="refreshData"
-          @export="exportReport"
-          @settings="openSettings"
-          @about="showAbout"
           @togglePixels="togglePixels"
+          @updateCoolingData="updateCoolingData"
           @updateOpacity="updatePixelOpacity"
       />
     </div>
@@ -621,51 +651,13 @@ onUnmounted(() => {
 }
 
 
-
 /* STATS */
-.stats {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 2px solid #eee;
-}
-
-.stats-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
 
 .stats-header h4 {
   margin: 0;
   color: #333;
   font-size: 14px;
   font-weight: 600;
-}
-
-.badge {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-weight: 600;
-}
-
-.badge.success {
-  background: #d4edda;
-  color: #155724;
-}
-
-.badge.error {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  font-size: 13px;
-  border-bottom: 1px solid #f5f5f5;
 }
 
 .stat-item:last-child {
@@ -772,29 +764,6 @@ onUnmounted(() => {
   color: #333;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-  gap: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.stats-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 6px 4px;
-  border-radius: 4px;
-  border: 1px solid #e0e0e0;
-  font-size: 11px;
-  transition: all 0.2s;
-}
-
-.stats-item:hover {
-  transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
 
 .stats-item .label {
   font-weight: 600;

@@ -1,14 +1,114 @@
-import type { SearchResult, OSMElement } from '~/types'
+// services/parkService.ts
+import {API_URL} from './eeService'
+import type {ParkGeometry} from "~/types";
+
+export interface SearchParkParams {
+    query: string
+    city?: string
+    country?: string
+    osm_id?: number | null
+}
+
+export interface SearchParkResult {
+    id?: number
+    name: string
+    city?: string
+    country?: string
+    geometry: ParkGeometry      // GeoJSON (EPSG:4326)
+    geometry_3857: ParkGeometry // GeoJSON (EPSG:3857) - já convertido
+    tags?: any
+    osm_id?: number
+    osm_type?: string
+}
+
+export interface SearchParkResponse {
+    success?: boolean
+    source?: 'database' | 'overpass'
+    results: SearchParkResult[]
+    error?: string
+}
 
 /**
- * Busca parques no Overpass API (OpenStreetMap)
+ * Busca parques no backend (que consulta DB + Overpass)
  */
-export async function searchPark(query: string) {
+export async function searchPark(params: SearchParkParams): Promise<SearchParkResponse> {
+    const {handleError} = useNotifications()
+
+    try {
+        const response = await fetch(`${API_URL}/api/park/search`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                query: params.query,
+                city: params.city || '',
+                country: params.country || 'Brasil',
+                osm_id: params.osm_id || null
+            })
+        })
+
+        const data = await response.json()
+
+        // 🔥 SE A RESPOSTA NÃO FOR SUCESSO
+        if (!response.ok || data.success === false) {
+            const errorMsg = data.error || 'Erro ao buscar parque'
+            handleError(errorMsg)
+            return {
+                success: false,
+                results: [],
+                error: errorMsg
+            }
+        }
+
+        return {
+            success: true,
+            source: data.source || 'overpass',
+            results: data.results || [],
+            error: data.error
+        }
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar parque:', error)
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+        handleError(errorMsg)
+        return {
+            success: false,
+            results: [],
+            error: errorMsg
+        }
+    }
+}
+
+// services/parkService.ts
+export async function searchParkold(query: string, city?: string, country?: string, osm_id?: any) {
+    let areaFilter = ''
+    let areaFilterQuery = ''
+
+    if (city && country) {
+        areaFilter = `
+        area["name"="${country}"]["boundary"="administrative"]["admin_level"="2"]->.country;
+
+        area["name"="${city}"]["boundary"="administrative"](area.country)->.searchArea;
+    `
+
+        areaFilterQuery = '(area.searchArea)'
+    } else if (city) {
+        areaFilter = `
+            area["name"="${city}"]->.searchArea;
+        `
+        areaFilterQuery = '(area.searchArea)'
+    } else if (country) {
+        areaFilter = `
+        area["name"="${country}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;
+    `
+        areaFilterQuery = '(area.searchArea)'
+    }
+
     const overpassQuery = `
     [out:json];
+    ${areaFilter}
     (
-      way["leisure"="park"]["name"~"${query}", i];
-      relation["leisure"="park"]["name"~"${query}", i];
+      way["leisure"="park"]["name"~"${query}", i]${city ? areaFilterQuery : ''};
+      relation["leisure"="park"]["name"~"${query}", i]${city ? areaFilterQuery : ''};
     );
     out geom;
   `
@@ -25,6 +125,7 @@ export async function searchPark(query: string) {
 
     return await res.json()
 }
+
 //
 // export async function searchPark(query: string) {
 //     const res = {

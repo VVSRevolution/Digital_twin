@@ -14,3 +14,8 @@ class Config:
     # Overpass API
     OVERPASS_URL = "https://overpass-api.de/api/interpreter"
     NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+
+    # Database
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL',
+                                        'postgresql://digital_twin:DigitalTwin2024!@localhost:5432/digital_twin')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False

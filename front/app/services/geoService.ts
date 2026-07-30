@@ -1,82 +1,91 @@
-import * as turf from "@turf/turf"
 import GeoJSON from "ol/format/GeoJSON"
 import type Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
-import { useNotifications } from '~/composables/useErrorHandler'
-import type { OSMPlace, OSMElement, ParkGeometry } from '~/types'
+import type {OSMElement, ParkGeometry} from '~/types'
+import {fromLonLat} from "ol/proj";
 
 const format = new GeoJSON()
+const DEFAULT_PROJECTIONS = {
+    dataProjection: "EPSG:4326",
+    featureProjection: "EPSG:3857"
+} as const
 
-/**
- * Converte um elemento OSM em Feature OpenLayers
- */
-export function convertParkToFeature(element: OSMElement): Feature<Geometry> {
-    const coords = element.geometry?.map((p: any) => [
-        Number(p.lon),
-        Number(p.lat)
-    ]) ?? []
+type FeatureProjectionOptions = Partial<typeof DEFAULT_PROJECTIONS>
 
-    // garante que o polígono está fechado
-    const first = coords[0]
-    const last = coords[coords.length - 1]
+function isLatLonGeometry(
+    geometry: OSMElement['geometry']
+): geometry is Array<{ lat: number; lon: number }> {
+    return Array.isArray(geometry)
+}
+
+function closePolygonRing(coordinates: number[][]): number[][] {
+    const first = coordinates[0]
+    const last = coordinates[coordinates.length - 1]
 
     if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
-        coords.push([...first])
+        coordinates.push([...first])
+    }
+
+    return coordinates
+}
+
+function getFeatureGeometry(element: OSMElement): ParkGeometry {
+    const geometry = element.geometry
+
+    if (!geometry) {
+        throw new Error('Parque encontrado sem geometria')
+    }
+
+    if (isLatLonGeometry(geometry)) {
+        const coordinates = closePolygonRing(
+            geometry.map((point) => [Number(point.lon), Number(point.lat)])
+        )
+
+        return {
+            type: "Polygon",
+            coordinates: [coordinates]
+        }
+    }
+
+    return geometry
+}
+
+
+export function convertParkToFeature(element: any): Feature<Geometry> {
+    // 🔥 USA geometry (NÃO geometry_3857)
+    let geometry = element.geometry
+
+    if (!geometry) {
+        throw new Error('Elemento sem geometria')
+    }
+
+    // 🔥 SE FOR GEOJSON, USA DIRETO
+    if (geometry.type && geometry.coordinates) {
+        // Se for 4326, converte para 3857
+        if (geometry.type === 'Polygon' && geometry.coordinates) {
+            const coords3857 = geometry.coordinates.map((ring: any[]) =>
+                ring.map((coord: number[]) => fromLonLat(coord))
+            )
+            geometry = {
+                type: geometry.type,
+                coordinates: coords3857
+            }
+        }
     }
 
     return format.readFeature(
         {
             type: "Feature",
-            geometry: {
-                type: "Polygon",
-                coordinates: [coords]
-            },
+            geometry: geometry,
             properties: {
-                name: element.tags?.name
+                name: element.tags?.name || element.name || 'Parque sem nome'
             }
         },
         {
-            dataProjection: "EPSG:4326",
+            dataProjection: "EPSG:3857",
             featureProjection: "EPSG:3857"
         }
     ) as Feature<Geometry>
 }
 
-/**
- * Busca lugares no OpenStreetMap (Nominatim)
- */
-export async function searchOSM(query: string): Promise<OSMPlace[]> {
-    try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`
-        const res = await fetch(url)
 
-        if (!res.ok) {
-            const errorMsg = `Erro HTTP ${res.status}: ${res.statusText}`
-            const {handleError} = useNotifications()
-            handleError(errorMsg, 'Erro ao buscar local')
-            return []
-        }
-
-        return await res.json()
-    } catch (error) {
-        console.error('❌ Erro ao buscar OSM:', error)
-        const {handleError} = useNotifications()
-        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido'
-        handleError(errorMsg, 'Erro ao buscar local')
-        return []
-    }
-}
-
-/**
- * Cria um ponto geográfico (Turf)
- */
-export function createPoint(lon: number, lat: number) {
-    return turf.point([lon, lat])
-}
-
-/**
- * Cria um buffer em torno de um ponto
- */
-export function createBuffer(point: any, distance = 500) {
-    return turf.buffer(point, distance, {units: "meters"})
-}

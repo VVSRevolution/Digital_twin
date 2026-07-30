@@ -7,28 +7,30 @@
           <!-- MENU SANDUÍCHE -->
           <div class="menu-container">
             <Button
+                aria-label="Menu"
                 icon="pi pi-bars"
+                rounded
                 severity="secondary"
                 text
-                rounded
                 @click="toggleMenu"
-                aria-label="Menu"
             />
           </div>
 
           <!-- PESQUISA -->
-          <div class="search-input">
+          <div ref="searchInputRef" class="search-input">
             <input
                 v-model="search"
-                type="text"
-                placeholder="Pesquisar parque..."
                 class="search-field"
+                placeholder="Pesquisar parque..."
+                type="text"
+                @blur="hideParkSuggestions"
+                @input="onParkInput($event)"
                 @keydown.enter="handleSearch"
             />
             <Button
+                :loading="loading || analyzing"
                 icon="pi pi-search"
                 label="Buscar"
-                :loading="loading || analyzing"
                 @click="handleSearch"
             />
           </div>
@@ -36,7 +38,7 @@
 
         <!-- OPÇÕES DO MENU -->
         <div v-if="isMenuOpen" class="menu-options">
-          <Divider />
+          <Divider/>
 
           <!-- 🔥 MODO NORMAL: SELECIONAR PARQUE -->
           <template v-if="!isAddingPark">
@@ -44,18 +46,28 @@
               <label class="menu-label">📍 Selecionar Parque</label>
               <Select
                   v-model="selectedPark"
-                  :options="predefinedParks"
-                  optionLabel="tags.name"
-                  placeholder="Selecione um parque..."
+                  :loading="loadingParks"
+                  :options="parkList"
                   fluid
-                  @change="handleSelectPark"
-              />
+                  optionLabel="name"
+                  placeholder="Selecione um parque..."
+                  @change="handleSelectParkFromList"
+              >
+                <template #option="slotProps">
+                  <div class="park-option">
+                    <span class="park-option-name">{{ slotProps.option.name }}</span>
+                    <span class="park-option-location">{{ slotProps.option.city }}, {{
+                        slotProps.option.country
+                      }}</span>
+                  </div>
+                </template>
+              </Select>
             </div>
 
             <Button
+                fluid
                 icon="pi pi-plus"
                 label=" Adicionar Parque"
-                fluid
                 @click="startAddPark"
             />
           </template>
@@ -68,13 +80,14 @@
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkName"
-                    type="text"
-                    placeholder="Digite o nome do parque..."
                     class="add-field"
-                    @input="onParkInput"
+                    placeholder="Digite o nome do parque..."
+                    type="text"
                     @blur="hideParkSuggestions"
+                    @input="onParkInput($event)"
                 />
-                <div v-if="parkSuggestions.length && showParkSuggestions" class="autocomplete-list">
+                <div v-if="parkSuggestions.length && showParkSuggestions &&  !showParkSugestionOnSeach"
+                     class="autocomplete-list">
                   <div
                       v-for="park in parkSuggestions"
                       :key="park.id"
@@ -94,11 +107,11 @@
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkCountry"
-                    type="text"
-                    placeholder="Digite o país..."
                     class="add-field"
-                    @input="onCountryInput"
+                    placeholder="Digite o país..."
+                    type="text"
                     @blur="hideCountrySuggestions"
+                    @input="onCountryInput"
                 />
                 <div v-if="countrySuggestions.length && showCountrySuggestions" class="autocomplete-list">
                   <div
@@ -117,15 +130,15 @@
             <!-- 🔥 CIDADE (com autocomplete, filtrada pelo país) -->
             <div class="menu-section">
               <label class="menu-label">📍 Cidade</label>
-              <div class="autocomplete-wrapper" ref="cityWrapperRef">
+              <div ref="cityWrapperRef" class="autocomplete-wrapper">
                 <input
                     v-model="newParkCity"
-                    type="text"
-                    placeholder="Digite a cidade..."
                     class="add-field"
-                    @input="onCityInput"
-                    @focus="onCityFocus"
+                    placeholder="Digite a cidade..."
+                    type="text"
                     @blur="onCityBlur"
+                    @focus="onCityFocus"
+                    @input="onCityInput"
                 />
                 <div v-if="citySuggestions.length && showCitySuggestions" class="autocomplete-list">
                   <div
@@ -150,10 +163,10 @@
                   <input
                       id="numBuffers"
                       v-model.number="newNumBuffers"
-                      type="number"
-                      min="1"
-                      max="20"
                       class="add-field buffer-input"
+                      max="20"
+                      min="1"
+                      type="number"
                   />
                 </div>
                 <div class="buffer-field">
@@ -161,47 +174,96 @@
                   <input
                       id="bufferDistance"
                       v-model.number="newBufferDistance"
-                      type="number"
-                      min="10"
-                      max="500"
-                      step="10"
                       class="add-field buffer-input"
+                      max="500"
+                      min="10"
+                      step="10"
+                      type="number"
                   />
                 </div>
               </div>
               <small class="buffer-hint">Padrão: 11 anéis de 90m. Ajuste conforme necessário.</small>
             </div>
 
+            <!-- 🔥 PERÍODO DE ANÁLISE -->
             <div class="menu-section">
               <label class="menu-label">📅 Período de Análise</label>
+
+              <!-- 🔥 DATA DE INÍCIO (SEMPRE OBRIGATÓRIA) -->
               <div class="date-range">
                 <input
                     v-model="newParkStartDate"
-                    type="date"
                     class="add-field date-field"
-                />
-                <span class="date-separator">até</span>
-                <input
-                    v-model="newParkEndDate"
+                    placeholder="Data de início *"
                     type="date"
-                    class="add-field date-field"
                 />
+
+                <!-- 🔥 DATA DE FIM (só aparece se NÃO estiver atualizado) -->
+                <template v-if="!isUpToDate">
+                  <span class="date-separator">até</span>
+                  <input
+                      v-model="newParkEndDate"
+                      class="add-field date-field"
+                      placeholder="Data de fim"
+                      type="date"
+                  />
+                </template>
+
+                <!-- 🔥 INDICADOR DE ATUALIZADO -->
+                <span v-else class="date-hint">📡 até a imagem mais recente</span>
+              </div>
+
+              <!-- 🔥 TOGGLE: Manter atualizado -->
+              <div class="toggle-update-wrapper">
+                <ToggleSwitch v-model="isUpToDate"/>
+                <label class="toggle-label">Manter atualizado (buscar imagem mais recente)</label>
+              </div>
+            </div>
+
+            <!-- 🔥 SATÉLITES (Multiselect) -->
+            <div class="menu-section">
+              <label class="menu-label">🛰️ Satélites</label>
+              <div class="satellite-select-wrapper">
+                <MultiSelect
+                    v-model="selectedSatellites"
+                    :loading="loadingSatellites"
+                    :options="availableSatellites"
+                    filter
+                    fluid
+                    optionLabel="name"
+                    optionValue="id"
+                    placeholder="Selecione os satélites..."
+                    showClear
+                >
+                  <template #option="slotProps">
+                    <div class="satellite-option">
+                      <div class="satellite-option-main">
+                        <span class="satellite-option-name">{{ slotProps.option.name }}</span>
+                        <span class="satellite-option-resolution">{{ slotProps.option.resolution_m }}m</span>
+                      </div>
+                      <div class="satellite-option-desc">{{ slotProps.option.description }}</div>
+                    </div>
+                  </template>
+                </MultiSelect>
+                <small class="satellite-hint">
+                  {{ selectedSatellites.length }} satélite(s) selecionado(s)
+                </small>
               </div>
             </div>
 
             <div class="menu-actions">
               <Button
-                  label="Voltar"
-                  icon="pi pi-arrow-left"
-                  severity="secondary"
                   fluid
+                  icon="pi pi-arrow-left"
+                  label="Voltar"
+                  severity="secondary"
                   @click="cancelAddPark"
               />
               <Button
-                  label="Cadastrar"
-                  icon="pi pi-check"
-                  severity="success"
                   fluid
+                  icon="pi pi-check"
+                  label="Cadastrar"
+                  severity="success"
                   @click="confirmAddPark"
               />
             </div>
@@ -210,30 +272,56 @@
       </template>
     </Card>
 
-    <!-- 🔥 CARD 3: RESULTADOS -->
-    <Card v-if="results.length || (showStats && coolingData)" class="results-card">
-      <template #content>
-        <!-- RESULTADOS DA PESQUISA -->
-        <div v-if="results.length" class="results-list">
-          <div
-              v-for="item in results"
-              :key="item.id"
-              class="result-item"
-              @click="handleSelect(item)"
-          >
-            🌳 {{ item.tags?.name || 'Parque sem nome' }}
-          </div>
+    <!-- 🔥 AUTOCOMPLETE DA PESQUISA (FORA DO CARD, ABSOLUTO) -->
+    <div v-if="parkSuggestions.length && showParkSuggestions && showParkSugestionOnSeach"
+         :style="autocompleteStyle"
+         class="autocomplete-list-search">
+      <div
+          v-for="park in parkSuggestions"
+          :key="park.id"
+          class="autocomplete-item"
+          @mousedown.prevent="selectPark(park)"
+      >
+        <span class="park-name">{{ park.name || 'Parque sem nome' }}</span>
+        <span class="park-location">{{ park.city || '' }}, {{ park.country || '' }}</span>
+      </div>
+    </div>
+
+    <div v-if="results.length" class="results-container">
+      <!-- HEADER PARA EXPANDIR -->
+      <div class="results-header" @click="toggleResults">
+        <span>📋 Resultados ({{ results.length }})</span>
+        <span class="results-toggle">{{ isResultsExpanded ? '▲' : '▼' }}</span>
+      </div>
+
+      <!-- LISTA (EXPANDE/ENCOLHE) -->
+      <div v-show="isResultsExpanded" class="results-list">
+        <div
+            v-for="item in results"
+            :key="item.id"
+            class="result-item"
+            @click="handleSelect(item)"
+        >
+          <div class="result-name">🌳 {{ item.tags?.name || item.name || 'Parque sem nome' }}</div>
+          <div class="result-location">{{ item.city }}, {{ item.country }}</div>
+          <div class="result-osm-id">ID: {{ item.osm_id }}</div>
         </div>
+      </div>
+    </div>
+
+    <!-- 🔥 CARD 3: RESULTADOS -->
+    <Card v-if="(showStats && coolingData)" class="results-card">
+      <template #content>
+
 
         <!-- RESULTADOS DA ANÁLISE -->
         <template v-if="showStats && coolingData">
-          <Divider v-if="results.length" />
 
           <div class="stats-header">
             <h4>🌳 {{ parkName }}</h4>
             <Tag
-                :value="coolingData.success ? 'OK' : 'Falha'"
                 :severity="coolingData.success ? 'success' : 'danger'"
+                :value="coolingData.success ? 'OK' : 'Falha'"
             />
           </div>
 
@@ -261,10 +349,9 @@
           <div v-if="coolingData.error" class="error-msg">
             ⚠️ {{ coolingData.error }}
           </div>
-
           <!-- PIXELS -->
           <template v-if="coolingData?.buffers">
-            <Divider />
+            <Divider/>
             <div class="controls">
               <div class="toggle-wrapper">
                 <Checkbox v-model="showPixels"
@@ -278,19 +365,19 @@
               <div v-if="showPixels" class="opacity-control">
                 <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
                 <input
-                    type="range"
-                    min="0"
-                    max="100"
                     :value="pixelOpacity * 100"
-                    @input="handleOpacityChange($event)"
                     class="opacity-slider"
+                    max="100"
+                    min="0"
+                    type="range"
+                    @input="handleOpacityChange($event)"
                 />
               </div>
 
               <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
                 <div class="gradient-header">
                   <span>🌡️ Temperatura</span>
-                  <Badge :value="`${totalPixels} px`" />
+                  <Badge :value="`${totalPixels} px`"/>
                 </div>
                 <div class="gradient-bar"></div>
                 <div class="gradient-labels">
@@ -303,19 +390,19 @@
 
           <!-- BUFFERS -->
           <template v-if="coolingData?.buffers">
-            <Divider />
+            <Divider/>
             <div class="buffer-stats">
               <h4>📊 Anéis</h4>
               <div class="stats-grid">
                 <div
                     v-for="buffer in coolingData.buffers"
                     :key="buffer.distance"
-                    class="stats-item"
                     :style="{
                     background: (buffer.statistics?.mean ?? null) !== null
                       ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
                       : '#f5f5f5'
                   }"
+                    class="stats-item"
                 >
                   <span>{{ buffer.distance }}m</span>
                   <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
@@ -327,27 +414,64 @@
         </template>
       </template>
     </Card>
+
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, watch} from 'vue'
-import { formatCoolingStats, type CoolingAnalysisResult } from '@/services'
-import { useNotifications } from '~/composables/useErrorHandler'
-import { useParkSearch } from '~/composables/useParkSearch'
-import { useCountrySearch } from '~/composables/useCountrySearch'
-import { useCitySearch } from '~/composables/useCitySearch'
-import { useAddParkForm } from '~/composables/useAddParkForm'
-import { useParkMenu } from '~/composables/useParkMenu'
-import { debounce, formatDate } from '@/utils/parkSearchUtils'
-import type { SearchResult, AddParkData } from '@/types/parkSearch'
+<script lang="ts" setup>
+import {onMounted, ref, watch} from 'vue'
+import {
+  analyzeParkCooling,
+  type CoolingAnalysisResult,
+  formatCoolingStats,
+  getParks,
+  type Park,
+  parkToSearchResult,
+  type SearchParkResult
+} from '@/services'
+import {useNotifications} from '~/composables/useErrorHandler'
+import {useParkSearch} from '~/composables/useParkSearch'
+import {useCountrySearch} from '~/composables/useCountrySearch'
+import {useCitySearch} from '~/composables/useCitySearch'
+import {useAddParkForm} from '~/composables/useAddParkForm'
+import {useParkMenu} from '~/composables/useParkMenu'
+import {debounce} from '@/utils/parkSearchUtils'
+import type {AddParkData, CitySuggestion, CountrySuggestion, ParkSuggestion} from '@/types/parkSearch'
+import {fetchSatellites} from "~/services/satelliteService";
+import {searchPark} from "~/services/parkService";
 
-const { handleError, handleSuccess, handleInfo } = useNotifications()
-const { parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions } = useParkSearch()
-const { countrySuggestions, showCountrySuggestions, searchCountries, hideSuggestions: hideCountrySuggestions, getCountryByCode } = useCountrySearch()
-const { citySuggestions, showCitySuggestions, searchCities, hideSuggestions: hideCitySuggestions } = useCitySearch()
-const { isAddingPark, newParkName, newParkCountry, newParkCity, newParkStartDate, newParkEndDate, selectedCountryCode, startAddPark, cancelAddPark, confirmAddPark: confirmAddParkForm, selectCountry } = useAddParkForm()
-const { isMenuOpen, selectedPark, menuCardRef, toggleMenu } = useParkMenu()
+const {handleError, handleSuccess, handleInfo} = useNotifications()
+const {parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions} = useParkSearch()
+const showParkSugestionOnSeach = ref<boolean>(false)
+const {
+  countrySuggestions,
+  showCountrySuggestions,
+  searchCountries,
+  hideSuggestions: hideCountrySuggestions,
+  getCountryByCode
+} = useCountrySearch()
+const {citySuggestions, showCitySuggestions, searchCities, hideSuggestions: hideCitySuggestions} = useCitySearch()
+const {
+  isAddingPark,
+  newParkName,
+  newParkCountry,
+  newParkCity,
+  newParkStartDate,
+  newParkEndDate,
+  selectedCountryCode,
+  startAddPark,
+  cancelAddPark,
+  confirmAddPark: confirmAddParkForm,
+  selectCountry
+} = useAddParkForm()
+const {isMenuOpen, selectedPark, menuCardRef, toggleMenu} = useParkMenu()
+
+// ============================================================
+// 🔥 ITEM SELECIONADO (O QUE O USUÁRIO ESCOLHEU)
+// ============================================================
+const selectedParkData = ref<ParkSuggestion | null>(null)
+const selectedCityData = ref<CitySuggestion | null>(null)
+const selectedCountryData = ref<CountrySuggestion | null>(null)
 
 // ============================================================
 // 🔥 BUFFERS CONFIG
@@ -355,16 +479,21 @@ const { isMenuOpen, selectedPark, menuCardRef, toggleMenu } = useParkMenu()
 const newNumBuffers = ref(11)
 const newBufferDistance = ref(90)
 
+const isUpToDate = ref(true)
+const availableSatellites = ref<Array<{ id: string, name: string, active: boolean }>>([])
+const selectedSatellites = ref<string[]>(['Landsat 8'])
+const loadingSatellites = ref(false)
+
 // MODELOS
-const search = defineModel<string>('search', { required: true })
-const showPixels = defineModel<boolean>('showPixels', { default: true })
+const search = defineModel<string>('search', {required: true})
+const showPixels = defineModel<boolean>('showPixels', {default: true})
 
 // PROPS
 const props = defineProps<{
   loading: boolean
   analyzing: boolean
-  results: SearchResult[]
-  predefinedParks?: SearchResult[]
+  results: SearchParkResult[]
+  predefinedParks?: SearchParkResult[]
   showStats: boolean
   coolingData: CoolingAnalysisResult | null
   parkName: string
@@ -376,8 +505,8 @@ const props = defineProps<{
 
 // EMITS
 const emit = defineEmits<{
-  (e: 'search'): void
-  (e: 'select', park: SearchResult): void
+  (e: 'search', selectedPark?: ParkSuggestion | null): void
+  (e: 'select', park: SearchParkResult): void
   (e: 'addPark', data: AddParkData & { numBuffers: number; bufferDistance: number }): void
   (e: 'refresh'): void
   (e: 'export'): void
@@ -385,15 +514,41 @@ const emit = defineEmits<{
   (e: 'about'): void
   (e: 'togglePixels'): void
   (e: 'updateOpacity', value: number): void
+  (e: 'updateCoolingData', data: CoolingAnalysisResult): void
 }>()
+
+onMounted(() => {
+  loadSatellites()
+  loadParks()
+
+})
 
 // LOCAL STATE
 const cityWrapperRef = ref<HTMLElement | null>(null)
+const searchInputRef = ref<HTMLElement | null>(null)
+
+// 🔥 CALCULAR POSIÇÃO DO AUTOCOMPLETE
+const autocompleteStyle = computed(() => {
+  if (!searchInputRef.value) return {}
+
+  const rect = searchInputRef.value.getBoundingClientRect()
+  return {
+    position: 'fixed' as const,
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: 9999
+  }
+})
 
 // Debounced search functions
 const debouncedSearchParks = debounce(async (query: string) => {
   if (query.length >= 2) {
-    const results = await searchParks(query, selectedCountryCode.value)
+    const results = await searchParks(
+        query,
+        selectedCountryCode.value,
+        newParkCity.value
+    )
     parkSuggestions.value = results
     showParkSuggestions.value = results.length > 0
   } else {
@@ -424,17 +579,86 @@ const debouncedSearchCities = debounce(async (query: string) => {
   }
 }, 600)
 
-const formatStats = (data: CoolingAnalysisResult) => formatCoolingStats(data)
+const parkList = ref<Park[]>([])
 
+const loadingParks = ref(false)
+
+async function loadParks() {
+  loadingParks.value = true
+  try {
+    const data = await getParks()
+    if (data.success) {
+      parkList.value = data.parks
+    }
+  } catch (error) {
+    console.error('Erro ao carregar parques:', error)
+  } finally {
+    loadingParks.value = false
+  }
+}
+
+
+// ============================================================
+// 🔥 CARREGAR SATÉLITES
+// ============================================================
+async function loadSatellites() {
+  loadingSatellites.value = true
+  try {
+    const data = await fetchSatellites()
+    if (data && data.length > 0) {
+      availableSatellites.value = data.filter(s => s.active)
+    } else {
+      // Fallback
+      availableSatellites.value = [
+        {id: 'Landsat 8', name: 'Landsat 8', active: true},
+      ]
+      selectedSatellites.value = ['Landsat 8']
+    }
+  } catch (error) {
+    console.error('Erro ao carregar satélites:', error)
+  } finally {
+    loadingSatellites.value = false
+  }
+}
+
+// ============================================================
+// 🔥 HANDLER - SELECIONAR PARQUE DA LISTA
+// ============================================================
+const isResultsExpanded = ref(false)
+
+function toggleResults() {
+  isResultsExpanded.value = !isResultsExpanded.value
+}
+
+function handleSelectParkFromList() {
+  if (selectedPark.value) {
+    isMenuOpen.value = false
+
+    // 🔥 CRIA UM OBJETO SearchParkResult COMPLETO COM A GEOMETRIA
+    const parkData = parkToSearchResult(selectedPark.value)
+
+
+    // Emite o select com os dados completos
+    emit('select', parkData)
+    handleSuccess(`Parque "${selectedPark.value.name}" selecionado!`)
+  }
+}
 
 // ============================================================
 // 🔥 EVENT HANDLERS - PARQUE
 // ============================================================
-function onParkInput() {
-  debouncedSearchParks(newParkName.value)
+
+function onParkInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  debouncedSearchParks(value)
+  showParkSugestionOnSeach.value = target.classList.contains('search-field');
+
 }
 
-function selectPark(park: any) {
+function selectPark(park: ParkSuggestion) {
+  selectedParkData.value = park
+
   newParkName.value = park.name
   if (park.city) newParkCity.value = park.city
   if (park.country) {
@@ -445,6 +669,7 @@ function selectPark(park: any) {
       if (country) selectedCountryCode.value = country.code
     }
   }
+  search.value = park.name
   showParkSuggestions.value = false
   handleSuccess(`Parque "${park.name}" selecionado!`)
 }
@@ -456,7 +681,10 @@ function onCountryInput() {
   debouncedSearchCountries(newParkCountry.value)
 }
 
-function selectCountryHandler(country: any) {
+function selectCountryHandler(country: CountrySuggestion) {
+  selectedCountryData.value = country
+
+
   selectCountry(country.name)
   newParkCountry.value = country.name
   selectedCountryCode.value = country.code
@@ -482,7 +710,9 @@ function onCityBlur() {
   hideCitySuggestions()
 }
 
-function selectCityHandler(city: any) {
+function selectCityHandler(city: CitySuggestion) {
+  selectedCityData.value = city
+
   newParkCity.value = city.name
   citySuggestions.value = []
   showCitySuggestions.value = false
@@ -503,18 +733,89 @@ watch(showCitySuggestions, (newVal) => {
 })
 
 // ============================================================
-// 🔥 EVENT HANDLERS - CADASTRO
+// 🔥 CONFIRMAR CADASTRO
 // ============================================================
-function confirmAddPark() {
+
+async function confirmAddPark() {
   const baseData = confirmAddParkForm()
-  if (baseData) {
-    const data = {
-      ...baseData,
-      numBuffers: newNumBuffers.value,
-      bufferDistance: newBufferDistance.value
+  if (!baseData) return
+
+  const name = newParkName.value
+  const city = newParkCity.value
+  const country = newParkCountry.value
+  const countryCode = selectedCountryCode.value
+
+  if (!name || !city || !country) {
+    handleError('Preencha todos os campos do parque')
+    return
+  }
+
+  try {
+    let osmId = selectedParkData.value?.osm_id ?? null
+
+    // 🔥 SE NÃO TIVER OSM_ID, BUSCA NO NOMINATIM
+    if (!osmId) {
+      const nominatimResults = await searchParks(name, selectedCountryCode.value, city)
+
+      if (!nominatimResults || nominatimResults.length === 0) {
+        handleError('Parque não encontrado. Verifique o nome e tente novamente.')
+        return
+      }
+
+      // 🔥 PEGA O PRIMEIRO RESULTADO (COM VERIFICAÇÃO)
+      const selected = nominatimResults[0]
+      if (!selected) {
+        handleError('Erro ao obter dados do parque')
+        return
+      }
+
+      osmId = selected.osm_id ?? null
+
+      // 🔥 ATUALIZA O PARQUE SELECIONADO
+      selectedParkData.value = selected
     }
-    isMenuOpen.value = false
-    emit('addPark', data)
+
+    // 🔥 VERIFICA SE TEM OSM_ID ANTES DE ENVIAR
+    if (!osmId) {
+      handleError('Não foi possível obter o ID do parque')
+      return
+    }
+    // 🔥 ENVIA PARA O BACKEND
+    const result = await searchPark({
+      query: name,
+      city: city,
+      country: country,
+      osm_id: osmId ?? undefined,
+    })
+
+    if (!result.results || result.results.length === 0) {
+      handleError('Parque não encontrado no backend')
+      return
+    }
+
+    const element = result.results[0]
+    if (!element) {
+      handleError('Parque não encontrado no backend')
+      return
+    }
+
+    if (!element.geometry) {
+      handleError('Parque encontrado mas sem geometria')
+      return
+    }
+
+    // 🔥 ANALISAR
+    const analysisResult = await analyzeParkCooling(
+        element.geometry,
+        baseData
+    )
+
+    emit('updateCoolingData', analysisResult)
+    handleSuccess(`Análise do "${element.name}" concluída!`)
+
+  } catch (error) {
+    console.error('❌ Erro:', error)
+    handleError('Falha ao analisar')
   }
 }
 
@@ -526,20 +827,20 @@ function handleSelectPark() {
 }
 
 function handleSearch() {
+  console.log(selectedParkData.value)
   if (!search.value || search.value.trim().length < 2) {
     handleError('Digite pelo menos 2 caracteres para buscar')
     return
   }
-  emit('search')
+  emit('search', selectedParkData.value)
 }
 
-function handleSelect(item: SearchResult) {
+function handleSelect(item: SearchParkResult) {
   emit('select', item)
   handleSuccess(`Parque "${item.tags?.name || 'sem nome'}" selecionado!`)
 }
 
 function handleTogglePixels() {
-  console.log(" updade pixel")
   emit('togglePixels')
 }
 
@@ -551,6 +852,8 @@ function handleOpacityChange(event: Event) {
 </script>
 
 <style scoped>
+
+
 /* 🔥 WRAPPER */
 .search-wrapper {
   position: absolute;
@@ -617,12 +920,45 @@ function handleOpacityChange(event: Event) {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+
+/* 🔥 AUTOCOMPLETE DA PESQUISA (FORA DO CARD, POSIÇÃO FIXA) */
+.autocomplete-list-search {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.autocomplete-list-search .autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.15s;
+}
+
+.autocomplete-list-search .autocomplete-item:hover {
+  background: #f3f4f6;
+}
+
+.autocomplete-list-search .park-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.autocomplete-list-search .park-location {
+  font-size: 12px;
+  color: #6b7280;
+}
+
 /* 🔥 MENU OPÇÕES */
 .menu-options {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 8px;
 }
 
 .menu-section {
@@ -770,23 +1106,102 @@ function handleOpacityChange(event: Event) {
   margin-top: 4px;
 }
 
-/* 🔥 RESULTADOS */
+/* 🔥 RESULTADOS CONTAINER */
+.results-container {
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+/* 🔥 HEADER (CLICÁVEL PARA EXPANDIR) */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  transition: background 0.2s;
+  user-select: none;
+}
+
+.results-header:hover {
+  background: #eef2ff;
+}
+
+.results-toggle {
+  font-size: 12px;
+  color: #6b7280;
+  transition: transform 0.3s;
+}
+
+/* 🔥 LISTA */
 .results-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  max-height: 250px;
+  overflow-y: auto;
+  border-top: 1px solid #e5e7eb;
 }
 
+/* 🔥 ITEM DA LISTA */
 .result-item {
-  padding: 8px 12px;
+  padding: 10px 14px;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.15s;
-  font-size: 14px;
+  border-bottom: 1px solid #f3f4f6;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-item:last-child {
+  border-bottom: none;
 }
 
 .result-item:hover {
-  background: #f3f4f6;
+  background: #f0f7ff;
+  padding-left: 18px;
+}
+
+.result-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.result-location {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.result-osm-id {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+/* 🔥 SCROLLBAR */
+.results-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.results-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.results-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.results-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .stats-header {
@@ -925,6 +1340,7 @@ function handleOpacityChange(event: Event) {
     gap: 8px;
   }
 }
+
 /* 🔥 CONTROLE DE OPACIDADE */
 .opacity-control {
   display: flex;
@@ -958,7 +1374,7 @@ function handleOpacityChange(event: Event) {
   background: #3b82f6;
   cursor: pointer;
   border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .opacity-slider::-moz-range-thumb {
@@ -968,5 +1384,99 @@ function handleOpacityChange(event: Event) {
   background: #3b82f6;
   cursor: pointer;
   border: 2px solid white;
+}
+
+/* 🔥 TOGGLE UPDATE */
+.toggle-update-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.date-hint {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 0;
+  font-style: italic;
+}
+
+/* 🔥 SATÉLITES */
+.satellite-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.satellite-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Melhorar o MultiSelect */
+.satellite-select-wrapper :deep(.p-multiselect) {
+  width: 100%;
+}
+
+/* 🔥 SATÉLITE OPTION */
+.satellite-option {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  padding: 2px 0;
+  gap: 1px;
+}
+
+.satellite-option-main {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.satellite-option-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.satellite-option-resolution {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0 8px;
+  border-radius: 10px;
+}
+
+.satellite-option-desc {
+  font-size: 12px;
+  font-weight: 300;
+  color: #9ca3af;
+  margin-top: 0;
+  line-height: 1.3;
+}
+
+.park-option {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+
+.park-option-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.park-option-location {
+  font-size: 11px;
+  color: #6b7280;
 }
 </style>
