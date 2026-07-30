@@ -143,6 +143,7 @@ export interface CoolingAnalysisResult {
         celsius: number
     }
     buffers?: BufferResult[]
+    park_lst_celsius?: number
     pci?: number
     pcd?: number
     pca?: {

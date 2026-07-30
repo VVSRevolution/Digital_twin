@@ -32,6 +32,7 @@ class ParkData:
     start_date: str
     end_date: str
     created_at: Optional[str] = None
+    is_up_to_date: bool = False
 
     def to_dict(self) -> Dict:
         return {
@@ -44,7 +45,8 @@ class ParkData:
                 'coordinates': self.geometry.coordinates
             },
             'start_date': self.start_date,
-            'end_date': self.end_date
+            'end_date': self.end_date,
+            'is_up_to_date': self.is_up_to_date,
         }
 
 
@@ -74,6 +76,7 @@ class Park(db.Model):
 
     # Relacionamentos
     analyses = db.relationship('CoolingAnalysis', backref='park', lazy='dynamic')
+    is_up_to_date = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         geometry_4326 = None
@@ -111,6 +114,7 @@ class Park(db.Model):
             'city': self.city,
             'country': self.country,
             'area_ha': self.area_ha,
+            'is_up_to_date': self.is_up_to_date,  # 🔥 NOVO
             'geometry': geometry_4326,  # 👈 EPSG:4326
             'geometry_3857': geometry_3857,  # 👈 EPSG:3857
             'tags': self.tags or {'name': self.name},

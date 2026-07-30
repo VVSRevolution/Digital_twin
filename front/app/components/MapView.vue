@@ -285,6 +285,8 @@ async function handleAnalysisSelect(analysis: CoolingAnalysisResult) {
   if (!analysis.buffers || analysis.buffers.length === 0) {
     const parkId = analysis.park_id
     const analysisId = analysis.analysis_id
+    console.log(parkId)
+    console.log(analysisId)
 
     if (parkId && analysisId) {
       const detail = await getParkAnalysisDetail(parkId, analysisId)
@@ -649,6 +651,13 @@ onUnmounted(() => {
           @togglePixels="togglePixels"
           @updateCoolingData="updateCoolingData"
           @updateOpacity="updatePixelOpacity"
+      />
+
+      <TimelineOverlay
+          v-if="parkAnalyses.length > 0"
+          :analyses="parkAnalyses"
+          :selectedAnalysis="coolingData"
+          @select="handleAnalysisSelect"
       />
     </div>
   </div>

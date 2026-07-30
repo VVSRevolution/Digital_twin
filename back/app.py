@@ -60,7 +60,7 @@ def analyze_park():
         country = data.get('country', 'BR')
         num_buffers = data.get('numBuffers', 11)
         buffer_distance = data.get('bufferDistance', 90)
-        start_date = data.get('startDate'),
+        start_date = data.get('startDate')
         end_date = data.get('endDate')
         is_up_to_date = data.get('isUpToDate', True)
 
@@ -81,7 +81,7 @@ def analyze_park():
 
         # 🔥 BUSCA OU CRIA PARQUE
         park, geometry = AnalysisService.find_or_create_park(
-            geometry, osm_id, name, city, country, park_id
+            geometry, osm_id, name, city, country, park_id, is_up_to_date
         )
 
         if not park:
@@ -230,6 +230,7 @@ def get_park_analyses(park_id):
 
             analyses.append({
                 'analysis_id': analysis.id,
+                'park_id': park_id,
                 'image_date': analysis.image_date,
                 'analyzed_at': analysis.analyzed_at.isoformat() if analysis.analyzed_at else None,
                 'park_lst_celsius': analysis.park_lst_celsius,
