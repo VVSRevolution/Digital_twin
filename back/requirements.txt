@@ -6,13 +6,13 @@ Flask-Migrate==4.0.5
 
 # 🔥 BANCO DE DADOS
 psycopg2-binary==2.9.9
-GeoAlchemy2==0.14.0
-SQLAlchemy==2.0.23
+GeoAlchemy2==0.20.0
+SQLAlchemy==2.0.51
 
 # 🔥 GEOPROCESSAMENTO (NECESSÁRIO!)
-Shapely==2.0.2
-pyproj==3.6.1
-numpy==1.24.3
+Shapely==2.1.2
+pyproj==3.7.2
+numpy==2.5.1
 
 # 🔥 GOOGLE EARTH ENGINE
 earthengine-api==0.1.376

@@ -1,5 +1,99 @@
-# 📁 ESTRUTURA DO BACKEND - DIGITAL TWIN
+# Digital Twin - Backend
 
+Sistema de gerenciamento de ilhas de calor e análise de parques urbanos.
+
+## 🚀 Tecnologias
+
+- Python 3.12.3
+- Flask 2.3.3
+- PostgreSQL + PostGIS
+- Google Earth Engine
+- GeoAlchemy2, Shapely, PyProj
+
+## 📋 Pré-requisitos
+
+- Python 3.12 ou superior
+- pip 26.2.1 ou superior
+- PostgreSQL com extensão PostGIS
+- Conta do Google Earth Engine (para autenticação)
+
+## 🔧 Instalação
+
+### 1. Clone o repositório
+
+```bash
+git clone https://github.com/VVSRevolution/Digital_twin
+cd Digital_twin/back
+```
+### 2. Crie e ative o ambiente virtual
+Windows (PowerShell):
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+Linux/Mac:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+### 3. Atualize o pip para a versão 26.2.1
+
+```bash
+python -m pip install --upgrade pip==26.2.1
+```
+### 4. Instale as dependências
+```bash
+pip install -r requirements.txt
+```
+### 5. Inicie o servidor
+
+```bash
+python app.py
+```
+## Dependências
+```
+# 🔥 WEB FRAMEWORK
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+
+# 🔥 BANCO DE DADOS
+psycopg2-binary==2.9.9
+GeoAlchemy2==0.20.0
+SQLAlchemy==2.0.51
+
+# 🔥 GEOPROCESSAMENTO (NECESSÁRIO!)
+Shapely==2.1.2
+pyproj==3.7.2
+numpy==2.5.1
+
+# 🔥 GOOGLE EARTH ENGINE
+earthengine-api==0.1.376
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+
+# 🔥 VALIDAÇÃO E CONFIGURAÇÃO
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# 🔥 REQUISIÇÕES
+requests==2.34.0
+httpx==0.25.2
+
+# 🔥 UTILITÁRIOS
+python-dateutil==2.8.2
+geojson==3.3.0
+
+# 🔥 (Opcional) Para melhor performance
+geographiclib==2.0
+```
+# 📁 ESTRUTURA DO BACKEND - DIGITAL TWIN
+``` text
 back/
 ├── app.py # 🔥 PONTO DE ENTRADA (Flask)
 ├── config.py # ⚙️ CONFIGURAÇÕES (URLs, chaves, variáveis)
@@ -31,8 +125,7 @@ back/
 │
 └── migrations/ # 📂 MIGRAÇÕES (gerado automaticamente)
 └── versions/ # Arquivos de migração do Alembic
-
-text
+```
 
 ---
 
@@ -52,7 +145,7 @@ text
 ---
 
 ## 🔥 FLUXO DE DADOS
-
+``` text
 Frontend → POST /api/park/analyze
 ↓
 
@@ -73,7 +166,7 @@ ditto_service.py (atualiza gêmeo digital)
 
 app.py → Retorna resultado para o Frontend
 
-text
+```
 
 ---
 
@@ -88,12 +181,11 @@ text
 ---
 
 ## 🔗 RELACIONAMENTOS
-
+```text
 satellite_sources (1) ────── (N) cooling_analyses
 parks (1) ────────────────── (N) cooling_analyses
+```
 
-text
 
 ---
 
-**Backend organizado e pronto para crescer!** 🚀
