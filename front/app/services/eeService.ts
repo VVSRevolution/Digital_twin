@@ -2,15 +2,16 @@ import {useNotifications} from '~/composables/useErrorHandler'
 import type {CoolingAnalysisResult, ParkGeometry, ParkListResponse,} from '~/types'
 import type {SearchParkResult} from "~/services/parkService";
 
-const isProduction = import.meta.env.PROD || import.meta.env.NODE_ENV === 'production'
-
-const API_URL = isProduction
-    ? 'http://200.137.197.69:55235'  // Produção
-    : 'http://localhost:3001'         // Desenvolvimento
-export {API_URL}
-console.log(`🔧 API_URL: ${API_URL} (${isProduction ? 'produção' : 'desenvolvimento'})`)
-
-
+function getApiUrl() {
+    // No cliente, usa o composable
+    if (import.meta.client) {
+        const { getApiUrl } = useApiConfig()
+        return getApiUrl()
+    }
+    // No servidor, fallback
+    const config = useRuntimeConfig()
+    return config.public.apiUrl || 'http://localhost:3001'
+}
 // ===== FUNÇÕES =====
 
 /**
@@ -24,6 +25,7 @@ export async function analyzeParkCooling(
     metadata: Partial<SearchParkResult>
 ): Promise<CoolingAnalysisResult> {
     try {
+        const API_URL = getApiUrl()
         console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`, geometry,
             metadata)
         const payload: any = {
@@ -112,6 +114,8 @@ export function formatCoolingStats(result: CoolingAnalysisResult): {
  */
 export async function getParks(): Promise<ParkListResponse> {
     try {
+        const API_URL = getApiUrl()
+
         const response = await fetch(`${API_URL}/api/parks`)
 
         if (!response.ok) {
@@ -143,6 +147,8 @@ export async function getParks(): Promise<ParkListResponse> {
  */
 export async function getParkAnalyses(parkId: number): Promise<CoolingAnalysisResult> {
     try {
+        const API_URL = getApiUrl()
+
         const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses`)
         const data = await response.json()
 
@@ -160,6 +166,8 @@ export async function getParkAnalyses(parkId: number): Promise<CoolingAnalysisRe
 
 export async function getParkAnalysesList(parkId: number): Promise<CoolingAnalysisResult[]> {
     try {
+        const API_URL = getApiUrl()
+
         const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses/list`)
         const {handleError} = useNotifications()
         if (!response.ok) {
@@ -182,6 +190,8 @@ export async function getParkAnalysesList(parkId: number): Promise<CoolingAnalys
 
 export async function getParkAnalysisDetail(parkId: number, analysisId: number): Promise<CoolingAnalysisResult | null> {
     try {
+        const API_URL = getApiUrl()
+
         const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses/${analysisId}`)
 
         if (!response.ok) {
@@ -213,6 +223,8 @@ export async function getParkDetail(parkId: number): Promise<{
     error?: string;
 }> {
     try {
+        const API_URL = getApiUrl()
+
         const response = await fetch(`${API_URL}/api/parks/${parkId}`)
 
         if (!response.ok) {

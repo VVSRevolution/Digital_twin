@@ -1,13 +1,6 @@
-<script setup lang="ts">
-import MapView from "~/components/MapView.vue";
-import NotificationCenter from "~/components/NotificationCenter.vue";
-</script>
 <template>
   <div>
-    <client-only>
-      <NotificationCenter />
-      <MapView/>
-    </client-only>
+    <NuxtPage />
   </div>
 </template>
 <style>

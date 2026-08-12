@@ -1,6 +1,4 @@
 // front/app/services/satelliteService.ts
-import {API_URL} from './eeService'
-
 export interface Satellite {
     id: string
     name: string
@@ -12,13 +10,25 @@ export interface Satellite {
     active: boolean
     collection: string
 }
-
+function getApiUrl() {
+    if (import.meta.client) {
+        try {
+            const { getApiUrl } = useApiConfig()
+            return getApiUrl()
+        } catch (e) {
+            const config = useRuntimeConfig()
+            return config.public.apiUrl || 'http://localhost:3001'
+        }
+    }
+    const config = useRuntimeConfig()
+    return config.public.apiUrl || 'http://localhost:3001'
+}
 /**
  * Busca a lista de satélites disponíveis no backend
  */
 export async function fetchSatellites(): Promise<Satellite[]> {
     try {
-        const url = `${API_URL}/api/satellites`
+        const url = `${getApiUrl()}/api/satellites`
         console.log('📡 Buscando satélites:', url)
 
         const response = await fetch(url)
