@@ -566,6 +566,7 @@ onMounted(async () => {
     const lat = lonLat[1] as number
 
     let closestTemp = null
+    let emoji_qa_pixel = null
     let closestDist = Infinity
 
     if (coolingData.value?.buffers) {
@@ -579,6 +580,7 @@ onMounted(async () => {
             if (dist < 0.0003 && dist < closestDist) {
               closestDist = dist
               closestTemp = pixelData.temperature
+              emoji_qa_pixel = pixelData.qa_pixel?.emojis || null
             }
           }
         }
@@ -586,7 +588,7 @@ onMounted(async () => {
     }
 
     if (closestTemp !== null) {
-      el.innerHTML = `🌡️ ${closestTemp.toFixed(2)}°C`
+      el.innerHTML = `🌡️ ${closestTemp.toFixed(2)}°C ${emoji_qa_pixel}`
       el.style.opacity = '1'
       el.style.transform = 'translate(-50%, -100%)'
       overlay.setPosition(coordinate)

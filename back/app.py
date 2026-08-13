@@ -227,7 +227,13 @@ def get_park_analyses(park_id):
                 satellite = SatelliteSource.query.get(analysis.satellite_id)
                 if satellite:
                     satellite_name = satellite.name
-
+            qa_summary = None
+            if analysis.qa_pixel:
+                qa_summary = {
+                    'cloud_coverage_percent': analysis.qa_pixel.get('cloud_coverage_percent'),
+                    'clear_pixels_percent': analysis.qa_pixel.get('clear_pixels_percent'),
+                    'status': analysis.qa_pixel.get('status')
+                }
             analyses.append({
                 'analysis_id': analysis.id,
                 'park_id': park_id,
@@ -243,7 +249,8 @@ def get_park_analyses(park_id):
                 'buffer_distance': analysis.buffer_distance,
                 'satellite_name': satellite_name,
                 'ditto_updated': analysis.ditto_updated,
-                'has_buffers': bool(analysis.buffers_data)  # Indica se tem dados
+                'has_buffers': bool(analysis.buffers_data),  # Indica se tem dados
+                'qa_summary': qa_summary
             })
 
         return jsonify({
@@ -338,8 +345,10 @@ def get_latest_analysis_detail(park_id):
             'num_buffers': analysis.num_buffers,
             'buffer_distance': analysis.buffer_distance,
             'ditto_updated': analysis.ditto_updated,
-            'buffers': buffers,  # Aqui vêm os pixels!
-            'total_pixels': total_pixels
+            'buffers': buffers,
+            'total_pixels': total_pixels,
+            'qa_pixel': analysis.qa_pixel,
+            'st_qa': analysis.st_qa
         })
 
     except Exception as e:
@@ -423,7 +432,9 @@ def get_analysis_detail(park_id, analysis_id):
             'buffer_distance': analysis.buffer_distance,
             'ditto_updated': analysis.ditto_updated,
             'buffers': buffers,  # Aqui vêm os pixels!
-            'total_pixels': total_pixels
+            'total_pixels': total_pixels,
+            'qa_pixel': analysis.qa_pixel,
+            'st_qa': analysis.st_qa
         })
 
     except Exception as e:

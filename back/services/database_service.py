@@ -176,7 +176,9 @@ class DatabaseService:
             buffer_distance: int,
             buffers_data: list,
             ditto_thing_id: str = None,
-            ditto_updated: bool = False
+            ditto_updated: bool = False,
+            qa_pixel: dict = None,
+            st_qa: dict = None
     ) -> CoolingAnalysis:
         """Salva uma análise de cooling island no banco"""
         try:
@@ -199,7 +201,9 @@ class DatabaseService:
                 buffers_data=buffers_data,
                 ditto_thing_id=ditto_thing_id or f"park:{park_id}",
                 ditto_updated=ditto_updated,
-                analyzed_at=datetime.now(timezone.utc)
+                analyzed_at=datetime.now(timezone.utc),
+                qa_pixel=qa_pixel,
+                st_qa=st_qa
             )
             db.session.add(analysis)
             db.session.flush()

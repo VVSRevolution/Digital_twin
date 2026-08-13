@@ -3,11 +3,55 @@ import json
 import os
 import traceback
 from datetime import datetime, timedelta, timezone
+from typing import Dict
 
 import ee
 
 from config import Config
 from models import SatelliteSource
+
+TABLE_6_3 = {
+    1: 'Dados ausentes',
+    21824: 'Céu limpo com áreas de baixa pressão',
+    21826: 'Nuvens expandidas sobre terra',
+    21888: 'Água com áreas de baixa pressão',
+    21890: 'Nuvens expandidas sobre água',
+    21952: 'Água com céu limpo',
+    22080: 'Media probabilidade de nuvens',
+    22144: 'Media probabilidade de nuvens sobre água',
+    22280: 'Alta probabilidade de nuvens',
+    23888: 'Alta probabilidade de sombra de nuvens',
+    23952: 'Água com sombras de nuvens',
+    24088: 'Media probabilidade nuvens com sombras',
+    24216: 'Media probabilidade nuvens com sombras sobre água',
+    24344: 'Alta probabilidade nuvens com sombras',
+    24472: 'Alta probabilidade nuvens com sombras sobre água',
+    30048: 'Neve ou gelo',
+    54596: 'Cirrus',
+    54852: 'Cirrus com nuvens',
+    55052: 'Cirrus denso'
+}
+TABLE_6_3_EMOJIS = {
+    1: '❌',
+    21824: '☀️',
+    21826: '☁️',
+    21888: '🌊',
+    21890: '🌊️☁️',
+    21952: '🌊☀️',
+    22080: '↕️☁️',
+    22144: '↕️🌊⛅',
+    22280: '⬆️☁️',
+    23888: '⬆️⛅',
+    23952: '🌊⛅',
+    24088: '↕️⛈️',
+    24216: '↕️🌊⛈️',
+    24344: '⬆️⛈️',
+    24472: '⬆️🌊⛈️',
+    30048: '❄️',
+    54596: '🌀',
+    54852: '🌀☁️',
+    55052: '🌀☁️☁️'
+}
 
 
 class EarthEngineService:
@@ -236,7 +280,7 @@ class EarthEngineService:
             collection = EarthEngineService.get_satellite_collection(satellite_name)
             collection = collection.filterBounds(park_geom)
 
-            # 🔥 SE TEM image_datetime, USA UMA IMAGEM ESPECÍFICA
+            # SE TEM image_datetime, USA UMA IMAGEM ESPECÍFICA
             if image_datetime:
                 print(f'📅 Usando imagem específica: {image_datetime}')
                 target_start = ee.Date(image_datetime)
@@ -255,8 +299,13 @@ class EarthEngineService:
                     return {}
 
                 image = collection.sort('system:time_start', False).first()
+                qa_pixel_band = image.select('QA_PIXEL')
+                st_qa_band = image.select('ST_QA')
 
-                # 🔥 EXTRAI A DATA
+                qa_pixel_data = None
+                st_qa_data = None
+
+                # EXTRAI A DATA
                 try:
                     date_acquired = image.get('DATE_ACQUIRED').getInfo()
                     scene_time = image.get('SCENE_CENTER_TIME').getInfo()
@@ -274,7 +323,7 @@ class EarthEngineService:
                         image_datetime = start_date
                         print(f'📸 Data e hora: {image_datetime} (fallback)')
 
-                # 🔥 CALCULA PARA UMA IMAGEM (MESMA LÓGICA DE ANTES)
+                # CALCULA PARA UMA IMAGEM
                 lst_raw = image.select("ST_B10")
                 lst_kelvin = lst_raw.multiply(0.00341802).add(149.0)
                 lst_celsius = lst_kelvin.subtract(273.15)
@@ -289,7 +338,7 @@ class EarthEngineService:
                 park_lst_celsius = park_lst.get('ST_B10')
                 print(f'🌡️ LST do parque: {park_lst_celsius}°C')
 
-                # 🔥 CALCULA BUFFERS
+                # CALCULA BUFFERS
                 buffer_distances = [buffer_distance * (i + 1) for i in range(num_buffers)]
                 buffers = []
 
@@ -305,20 +354,71 @@ class EarthEngineService:
                         scale=30,
                         geometries=True
                     )
+                    # 🔥 AMOSTRAR QA_PIXEL
+                    qa_sampled = qa_pixel_band.sampleRegions(
+                        collection=ee.FeatureCollection([ee.Feature(buffer_geom)]),
+                        scale=30,
+                        geometries=True
+                    )
 
+                    # 🔥 AMOSTRAR ST_QA
+                    st_qa_sampled = st_qa_band.sampleRegions(
+                        collection=ee.FeatureCollection([ee.Feature(buffer_geom)]),
+                        scale=30,
+                        geometries=True
+                    )
+                    qa_pixels = qa_sampled.getInfo()
+                    st_qa_pixels = st_qa_sampled.getInfo()
                     pixels = sampled.getInfo()
+
+                    # 🔥 CRIAR DICIONÁRIOS PARA BUSCAR QA POR COORDENADA
+                    qa_dict = {}
+                    if qa_pixels and 'features' in qa_pixels:
+                        for feature in qa_pixels['features']:
+                            coords = feature.get('geometry', {}).get('coordinates', [])
+                            if len(coords) >= 2:
+                                key = f"{coords[0]:.6f},{coords[1]:.6f}"
+                                qa_dict[key] = feature.get('properties', {}).get('QA_PIXEL')
+
+                    st_qa_dict = {}
+                    if st_qa_pixels and 'features' in st_qa_pixels:
+                        for feature in st_qa_pixels['features']:
+                            coords = feature.get('geometry', {}).get('coordinates', [])
+                            if len(coords) >= 2:
+                                key = f"{coords[0]:.6f},{coords[1]:.6f}"
+                                st_qa_dict[key] = feature.get('properties', {}).get('ST_QA')
 
                     pixel_temps = []
                     if pixels and 'features' in pixels:
                         for feature in pixels['features']:
                             props = feature.get('properties', {})
                             temp = props.get('ST_B10')
-                            if temp is not None:
-                                coords = feature.get('geometry', {}).get('coordinates', [])
+                            coords = feature.get('geometry', {}).get('coordinates', [])
+
+                            if temp is not None and len(coords) >= 2:
+                                key = f"{coords[0]:.6f},{coords[1]:.6f}"
+
+                                # 🔥 PEGAR QA_PIXEL E ST_QA
+                                qa_value = qa_dict.get(key)
+                                st_qa_value = st_qa_dict.get(key)
+
+                                # 🔥 DECODIFICAR QA_PIXEL
+                                qa_decoded = None
+                                if qa_value is not None:
+                                    # print(f"[{coords[1]},{coords[0]}] = {qa_value}, {st_qa_value}")
+                                    qa_decoded = EarthEngineService._decode_qa_pixel_for_pixel(qa_value)
+
+                                # 🔥 CONVERTER ST_QA PARA KELVIN
+                                st_qa_kelvin = None
+                                if st_qa_value is not None:
+                                    st_qa_kelvin = st_qa_value * 0.01
+
                                 pixel_temps.append({
-                                    'lat': coords[1] if len(coords) > 1 else None,
-                                    'lon': coords[0] if len(coords) > 0 else None,
-                                    'temperature': temp
+                                    'lat': coords[1],
+                                    'lon': coords[0],
+                                    'temperature': temp,
+                                    'qa_pixel': qa_decoded,  # 🔥 ADICIONADO
+                                    'st_qa': st_qa_kelvin  # 🔥 ADICIONADO
                                 })
 
                     temps = [p['temperature'] for p in pixel_temps if p['temperature'] is not None]
@@ -340,7 +440,7 @@ class EarthEngineService:
 
                     print(f'📊 Buffer {i + 1}: {dist}m, {len(temps)} pixels')
 
-                # 🔥 ENCONTRA PCI, PCD, PCA
+                # ENCONTRA PCI, PCD, PCA
                 pci = None
                 pcd = None
                 pca_ha = None
@@ -366,7 +466,41 @@ class EarthEngineService:
 
                 print(f'❄️ PCI: {pci}°C, PCD: {pcd}m, PCA: {pca_ha}ha')
 
-                # 🔥 RETORNA UMA IMAGEM
+                # 🔥 CONTAR TIPOS DE QA_PIXEL
+                qa_pixel_counts = {}
+                total_pixels_with_qa = 0
+                st_qa_values = []
+
+                for buffer in buffers:
+                    for pixel in buffer.get('pixels', []):
+                        qa = pixel.get('qa_pixel')
+                        if qa:
+                            total_pixels_with_qa += 1
+                            qa_val = qa.get('valor')
+                            if qa_val:
+                                qa_pixel_counts[qa_val] = qa_pixel_counts.get(qa_val, 0) + 1
+
+                        st_qa_val = pixel.get('st_qa')
+                        if st_qa_val is not None:
+                            st_qa_values.append(st_qa_val)
+
+                # 🔥 CALCULAR PORCENTAGENS
+                qa_pixel_percentages = {}
+                if total_pixels_with_qa > 0:
+                    for qa_val, count in qa_pixel_counts.items():
+                        qa_pixel_percentages[qa_val] = round((count / total_pixels_with_qa) * 100, 2)
+
+                # 🔥 CALCULAR MÉDIA DO ST_QA
+                st_qa_mean = None
+                if st_qa_values:
+                    st_qa_mean = round(sum(st_qa_values) / len(st_qa_values), 2)
+
+                print(f"\n📊 ESTATÍSTICAS QA:")
+                print(f"   Total pixels com QA: {total_pixels_with_qa}")
+                print(f"   ST_QA médio: {st_qa_mean} K")
+
+                qa_stats = EarthEngineService._calculate_qa_statistics(buffers)
+
                 return {
                     'park_lst': {
                         'kelvin': park_lst_celsius + 273.15 if park_lst_celsius is not None else None,
@@ -382,16 +516,15 @@ class EarthEngineService:
                     'start_date': start_date,
                     'end_date': end_date,
                     'image_date': image_datetime,
-                    'num_images': 1
+                    'num_images': 1,
+                    'qa_pixel': qa_stats['qa_pixel'],
+                    'st_qa': qa_stats['st_qa']
                 }
 
-            # ============================================================
-            # 🔥 SE NÃO TEM image_datetime, USA PERÍODO
-            # ============================================================
+            # SE NÃO TEM image_datetime, USA PERÍODO
             else:
                 print(f'📅 Período: {start_date} a {end_date}')
 
-                # AJUSTA END_DATE
                 if start_date and end_date:
                     try:
                         inclusive_end = datetime.strptime(end_date, '%Y-%m-%d')
@@ -412,7 +545,6 @@ class EarthEngineService:
                     print(f'❌ Nenhuma imagem encontrada para {start_date} a {end_date}')
                     return {}
 
-                # 🔥 PEGA A IMAGEM MAIS RECENTE DO PERÍODO (MANTÉM COMPORTAMENTO ANTIGO)
                 image = collection.sort('system:time_start', False).first()
 
                 # EXTRAI DATA
@@ -433,7 +565,7 @@ class EarthEngineService:
                         image_datetime = start_date
                         print(f'📸 Data e hora: {image_datetime} (fallback)')
 
-                # 🔥 CALCULA A MAIS RECENTE DO PERÍODO (MESMA LÓGICA)
+                # CALCULA LST
                 lst_raw = image.select("ST_B10")
                 lst_kelvin = lst_raw.multiply(0.00341802).add(149.0)
                 lst_celsius = lst_kelvin.subtract(273.15)
@@ -525,7 +657,8 @@ class EarthEngineService:
 
                 print(f'❄️ PCI: {pci}°C, PCD: {pcd}m, PCA: {pca_ha}ha')
 
-                # RETORNA A MAIS RECENTE DO PERÍODO (MANTÉM COMPORTAMENTO)
+                qa_stats = EarthEngineService._calculate_qa_statistics(buffers)
+
                 return {
                     'park_lst': {
                         'kelvin': park_lst_celsius + 273.15 if park_lst_celsius is not None else None,
@@ -541,7 +674,9 @@ class EarthEngineService:
                     'start_date': start_date,
                     'end_date': end_date,
                     'image_date': image_datetime,
-                    'num_images': count
+                    'num_images': count,
+                    'qa_pixel': qa_stats['qa_pixel'],
+                    'st_qa': qa_stats['st_qa']
                 }
 
         except Exception as e:
@@ -589,3 +724,156 @@ class EarthEngineService:
         except Exception as e:
             print(f'❌ Erro ao obter LST no ponto: {e}')
             return {}
+
+    @staticmethod
+    def _decode_qa_pixel_for_pixel(qa_value: int) -> Dict:
+        """
+        Decodifica QA_PIXEL para um único pixel
+        Retorna a descrição em português baseada na tabela 6-3
+        """
+        if qa_value is None:
+            return None
+
+        try:
+            val = int(qa_value)
+
+            # 🔥 SE FOR UM VALOR DA TABELA 6-3, USA ELA
+            if val in TABLE_6_3:
+                descricao = TABLE_6_3[val]
+            else:
+                # 🔥 DECODIFICA OS BITS PARA VALORES NÃO LISTADOS
+                partes = []
+
+                # Bit 0: Fill
+                if val & 1:
+                    partes.append('preenchimento')
+
+                # Bit 1: Dilated Cloud
+                if val & 2:
+                    partes.append('nuvem dilatada')
+
+                # Bit 2: Cirrus
+                if val & 4:
+                    partes.append('cirrus')
+
+                # Bit 3: Cloud
+                if val & 8:
+                    partes.append('nuvem')
+
+                # Bit 4: Cloud Shadow
+                if val & 16:
+                    partes.append('sombra de nuvem')
+
+                # Bit 5: Snow
+                if val & 32:
+                    partes.append('neve')
+
+                # Bit 6: Clear
+                is_cloud = val & 8
+                is_dilated = val & 2
+                if not is_cloud and not is_dilated:
+                    partes.append('limpo')
+
+                # Bit 7: Water
+                if val & 64:
+                    partes.append('água')
+
+                # Confianças
+                cloud_conf = ['sem confiança', 'baixa', 'média', 'alta'][(val >> 8) & 3]
+                shadow_conf = ['sem confiança', 'baixa', 'reservado', 'alta'][(val >> 10) & 3]
+                snow_conf = ['sem confiança', 'baixa', 'reservado', 'alta'][(val >> 12) & 3]
+                cirrus_conf = ['sem confiança', 'baixa', 'reservado', 'alta'][(val >> 14) & 3]
+
+                if cloud_conf != 'sem confiança':
+                    partes.append(f'confiança de nuvem {cloud_conf}')
+                if shadow_conf != 'sem confiança' and shadow_conf != 'reservado':
+                    partes.append(f'confiança de sombra {shadow_conf}')
+                if snow_conf != 'sem confiança' and snow_conf != 'reservado':
+                    partes.append(f'confiança de neve {snow_conf}')
+                if cirrus_conf != 'sem confiança' and cirrus_conf != 'reservado':
+                    partes.append(f'confiança de cirrus {cirrus_conf}')
+
+                # Se não tiver nada, é desconhecido
+                if not partes:
+                    descricao = f'desconhecido (valor {val})'
+                else:
+                    descricao = ', '.join(partes)
+
+            # 🔥 MONTAR RESULTADO COMPLETO
+            return {
+                'valor': val,
+                'descricao': descricao,
+                'emojis': TABLE_6_3_EMOJIS[val],
+                'bits': {
+                    'fill': bool(val & 1),
+                    'dilated_cloud': bool(val & 2),
+                    'cirrus': bool(val & 4),
+                    'cloud': bool(val & 8),
+                    'cloud_shadow': bool(val & 16),
+                    'snow': bool(val & 32),
+                    'clear': not (val & 8 or val & 2),
+                    'water': bool(val & 64)
+                },
+                'confianca': {
+                    'cloud': ['sem', 'baixa', 'média', 'alta'][(val >> 8) & 3],
+                    'cloud_shadow': ['sem', 'baixa', 'reservado', 'alta'][(val >> 10) & 3],
+                    'snow': ['sem', 'baixa', 'reservado', 'alta'][(val >> 12) & 3],
+                    'cirrus': ['sem', 'baixa', 'reservado', 'alta'][(val >> 14) & 3]
+                }
+            }
+        except Exception as e:
+            print(f"⚠️ Erro ao decodificar QA_PIXEL: {e}")
+            return None
+
+    @staticmethod
+    def _calculate_qa_statistics(buffers: list) -> Dict:
+
+        # 🔥 INICIALIZAR CONTADORES
+        qa_counts = {}
+        total_pixels = 0
+        st_qa_values = []
+
+        # 🔥 PERCORRER TODOS OS BUFFERS
+        for buffer in buffers:
+            for pixel in buffer.get('pixels', []):
+                # 🔥 QA_PIXEL
+                qa = pixel.get('qa_pixel')
+                if qa:
+                    total_pixels += 1
+                    qa_val = qa.get('valor')
+                    if qa_val is not None:
+                        qa_counts[qa_val] = qa_counts.get(qa_val, 0) + 1
+
+                # 🔥 ST_QA
+                st_qa = pixel.get('st_qa')
+                if st_qa is not None:
+                    st_qa_values.append(st_qa)
+
+        # 🔥 MONTAR RESULTADO QA_PIXEL
+        qa_result = {
+            'total': total_pixels,
+            'types': {}
+        }
+
+        if total_pixels > 0:
+            for qa_val, count in qa_counts.items():
+                percent = round((count / total_pixels) * 100, 2)
+                qa_result['types'][str(qa_val)] = {
+                    'count': count,
+                    'percent': percent,
+                    'description': TABLE_6_3.get(qa_val, f'Desconhecido ({qa_val})'),
+                    'emoji': TABLE_6_3_EMOJIS.get(qa_val, '❓')
+                }
+
+        # 🔥 MONTAR RESULTADO ST_QA
+        st_qa_result = {
+            'count': len(st_qa_values),
+            'mean_kelvin': round(sum(st_qa_values) / len(st_qa_values), 2) if st_qa_values else None,
+            'min_kelvin': round(min(st_qa_values), 2) if st_qa_values else None,
+            'max_kelvin': round(max(st_qa_values), 2) if st_qa_values else None
+        }
+
+        return {
+            'qa_pixel': qa_result,
+            'st_qa': st_qa_result
+        }

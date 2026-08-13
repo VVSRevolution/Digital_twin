@@ -247,7 +247,9 @@ class AnalysisService:
                 buffer_distance=buffer_distance,
                 buffers_data=result.get('buffers'),
                 ditto_thing_id=f"park:{park_id}",
-                ditto_updated=False
+                ditto_updated=False,
+                qa_pixel=result.get('qa_pixel'),
+                st_qa=result.get('st_qa')
             )
 
             # Atualiza DITTO (opcional)
@@ -300,6 +302,8 @@ class AnalysisService:
                 'm2': latest.pca_m2
             },
             'buffers': latest.buffers_data or [],
+            'qa_pixel': latest.qa_pixel,
+            'st_qa': latest.st_qa,
             'image_date': latest.image_date,
             'ditto_updated': latest.ditto_updated,
             'timestamp': latest.analyzed_at.isoformat() if latest.analyzed_at else datetime.now().isoformat(),

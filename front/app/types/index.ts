@@ -99,6 +99,28 @@ export interface PixelTemperature {
     lat: number | null
     lon: number | null
     temperature: number
+    qa_pixel?: {
+        valor: number
+        descricao: string
+        emojis: string
+        bits: {
+            fill: boolean
+            dilated_cloud: boolean
+            cirrus: boolean
+            cloud: boolean
+            cloud_shadow: boolean
+            snow: boolean
+            clear: boolean
+            water: boolean
+        }
+        confianca: {
+            cloud: 'sem' | 'baixa' | 'média' | 'alta'
+            cloud_shadow: 'sem' | 'baixa' | 'reservado' | 'alta'
+            snow: 'sem' | 'baixa' | 'reservado' | 'alta'
+            cirrus: 'sem' | 'baixa' | 'reservado' | 'alta'
+        }
+    } | null
+    st_qa?: number | null  // Kelvin
 }
 
 // Tipos de estatísticas de buffer

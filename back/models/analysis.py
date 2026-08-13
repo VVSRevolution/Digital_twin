@@ -1,5 +1,5 @@
 # models/analysis.py
-from datetime import datetime
+from datetime import datetime, timezone
 
 from extensions import db
 
@@ -17,6 +17,10 @@ class CoolingAnalysis(db.Model):
     pca_ha = db.Column(db.Float)
     pca_m2 = db.Column(db.Float)
 
+    # 🔥 NOVOS CAMPOS: QA_PIXEL e ST_QA
+    qa_pixel = db.Column(db.JSON)  # Dados de qualidade do pixel (nuvens, sombras, etc.)
+    st_qa = db.Column(db.JSON)  # Dados de qualidade da temperatura da superfície
+
     # LST
     park_lst_celsius = db.Column(db.Float)
     park_lst_kelvin = db.Column(db.Float)
@@ -28,7 +32,7 @@ class CoolingAnalysis(db.Model):
 
     # Metadados
     image_date = db.Column(db.String(20))
-    analyzed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    analyzed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Ditto
     ditto_thing_id = db.Column(db.String(255))
@@ -43,6 +47,8 @@ class CoolingAnalysis(db.Model):
             'pcd': self.pcd,
             'pca_ha': self.pca_ha,
             'pca_m2': self.pca_m2,
+            'qa_pixel': self.qa_pixel,  # 🔥 NOVO
+            'st_qa': self.st_qa,  # 🔥 NOVO
             'park_lst_celsius': self.park_lst_celsius,
             'image_date': self.image_date,
             'analyzed_at': self.analyzed_at.isoformat() if self.analyzed_at else None
