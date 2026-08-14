@@ -411,6 +411,74 @@
               </div>
             </div>
           </template>
+          <template v-if="coolingData?.buffers">
+            <Divider/>
+            <h4>📑 Qualidade da Imagem (QA)</h4>
+
+            <!-- 🔥 QA_PIXEL -->
+            <div v-if="coolingData.qa_pixel" class="qa-section">
+              <div class="qa-header">
+                <span>📊 Avaliação da Qualidade de Pixels</span>
+                <Badge :value="`${coolingData.qa_pixel.total} pixels`"/>
+              </div>
+
+              <div class="qa-types">
+                <div
+                    v-for="(type, key) in coolingData.qa_pixel.types"
+                    :key="key"
+                    class="qa-type-item"
+                >
+                  <!-- 🔥 LINHA 1: EMOJI + DESCRIÇÃO -->
+                  <div class="qa-type-row">
+                    <span class="qa-emoji">{{ type.emoji || '❓' }}</span>
+                    <span class="qa-description">{{ type.description }}</span>
+                  </div>
+
+                  <!-- 🔥 LINHA 2: CONTAGEM + PROGRESSO + PORCENTAGEM -->
+                  <div class="qa-type-row">
+                    <span class="qa-count">{{ type.count }} px</span>
+                    <ProgressBar
+                        :showValue="false"
+                        :value="type.percent"
+                        class="qa-progress"
+                    />
+                    <span class="qa-percent">{{ type.percent }}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 🔥 ST_QA -->
+            <div v-if="coolingData.st_qa" class="qa-section">
+              <Divider/>
+              <div class="qa-header">
+                <span>🌡️ ST_QA (Incerteza da Temperatura)</span>
+                <Badge :value="`${coolingData.st_qa.count} pixels`"/>
+              </div>
+
+              <div class="st-qa-stats">
+                <div class="st-qa-item">
+                  <span class="st-qa-label">Média</span>
+                  <span :class="getStQaClass(coolingData.st_qa.mean_kelvin)" class="st-qa-value">
+          {{ coolingData.st_qa.mean_kelvin }} K
+        </span>
+                </div>
+                <div class="st-qa-item">
+                  <span class="st-qa-label">Mínimo</span>
+                  <span class="st-qa-value">{{ coolingData.st_qa.min_kelvin }} K</span>
+                </div>
+                <div class="st-qa-item">
+                  <span class="st-qa-label">Máximo</span>
+                  <span class="st-qa-value">{{ coolingData.st_qa.max_kelvin }} K</span>
+                </div>
+              </div>
+
+              <div :class="getStQaStatus(coolingData.st_qa.mean_kelvin)" class="st-qa-status">
+                {{ getStQaMessage(coolingData.st_qa.mean_kelvin) }}
+              </div>
+            </div>
+          </template>
+
         </template>
       </template>
     </Card>
@@ -849,6 +917,28 @@ function handleOpacityChange(event: Event) {
   const value = parseFloat(target.value)
   emit('updateOpacity', value)
 }
+
+function getStQaClass(value: number | null | undefined): string {
+  if (value === null || value === undefined) return ''
+  if (value < 3) return 'good'
+  if (value < 5) return 'medium'
+  return 'poor'
+}
+
+function getStQaStatus(value: number | null | undefined): string {
+  if (value === null || value === undefined) return ''
+  if (value < 3) return 'good'
+  if (value < 5) return 'medium'
+  return 'poor'
+}
+
+function getStQaMessage(value: number | null | undefined): string {
+  if (value === null || value === undefined) return 'Sem dados'
+  if (value < 3) return '✅ Temperatura confiável (incerteza < 3K)'
+  if (value < 5) return '⚠️ Temperatura com incerteza moderada (3-5K)'
+  return '❌ Temperatura NÃO é confiável (incerteza > 5K)'
+}
+
 </script>
 
 <style scoped>
@@ -864,7 +954,7 @@ function handleOpacityChange(event: Event) {
   flex-direction: column;
   gap: 8px;
   width: 360px;
-  max-height: 90vh;
+  max-height: 98vh;
   overflow-y: auto;
 }
 
@@ -882,6 +972,23 @@ function handleOpacityChange(event: Event) {
 
 .search-wrapper :deep(.p-card-content) {
   padding: 12px 16px !important;
+}
+
+.search-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.search-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.30);
+  border-radius: 4px;
+}
+
+.search-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.40);
 }
 
 /* 🔥 LINHA MENU + PESQUISA */
@@ -1111,23 +1218,28 @@ function handleOpacityChange(event: Event) {
   margin-top: 8px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: hidden !important; /* 🔥 MUDA PRA HIDDEN */
   background: white;
+  display: flex !important; /* 🔥 MUDA PRA FLEX */
+  flex-direction: column !important; /* 🔥 COLUNA */
+  width: 100%;
+  height: auto !important;
+  flex-shrink: 0;
 }
 
-/* 🔥 HEADER (CLICÁVEL PARA EXPANDIR) */
+/* 🔥 HEADER */
 .results-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: #f8fafc;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: #1f2937;
-  transition: background 0.2s;
-  user-select: none;
+  min-height: 38px;
+  flex-shrink: 0; /* 🔥 NÃO ENCOLHE */
 }
 
 .results-header:hover {
@@ -1142,22 +1254,26 @@ function handleOpacityChange(event: Event) {
 
 /* 🔥 LISTA */
 .results-list {
-  display: flex;
-  flex-direction: column;
-  max-height: 250px;
-  overflow-y: auto;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 250px; /* 🔥 SCROLL SE PRECISAR */
+  overflow-y: auto !important; /* 🔥 SCROLL AQUI */
   border-top: 1px solid #e5e7eb;
+  height: auto !important;
+  flex: 1 1 auto; /* 🔥 CRESCE ATÉ O LIMITE */
+  min-height: 0;
 }
 
-/* 🔥 ITEM DA LISTA */
+/* 🔥 ITEM */
 .result-item {
   padding: 10px 14px;
   cursor: pointer;
   border-bottom: 1px solid #f3f4f6;
-  transition: all 0.15s ease;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex-shrink: 0; /* 🔥 NÃO ENCOLHE */
+  min-height: 44px;
 }
 
 .result-item:last-child {
@@ -1292,14 +1408,16 @@ function handleOpacityChange(event: Event) {
 .buffer-stats h4 {
   font-size: 13px;
   margin: 0 0 4px 0;
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
   gap: 4px;
-  max-height: 150px;
-  overflow-y: auto;
+  overflow-y: visible;
+  margin-bottom: 5px;
 }
 
 .stats-item {
@@ -1311,6 +1429,8 @@ function handleOpacityChange(event: Event) {
   border: 1px solid #e5e7eb;
   font-size: 10px;
   text-align: center;
+  flex-shrink: 0;
+
 }
 
 .stats-item span {
@@ -1478,5 +1598,343 @@ function handleOpacityChange(event: Event) {
 .park-option-location {
   font-size: 11px;
   color: #6b7280;
+}
+
+/* 🔥 QA SECTION */
+.qa-section {
+  margin-top: 12px;
+}
+
+.qa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 10px;
+  color: #1f2937;
+}
+
+.qa-types {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qa-type-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid #f1f3f5;
+  transition: background 0.2s;
+}
+
+.qa-type-item:hover {
+  background: #f1f5f9;
+}
+
+.qa-type-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.qa-emoji {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.qa-description {
+  font-size: 13px;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qa-type-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.qa-count {
+  font-size: 12px;
+  color: #6b7280;
+  min-width: 50px;
+  text-align: right;
+}
+
+.qa-progress {
+  width: 180px;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.qa-progress :deep(.p-progressbar-value) {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 3px;
+}
+
+.qa-percent {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 45px;
+  text-align: right;
+  color: #1f2937;
+}
+
+/* 🔥 ST_QA */
+.st-qa-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.st-qa-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f8f9fa;
+  padding: 8px 16px;
+  border-radius: 6px;
+  flex: 1;
+  min-width: 60px;
+  border: 1px solid #f1f3f5;
+}
+
+.st-qa-label {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.st-qa-value {
+  font-weight: 700;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.st-qa-value.good {
+  color: #16a34a;
+}
+
+.st-qa-value.medium {
+  color: #f59e0b;
+}
+
+.st-qa-value.poor {
+  color: #dc2626;
+}
+
+/* 🔥 ST_QA STATUS */
+.st-qa-status {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+
+.st-qa-status.good {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.st-qa-status.medium {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.st-qa-status.poor {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+/* 🔥 IMAGE DATE */
+.image-date {
+  background: #f0f9ff;
+  border-radius: 4px;
+  padding: 4px 8px !important;
+  margin-bottom: 4px;
+}
+
+.image-date span {
+  color: #0369a1;
+}
+
+.image-date strong {
+  color: #0c4a6e;
+  font-weight: 600;
+}
+
+/* 🔥 RESPONSIVIDADE PARA QA */
+@media (max-width: 480px) {
+  .qa-type-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .qa-type-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .qa-progress {
+    width: 60px;
+  }
+
+  .st-qa-stats {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .st-qa-item {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 6px 12px;
+  }
+
+  .st-qa-label {
+    text-transform: none;
+    font-size: 12px;
+  }
+
+  .st-qa-value {
+    font-size: 14px;
+  }
+
+  .st-qa-status {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}
+
+/* 🔥 SCROLLBAR DA LISTA DE TIPOS */
+.qa-types::-webkit-scrollbar {
+  width: 3px;
+}
+
+.qa-types::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.qa-types::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.qa-types::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 🔥 ANIMAÇÃO DE CARREGAMENTO DOS QA */
+.qa-type-item {
+  animation: fadeInUp 0.3s ease forwards;
+  opacity: 0;
+}
+
+.qa-type-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.qa-type-item:nth-child(2) {
+  animation-delay: 0.10s;
+}
+
+.qa-type-item:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.qa-type-item:nth-child(4) {
+  animation-delay: 0.20s;
+}
+
+.qa-type-item:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+.qa-type-item:nth-child(6) {
+  animation-delay: 0.30s;
+}
+
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.qa-type-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #f1f3f5;
+}
+
+.qa-type-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qa-type-row:first-child {
+  font-weight: 500;
+}
+
+.qa-emoji {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.qa-description {
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.qa-count {
+  font-size: 12px;
+  color: #6b7280;
+  min-width: 50px;
+}
+
+.qa-progress {
+  flex: 1;
+  height: 6px;
+  max-width: 200px;
+}
+
+.qa-percent {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 45px;
+  text-align: right;
+  color: #1f2937;
 }
 </style>

@@ -172,6 +172,23 @@ export interface CoolingAnalysisResult {
         ha: number
         m2: number
     }
+    qa_pixel?: {
+        total: number
+        types: {
+            [key: string]: {
+                count: number
+                percent: number
+                description: string
+                emoji: string
+            }
+        }
+    }
+    st_qa?: {
+        count: number
+        mean_kelvin: number | null
+        min_kelvin: number | null
+        max_kelvin: number | null
+    }
     total_pixels?: number
     timestamp?: string
     error?: string
