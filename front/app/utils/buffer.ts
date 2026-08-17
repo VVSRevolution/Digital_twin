@@ -11,15 +11,41 @@ const format = new GeoJSON()
  * Desenha buffers concêntricos em torno de um parque
  * @param feature - Feature do parque (OpenLayers)
  * @param vectorSource - Fonte de vetores onde adicionar os buffers
+ * @param numBuffers - Número de anéis (padrão: 11)
+ * @param bufferDistance - Distância inicial em metros (padrão: 90)
  */
-export function drawBuffers(feature: OLFeature, vectorSource: VectorSource) {
+export function drawBuffers(
+    feature: OLFeature,
+    vectorSource: VectorSource,
+    numBuffers: number = 11,
+    bufferDistance: number = 90
+) {
+    // 🔥 REMOVE BUFFERS ANTIGOS (para não acumular)
+    const features = vectorSource.getFeatures()
+    const toRemove: OLFeature[] = []
+
+    features.forEach((f: OLFeature) => {
+        // 🔥 VERIFICA SE É UM BUFFER PELA PROPRIEDADE 'isBuffer'
+        if (f.get('isBuffer') === true) {
+            toRemove.push(f)
+        }
+    })
+
+    toRemove.forEach((f: OLFeature) => {
+        vectorSource.removeFeature(f)
+    })
+
+    // 🔥 CONVERTE FEATURE PARA GEOJSON
     const geojson = format.writeFeatureObject(feature, {
         featureProjection: "EPSG:3857",
         dataProjection: "EPSG:4326"
     })
 
-    const step = 90
-    const distances = Array.from({length: 11}, (_, i) => (i + 1) * step)
+    // 🔥 USA OS VALORES PASSADOS
+    const distances: number[] = []
+    for (let i = 1; i <= numBuffers; i++) {
+        distances.push(bufferDistance * i)
+    }
 
     let prev: any = null
 
@@ -58,6 +84,7 @@ export function drawBuffers(feature: OLFeature, vectorSource: VectorSource) {
         )
 
         olFeature.set('zIndex', 9)
+        olFeature.set('isBuffer', true) // 🔥 MARCA COMO BUFFER
 
         vectorSource.addFeature(olFeature)
     }

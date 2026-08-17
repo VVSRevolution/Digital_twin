@@ -199,6 +199,9 @@ async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometr
         console.log('📊 Buffers do cache:', data.buffers?.length || 0)
 
         updateCoolingData(data)
+        const numBuffers = data.num_buffers || 11
+        const bufferDistance = data.buffer_distance || 90
+        drawBuffers(feature, vectorSource, numBuffers, bufferDistance)
         handleSuccess(`Análise do parque "${park.name}" carregada!`)
         isSearching.value = false
         return
@@ -682,26 +685,6 @@ onUnmounted(() => {
 .map {
   width: 100%;
   height: 100%;
-}
-
-
-/* SCROLLBAR */
-.search-bar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.search-bar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.search-bar::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
-}
-
-.search-bar::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
 }
 
 
