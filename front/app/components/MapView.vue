@@ -46,6 +46,9 @@ let parkFeature: Feature<Geometry> | null = null
 let pixelLayer: any = null
 let fromLonLat: (coord: number[]) => number[]
 const format = new GeoJSON()
+// ===== CONTROLE DO SATÉLITE =====
+const showSatellite = ref(false)
+const currentSatellite = ref<'arcgis' | 'google'>('arcgis')
 
 // ===== FUNÇÃO PARA GERAR COR DO GRADIENTE =====
 function getGradientColor(t: number): string {
@@ -175,6 +178,61 @@ function drawParkOnMap(park: SearchParkResult): Feature<Geometry> | null {
     console.error('❌ Erro ao desenhar polígono:', error)
     handleError('Erro ao desenhar polígono')
     return null
+  }
+}
+
+// ===== FUNÇÃO TOGGLE SATÉLITE =====
+function toggleSatellite() {
+  const layers = map.getLayers().getArray()
+  let googleLayer = null
+  let arcgisLayer = null
+
+  for (const layer of layers) {
+    if (layer.get('satelliteType') === 'google') googleLayer = layer
+    if (layer.get('satelliteType') === 'arcgis') arcgisLayer = layer
+  }
+
+  // 🔥 ESTADOS ATUAIS
+  const googleVisible = googleLayer?.getVisible()
+  const arcgisVisible = arcgisLayer?.getVisible()
+
+  // 🔥 CICLO: desativado → ArcGIS → Google → desativado → ...
+  if (!googleVisible && !arcgisVisible) {
+    // 🔥 NENHUM ATIVO → ATIVA ARCGIS
+    arcgisLayer?.setVisible(true)
+    googleLayer?.setVisible(false)
+    showSatellite.value = true
+    currentSatellite.value = 'arcgis'
+  } else if (arcgisVisible) {
+    // 🔥 ARCGIS ATIVO → TROCA PARA GOOGLE
+    arcgisLayer?.setVisible(false)
+    googleLayer?.setVisible(true)
+    showSatellite.value = true
+    currentSatellite.value = 'google'
+  } else if (googleVisible) {
+    // 🔥 GOOGLE ATIVO → DESATIVA TUDO
+    googleLayer?.setVisible(false)
+    arcgisLayer?.setVisible(false)
+    showSatellite.value = false
+  }
+
+  // 🔥 ATUALIZA O BOTÃO
+  const btn = document.getElementById('satellite-toggle-btn')
+  if (btn) {
+    if (!showSatellite.value) {
+      btn.textContent = '🛰️'
+      btn.title = 'Mapa base (sem satélite)'
+      // 🔥 TOOLTIP COM ESTILO
+      btn.setAttribute('data-tooltip', 'Mapa base')
+    } else if (currentSatellite.value === 'arcgis') {
+      btn.textContent = '🌍'
+      btn.title = 'ArcGIS Satélite (clique para trocar para Google)'
+      btn.setAttribute('data-tooltip', 'ArcGIS Satélite')
+    } else {
+      btn.textContent = '🗺️'
+      btn.title = 'Google Satélite (clique para desativar)'
+      btn.setAttribute('data-tooltip', 'Google Satélite')
+    }
   }
 }
 
@@ -533,14 +591,43 @@ onMounted(async () => {
   fromLonLat = proj.fromLonLat
   vectorSource = new VectorSource()
 
+  // 🔥 CAMADA SATÉLITE 1 (Google)
+  const satelliteLayer1 = new TileLayer({
+    source: new XYZ({
+      url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      crossOrigin: 'anonymous'
+    })
+  })
+  satelliteLayer1.set('isSatellite', true)
+  satelliteLayer1.set('satelliteType', 'google')
+  satelliteLayer1.setVisible(false)
+
+  // 🔥 CAMADA SATÉLITE 2 (ArcGIS - COM A URL CORRETA)
+  const satelliteLayer2 = new TileLayer({
+    source: new XYZ({
+      // 🔥 ATENÇÃO: ArcGIS usa {y} invertido (sem o 'tile' no meio)
+      url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      crossOrigin: 'anonymous'
+    })
+  })
+  satelliteLayer2.set('isSatellite', true)
+  satelliteLayer2.set('satelliteType', 'arcgis')
+  satelliteLayer2.setVisible(false)
+
+  // 🔥 CRIA A CAMADA BASE (SEM SATÉLITE)
+  const baseLayer = new TileLayer({
+    source: new XYZ({
+      url: "https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+    })
+  })
+  baseLayer.set('isBaseLayer', true)
+
   map = new Map({
     target: mapEl.value!,
     layers: [
-      new TileLayer({
-        source: new XYZ({
-          url: "https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
-        })
-      }),
+      baseLayer,
+      satelliteLayer1,
+      satelliteLayer2,
       new VectorLayer({
         source: vectorSource
       })
@@ -611,6 +698,11 @@ onMounted(async () => {
   })
 
   setupTooltip()
+
+  const btn = document.getElementById('satellite-toggle-btn')
+  if (btn) {
+    btn.setAttribute('data-tooltip', 'Ativar satélite')
+  }
 })
 
 // ===== LIMPA MAPA =====
@@ -636,7 +728,16 @@ onUnmounted(() => {
     <div class="map-wrapper">
       <!-- MAPA -->
       <div ref="mapEl" class="map"></div>
-
+      <!-- 🔥 BOTÃO TOGGLE SATÉLITE (AO LADO DO ZOOM) -->
+      <button
+          id="satellite-toggle-btn"
+          :data-tooltip="showSatellite ? (currentSatellite === 'arcgis' ? 'Satélite (Google)' : 'Mapa') : 'Satélite (ArcGIS)'"
+          :title="showSatellite ? (currentSatellite === 'arcgis' ? 'ArcGIS Satélite' : 'Google Satélite') : 'Mapa'"
+          class="satellite-toggle-btn"
+          @click="toggleSatellite"
+      >
+        🛰️
+      </button>
       <ParkSearchBar
           v-model:search="search"
           v-model:showPixels="showPixels"
@@ -687,6 +788,81 @@ onUnmounted(() => {
   height: 100%;
 }
 
+/* 🔥 BOTÃO TOGGLE SATÉLITE */
+:global(.satellite-toggle-btn) {
+  position: absolute !important;
+  bottom: 25px !important;
+  right: 125px !important;
+  z-index: 9999 !important;
+
+  width: 55px !important;
+  height: 55px !important;
+  border-radius: 8px !important;
+  background-color: #ffffff !important;
+  color: #333 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+  font-size: 36px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+:global(.satellite-toggle-btn:hover) {
+  background-color: #f0f0f0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  transform: scale(1.05);
+}
+
+:global(.satellite-toggle-btn:active) {
+  transform: scale(0.95);
+}
+
+/*  SATÉLITE TOOLTIP*/
+.satellite-toggle-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Titillium Web', sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 10000;
+}
+
+.satellite-toggle-btn:hover::after {
+  opacity: 1;
+}
+
+.satellite-toggle-btn::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10000;
+}
+
+.satellite-toggle-btn:hover::before {
+  opacity: 1;
+}
 
 :global(.ol-zoom) {
   position: absolute !important;
@@ -724,4 +900,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
+
 </style>
