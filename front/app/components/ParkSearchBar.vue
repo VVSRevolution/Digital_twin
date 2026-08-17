@@ -530,7 +530,10 @@ const {
   startAddPark,
   cancelAddPark,
   confirmAddPark: confirmAddParkForm,
-  selectCountry
+  selectCountry,
+  newBufferDistance,
+  newNumBuffers,
+  isUpToDate
 } = useAddParkForm()
 const {isMenuOpen, selectedPark, menuCardRef, toggleMenu} = useParkMenu()
 
@@ -542,12 +545,9 @@ const selectedCityData = ref<CitySuggestion | null>(null)
 const selectedCountryData = ref<CountrySuggestion | null>(null)
 
 // ============================================================
-// 🔥 BUFFERS CONFIG
+// 🔥 Satellites CONFIG
 // ============================================================
-const newNumBuffers = ref(11)
-const newBufferDistance = ref(90)
 
-const isUpToDate = ref(true)
 const availableSatellites = ref<Array<{ id: string, name: string, active: boolean }>>([])
 const selectedSatellites = ref<string[]>(['Landsat 8'])
 const loadingSatellites = ref(false)
