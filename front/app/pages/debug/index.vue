@@ -119,7 +119,7 @@ const logs = ref<Array<{ time: string; message: string; type: string }>>([])
 const quickUrls = [
   'http://localhost:3001',
   'http://200.137.197.69:55235',
-  'http://192.168.30.230:6789',
+  'http://192.168.30.233:6789',
 ]
 
 // Aplicar nova URL

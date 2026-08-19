@@ -1,12 +1,12 @@
 // app/composables/useApiConfig.ts
-import {readonly, ref} from 'vue'
-import {useCookie} from '#app'
+import { readonly } from 'vue'
+import { useCookie, useState } from '#app' // 🔥 ADICIONA useState
 
 export const useApiConfig = () => {
-    // 🔥 Estado reativo
-    const apiUrl = ref<string>('')
-    const isCustom = ref(false)
-    const isProduction = ref(false)
+    // 🔥 MUDE DE ref PARA useState (persiste entre navegações)
+    const apiUrl = useState<string>('api_config_url', () => '')
+    const isCustom = useState<boolean>('api_config_is_custom', () => false)
+    const isProduction = useState<boolean>('api_config_is_production', () => false)
 
     // 🔥 Cookie para persistir URL personalizada (30 dias)
     const customApiCookie = useCookie<string>('custom_api_url', {
@@ -20,6 +20,7 @@ export const useApiConfig = () => {
         const config = useRuntimeConfig()
         const defaultUrl = config.public.apiUrl || 'http://localhost:3001'
 
+        // 🔥 Se já tem URL no cookie, usa ela
         if (customApiCookie.value && customApiCookie.value.trim() !== '') {
             apiUrl.value = customApiCookie.value
             isCustom.value = true
@@ -94,7 +95,7 @@ export const useApiConfig = () => {
         }
     }
 
-    // Inicializar
+    // 🔥 Inicializar (só no cliente)
     if (import.meta.client) {
         loadConfig()
     }
