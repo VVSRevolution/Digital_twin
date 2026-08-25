@@ -1,113 +1,100 @@
 // app/composables/useApiConfig.ts
-import { readonly } from 'vue'
-import { useCookie, useState } from '#app' // 🔥 ADICIONA useState
+import {computed, readonly, ref} from 'vue'
+
+// 🔥 CHAVE PARA LOCALSTORAGE
+const STORAGE_KEY = 'api_custom_url'
+
+// 🔥 Estado GLOBAL (persiste entre páginas)
+const customUrl = ref<string | null>(null)
+
+// 🔥 Carregar do localStorage apenas no cliente
+if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+        customUrl.value = saved
+    }
+}
 
 export const useApiConfig = () => {
-    // 🔥 MUDE DE ref PARA useState (persiste entre navegações)
-    const apiUrl = useState<string>('api_config_url', () => '')
-    const isCustom = useState<boolean>('api_config_is_custom', () => false)
-    const isProduction = useState<boolean>('api_config_is_production', () => false)
+    const config = useRuntimeConfig()
+    const defaultUrl = config.public.apiUrl || 'http://localhost:3001'
 
-    // 🔥 Cookie para persistir URL personalizada (30 dias)
-    const customApiCookie = useCookie<string>('custom_api_url', {
-        default: () => '',
-        maxAge: 60 * 60 * 24 * 30,
-        secure: process.env.NODE_ENV === 'production',
+    // URL atual
+    const apiUrl = computed(() => {
+        return customUrl.value || defaultUrl
     })
 
-    // 🔥 Carregar configuração
-    function loadConfig() {
-        const config = useRuntimeConfig()
-        const defaultUrl = config.public.apiUrl || 'http://localhost:3001'
+    const isCustom = computed(() => {
+        return customUrl.value !== null && customUrl.value !== defaultUrl
+    })
 
-        // 🔥 Se já tem URL no cookie, usa ela
-        if (customApiCookie.value && customApiCookie.value.trim() !== '') {
-            apiUrl.value = customApiCookie.value
-            isCustom.value = true
-        } else {
-            apiUrl.value = defaultUrl
-            isCustom.value = false
-        }
+    const isProduction = computed(() => {
+        return process.env.NODE_ENV === 'production'
+    })
 
-        isProduction.value = process.env.NODE_ENV === 'production'
-        console.log(`🔧 API URL: ${apiUrl.value} (${isCustom.value ? 'personalizada' : 'padrão'})`)
-    }
-
-    // 🔥 Definir nova URL
+    // 🔥 SALVAR no localStorage
     function setApiUrl(url: string) {
         if (!url || url.trim() === '') {
-            const config = useRuntimeConfig()
-            apiUrl.value = config.public.apiUrl || 'http://localhost:3001'
-            isCustom.value = false
-            customApiCookie.value = ''
+            customUrl.value = null
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem(STORAGE_KEY)
+            }
             return
         }
 
         const cleanUrl = url.trim().replace(/\/$/, '')
 
         try {
-            new URL(cleanUrl) // Valida se é URL válida
-            apiUrl.value = cleanUrl
-            isCustom.value = true
-            customApiCookie.value = cleanUrl
+            new URL(cleanUrl) // Valida URL
+            customUrl.value = cleanUrl
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY, cleanUrl)
+            }
         } catch (error) {
             throw new Error('URL inválida! Use o formato: http://localhost:3001')
         }
     }
 
-    // 🔥 Resetar para URL padrão
     function resetApiUrl() {
-        const config = useRuntimeConfig()
-        apiUrl.value = config.public.apiUrl || 'http://localhost:3001'
-        isCustom.value = false
-        customApiCookie.value = ''
+        customUrl.value = null
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem(STORAGE_KEY)
+        }
     }
 
-    // 🔥 Obter URL atual
     function getApiUrl(): string {
-        if (!apiUrl.value) {
-            loadConfig()
-        }
         return apiUrl.value
     }
 
-    // 🔥 Testar conexão com a API
-    async function testApiConnection(url?: string) {
-        const testUrl = url || apiUrl.value
+    async function testApiConnection() {
         try {
-            const response = await fetch(`${testUrl}/api/parks`, {
-                method: 'HEAD',
-                signal: AbortSignal.timeout(5000),
+            const url = getApiUrl()
+            const response = await fetch(`${url}/health`, {
+                signal: AbortSignal.timeout(5000)
             })
             return {
                 success: response.ok,
                 status: response.status,
                 statusText: response.statusText,
-                url: testUrl,
-                time: new Date().toISOString()
+                error: undefined
             }
         } catch (error: any) {
             return {
                 success: false,
-                error: error.message || 'Erro de conexão',
-                url: testUrl,
+                error: error.message || 'Falha na conexão',
+                status: undefined,
+                statusText: undefined
             }
         }
-    }
-
-    // 🔥 Inicializar (só no cliente)
-    if (import.meta.client) {
-        loadConfig()
     }
 
     return {
         apiUrl: readonly(apiUrl),
         isCustom: readonly(isCustom),
         isProduction: readonly(isProduction),
-        loadConfig,
         setApiUrl,
         resetApiUrl,
         getApiUrl,
-        testApiConnection,
+        testApiConnection
     }
 }

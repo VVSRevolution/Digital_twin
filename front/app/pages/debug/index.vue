@@ -9,7 +9,7 @@
         <h2>📡 Status da Conexão</h2>
         <div class="status-row">
           <span class="label">URL Atual:</span>
-          <code class="url">{{ apiUrl }}</code>
+          <code class="url">{{ currentUrl }}</code>
           <span v-if="isCustom" class="badge custom">Personalizada</span>
           <span v-else class="badge default">Padrão</span>
         </div>
@@ -77,8 +77,8 @@
           <div
               v-for="(log, index) in logs"
               :key="index"
-              class="log-entry"
               :class="log.type"
+              class="log-entry"
           >
             <span class="log-time">{{ log.time }}</span>
             <span class="log-message">{{ log.message }}</span>
@@ -92,9 +92,9 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useApiConfig } from '~/composables/useApiConfig'
+<script lang="ts" setup>
+import {computed, onMounted, ref} from 'vue'
+import {useApiConfig} from '~/composables/useApiConfig'
 
 const {
   apiUrl,
@@ -106,7 +106,6 @@ const {
   testApiConnection
 } = useApiConfig()
 
-// Estado
 const newUrlInput = ref('')
 const urlError = ref('')
 const connectionStatus = ref<{ success: boolean; error?: string; status?: number }>({
@@ -121,6 +120,9 @@ const quickUrls = [
   'http://200.137.197.69:55235',
   'http://192.168.30.233:6789',
 ]
+
+// 🔥 Computed para exibir o valor
+const currentUrl = computed(() => apiUrl.value)
 
 // Aplicar nova URL
 async function applyNewUrl() {
@@ -181,7 +183,7 @@ async function testEndpoint(endpoint: string) {
     }
     addLog(`Teste ${endpoint}: ${response.status}`, response.ok ? 'success' : 'error')
   } catch (error: any) {
-    testResult.value = { success: false, error: error.message }
+    testResult.value = {success: false, error: error.message}
     addLog(`Erro em ${endpoint}: ${error.message}`, 'error')
   }
 }
@@ -194,7 +196,7 @@ async function testAnalysis() {
 // Adicionar log
 function addLog(message: string, type: 'info' | 'success' | 'error' = 'info') {
   const time = new Date().toLocaleTimeString()
-  logs.value.unshift({ time, message, type })
+  logs.value.unshift({time, message, type})
   if (logs.value.length > 100) {
     logs.value.pop()
   }
@@ -207,7 +209,13 @@ function clearLogs() {
 
 // Inicializar
 onMounted(() => {
-  newUrlInput.value = apiUrl.value
+  // 🔥 Carregar do localStorage
+  const saved = localStorage.getItem('api_custom_url')
+  if (saved) {
+    newUrlInput.value = saved
+  } else {
+    newUrlInput.value = getApiUrl()
+  }
   testConnection()
 })
 </script>
