@@ -287,134 +287,149 @@
       </div>
     </div>
 
-    <div v-if="results.length" class="results-container">
-      <!-- HEADER PARA EXPANDIR -->
-      <div class="results-header" @click="toggleResults">
-        <span>📋 Resultados ({{ results.length }})</span>
-        <span class="results-toggle">{{ isResultsExpanded ? '▲' : '▼' }}</span>
+    <!-- 🔥 CARD 2: RESULTADOS DA PESQUISA -->
+    <CollapsibleCard
+        v-if="results.length"
+        :badge="results.length"
+        :defaultExpanded="true"
+        icon="📋"
+        title="Resultados"
+    >
+      <div
+          v-for="item in results"
+          :key="item.id"
+          class="result-item"
+          @click="handleSelect(item)"
+      >
+        <div class="result-name">🌳 {{ item.tags?.name || item.name || 'Parque sem nome' }}</div>
+        <div class="result-location">{{ item.city }}, {{ item.country }}</div>
+        <div class="result-osm-id">ID: {{ item.osm_id }}</div>
+      </div>
+    </CollapsibleCard>
+
+    <!-- 🔥 CARD 3: ANÁLISE TÉRMICA -->
+    <CollapsibleCard
+        v-if="showStats && coolingData"
+        :defaultExpanded="true"
+        icon="📊"
+        title="Análise Térmica"
+    >
+      <!-- RESULTADOS DA ANÁLISE -->
+      <div class="stats-header">
+        <h4>🌳 {{ parkName }}</h4>
+        <Tag
+            :severity="coolingData.success ? 'success' : 'danger'"
+            :value="coolingData.success ? 'OK' : 'Falha'"
+        />
       </div>
 
-      <!-- LISTA (EXPANDE/ENCOLHE) -->
-      <div v-show="isResultsExpanded" class="results-list">
-        <div
-            v-for="item in results"
-            :key="item.id"
-            class="result-item"
-            @click="handleSelect(item)"
-        >
-          <div class="result-name">🌳 {{ item.tags?.name || item.name || 'Parque sem nome' }}</div>
-          <div class="result-location">{{ item.city }}, {{ item.country }}</div>
-          <div class="result-osm-id">ID: {{ item.osm_id }}</div>
-        </div>
+      <!-- 🔥 DATA DA IMAGEM -->
+      <div v-if="coolingData.image_date" class="stat-item image-date">
+        <span>📅 Data da Imagem</span>
+        <strong>{{ formatDate(coolingData.image_date) }}</strong>
       </div>
-    </div>
+      <!-- 🔥 INFO DOS BUFFERS USADOS -->
+      <div class="stat-item buffer-info">
+        <span>📐 Buffers</span>
+        <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
+      </div>
 
-    <!-- 🔥 CARD 3: RESULTADOS -->
-    <Card v-if="(showStats && coolingData)" class="results-card">
-      <template #content>
+      <div
+          v-for="stat in formatCoolingStats(coolingData)"
+          :key="stat.label"
+          class="stat-item"
+      >
+        <span>{{ stat.label }}</span>
+        <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
+      </div>
 
 
-        <!-- RESULTADOS DA ANÁLISE -->
-        <template v-if="showStats && coolingData">
+      <div v-if="coolingData.error" class="error-msg">
+        ⚠️ {{ coolingData.error }}
+      </div>
 
-          <div class="stats-header">
-            <h4>🌳 {{ parkName }}</h4>
-            <Tag
-                :severity="coolingData.success ? 'success' : 'danger'"
-                :value="coolingData.success ? 'OK' : 'Falha'"
+      <!-- PIXELS -->
+      <template v-if="coolingData?.buffers">
+        <Divider/>
+        <div class="controls">
+          <div class="toggle-wrapper">
+            <Checkbox
+                v-model="showPixels"
+                binary
+                @update:model-value="handleTogglePixels"
+            />
+            <label>Mostrar pixels de temperatura</label>
+          </div>
+
+          <!-- 🔥 CONTROLE DE OPACIDADE -->
+          <div v-if="showPixels" class="opacity-control">
+            <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
+            <input
+                :value="pixelOpacity * 100"
+                class="opacity-slider"
+                max="100"
+                min="0"
+                type="range"
+                @input="handleOpacityChange($event)"
             />
           </div>
 
-          <!-- 🔥 DATA DA IMAGEM -->
-          <div v-if="coolingData.image_date" class="stat-item image-date">
-            <span>📅 Data da Imagem</span>
-            <strong>{{ formatDate(coolingData.image_date) }}</strong>
-          </div>
-
-          <div
-              v-for="stat in formatCoolingStats(coolingData)"
-              :key="stat.label"
-              class="stat-item"
-          >
-            <span>{{ stat.label }}</span>
-            <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
-          </div>
-
-          <!-- 🔥 INFO DOS BUFFERS USADOS -->
-          <div class="stat-item buffer-info">
-            <span>📐 Buffers</span>
-            <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
-          </div>
-
-          <div v-if="coolingData.error" class="error-msg">
-            ⚠️ {{ coolingData.error }}
-          </div>
-          <!-- PIXELS -->
-          <template v-if="coolingData?.buffers">
-            <Divider/>
-            <div class="controls">
-              <div class="toggle-wrapper">
-                <Checkbox v-model="showPixels"
-                          binary
-                          @update:model-value="handleTogglePixels"
-                />
-                <label>Mostrar pixels de temperatura</label>
-              </div>
-
-              <!-- 🔥 CONTROLE DE OPACIDADE (NOVO) -->
-              <div v-if="showPixels" class="opacity-control">
-                <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
-                <input
-                    :value="pixelOpacity * 100"
-                    class="opacity-slider"
-                    max="100"
-                    min="0"
-                    type="range"
-                    @input="handleOpacityChange($event)"
-                />
-              </div>
-
-              <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
-                <div class="gradient-header">
-                  <span>🌡️ Temperatura</span>
-                  <Badge :value="`${totalPixels} px`"/>
-                </div>
-                <div class="gradient-bar"></div>
-                <div class="gradient-labels">
-                  <span>{{ gradientMin.toFixed(1) }}°C</span>
-                  <span>{{ gradientMax.toFixed(1) }}°C</span>
-                </div>
-              </div>
+          <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
+            <div class="gradient-header">
+              <span>🌡️ Temperatura</span>
+              <Badge :value="`${totalPixels} px`"/>
             </div>
-          </template>
-
-          <!-- BUFFERS -->
-          <template v-if="coolingData?.buffers">
-            <Divider/>
-            <div class="buffer-stats">
-              <h4>📊 Anéis</h4>
-              <div class="stats-grid">
-                <div
-                    v-for="buffer in coolingData.buffers"
-                    :key="buffer.distance"
-                    :style="{
-                    background: (buffer.statistics?.mean ?? null) !== null
-                      ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
-                      : '#f5f5f5'
-                  }"
-                    class="stats-item"
-                >
-                  <span>{{ buffer.distance }}m</span>
-                  <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
-                  <span>{{ buffer.statistics?.count ?? 0 }}px</span>
-                </div>
-              </div>
+            <div class="gradient-bar"></div>
+            <div class="gradient-labels">
+              <span>{{ gradientMin.toFixed(1) }}°C</span>
+              <span>{{ gradientMax.toFixed(1) }}°C</span>
             </div>
-          </template>
-          <template v-if="coolingData?.buffers">
-            <Divider/>
-            <h4>📑 Qualidade da Imagem (QA)</h4>
+          </div>
+        </div>
+      </template>
 
+      <!-- BUFFERS -->
+      <template v-if="coolingData?.buffers">
+        <Divider/>
+        <div class="buffer-stats">
+          <h4>📊 Anéis</h4>
+          <div class="stats-grid">
+            <div
+                v-for="buffer in coolingData.buffers"
+                :key="buffer.distance"
+                :style="{
+                        background: (buffer.statistics?.mean ?? null) !== null
+                            ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
+                            : '#f5f5f5'
+                    }"
+                class="stats-item"
+            >
+              <span>{{ buffer.distance }}m</span>
+              <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
+              <span>{{ buffer.statistics?.count ?? 0 }}px</span>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 🔥 QA - COM HEADER CLICÁVEL PARA RECOLHER -->
+      <template v-if="coolingData?.buffers">
+        <Divider/>
+
+        <!-- HEADER CLICÁVEL DA SEÇÃO QA -->
+        <div class="qa-section-header" @click="toggleQaSection">
+          <div class="qa-section-header-left">
+            <span class="qa-section-icon">📑</span>
+            <span class="qa-section-title">Qualidade da Imagem (QA)</span>
+          </div>
+          <div class="qa-section-header-right">
+            <span class="qa-section-toggle">{{ isQaExpanded ? '▲' : '▼' }}</span>
+          </div>
+        </div>
+
+        <!-- CONTEÚDO QA (EXPANDE/ENCOLHE) -->
+        <transition name="expand">
+          <div v-if="isQaExpanded" class="qa-content">
             <!-- 🔥 QA_PIXEL -->
             <div v-if="coolingData.qa_pixel" class="qa-section">
               <div class="qa-header">
@@ -428,13 +443,10 @@
                     :key="key"
                     class="qa-type-item"
                 >
-                  <!-- 🔥 LINHA 1: EMOJI + DESCRIÇÃO -->
                   <div class="qa-type-row">
                     <span class="qa-emoji">{{ type.emoji || '❓' }}</span>
                     <span class="qa-description">{{ type.description }}</span>
                   </div>
-
-                  <!-- 🔥 LINHA 2: CONTAGEM + PROGRESSO + PORCENTAGEM -->
                   <div class="qa-type-row">
                     <span class="qa-count">{{ type.count }} px</span>
                     <ProgressBar
@@ -460,8 +472,8 @@
                 <div class="st-qa-item">
                   <span class="st-qa-label">Média</span>
                   <span :class="getStQaClass(coolingData.st_qa.mean_kelvin)" class="st-qa-value">
-          {{ coolingData.st_qa.mean_kelvin }} K
-        </span>
+                                {{ coolingData.st_qa.mean_kelvin }} K
+                            </span>
                 </div>
                 <div class="st-qa-item">
                   <span class="st-qa-label">Mínimo</span>
@@ -477,11 +489,10 @@
                 {{ getStQaMessage(coolingData.st_qa.mean_kelvin) }}
               </div>
             </div>
-          </template>
-
-        </template>
+          </div>
+        </transition>
       </template>
-    </Card>
+    </CollapsibleCard>
 
   </div>
 </template>
@@ -590,6 +601,14 @@ onMounted(() => {
   loadParks()
 
 })
+
+// 🔥 CONTROLE DE EXPANSÃO DA SEÇÃO QA
+const isQaExpanded = ref(true)
+
+function toggleQaSection() {
+  isQaExpanded.value = !isQaExpanded.value
+}
+
 
 // LOCAL STATE
 const cityWrapperRef = ref<HTMLElement | null>(null)
@@ -811,7 +830,6 @@ async function confirmAddPark() {
   const name = newParkName.value
   const city = newParkCity.value
   const country = newParkCountry.value
-  const countryCode = selectedCountryCode.value
 
   if (!name || !city || !country) {
     handleError('Preencha todos os campos do parque')
@@ -1117,7 +1135,8 @@ function getStQaMessage(value: number | null | undefined): string {
   background: #f0fdf4;
   border-radius: 4px;
   padding: 4px 8px !important;
-  margin-bottom: 4px;
+
+  border: none !important;
 }
 
 .buffer-info span {
@@ -1127,6 +1146,26 @@ function getStQaMessage(value: number | null | undefined): string {
 .buffer-info strong {
   color: #166534;
 }
+
+/* 🔥 IMAGE DATE */
+.image-date {
+  background: #f0f9ff;
+  border-radius: 4px;
+  padding: 4px 8px !important;
+  margin-bottom: 4px;
+  margin-top: 4px;
+  border: none !important;
+}
+
+.image-date span {
+  color: #0369a1;
+}
+
+.image-date strong {
+  color: #0c4a6e;
+  font-weight: 600;
+}
+
 
 /* 🔥 AUTOCOMPLETE */
 .autocomplete-wrapper {
@@ -1213,67 +1252,16 @@ function getStQaMessage(value: number | null | undefined): string {
   margin-top: 4px;
 }
 
-/* 🔥 RESULTADOS CONTAINER */
-.results-container {
-  margin-top: 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden !important; /* 🔥 MUDA PRA HIDDEN */
-  background: white;
-  display: flex !important; /* 🔥 MUDA PRA FLEX */
-  flex-direction: column !important; /* 🔥 COLUNA */
-  width: 100%;
-  height: auto !important;
-  flex-shrink: 0;
-}
-
-/* 🔥 HEADER */
-.results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 14px;
-  background: #f8fafc;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2937;
-  min-height: 38px;
-  flex-shrink: 0; /* 🔥 NÃO ENCOLHE */
-}
-
-.results-header:hover {
-  background: #eef2ff;
-}
-
-.results-toggle {
-  font-size: 12px;
-  color: #6b7280;
-  transition: transform 0.3s;
-}
-
-/* 🔥 LISTA */
-.results-list {
-  display: flex !important;
-  flex-direction: column !important;
-  max-height: 250px; /* 🔥 SCROLL SE PRECISAR */
-  overflow-y: auto !important; /* 🔥 SCROLL AQUI */
-  border-top: 1px solid #e5e7eb;
-  height: auto !important;
-  flex: 1 1 auto; /* 🔥 CRESCE ATÉ O LIMITE */
-  min-height: 0;
-}
 
 /* 🔥 ITEM */
 .result-item {
-  padding: 10px 14px;
+  padding: 10px 0;
   cursor: pointer;
   border-bottom: 1px solid #f3f4f6;
+  transition: all 0.15s ease;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex-shrink: 0; /* 🔥 NÃO ENCOLHE */
-  min-height: 44px;
 }
 
 .result-item:last-child {
@@ -1301,26 +1289,29 @@ function getStQaMessage(value: number | null | undefined): string {
   color: #9ca3af;
 }
 
-/* 🔥 SCROLLBAR */
-.results-list::-webkit-scrollbar {
-  width: 4px;
+/* 🔥 TRANSIÇÃO */
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.3s ease;
+  max-height: 300px;
+  overflow: hidden;
 }
 
-.results-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+.expand-enter-from,
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 
-.results-list::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 4px;
+.expand-enter-to,
+.expand-leave-from {
+  max-height: 300px;
+  opacity: 1;
 }
 
-.results-list::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
 
 .stats-header {
+  padding-top: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1336,13 +1327,13 @@ function getStQaMessage(value: number | null | undefined): string {
 .stat-item {
   display: flex;
   justify-content: space-between;
-  padding: 4px 0;
+  padding: 4px 8px;
   font-size: 13px;
-  border-bottom: 1px solid #f3f4f6;
+
 }
 
-.stat-item:last-child {
-  border-bottom: none;
+.stat-item:last-of-type {
+  border-bottom: none !important;
 }
 
 .error-msg {
@@ -1766,22 +1757,6 @@ function getStQaMessage(value: number | null | undefined): string {
   border-color: #fca5a5;
 }
 
-/* 🔥 IMAGE DATE */
-.image-date {
-  background: #f0f9ff;
-  border-radius: 4px;
-  padding: 4px 8px !important;
-  margin-bottom: 4px;
-}
-
-.image-date span {
-  color: #0369a1;
-}
-
-.image-date strong {
-  color: #0c4a6e;
-  font-weight: 600;
-}
 
 /* 🔥 RESPONSIVIDADE PARA QA */
 @media (max-width: 480px) {
@@ -1826,6 +1801,70 @@ function getStQaMessage(value: number | null | undefined): string {
     padding: 8px 10px;
   }
 }
+
+/* 🔥 QA SECTION HEADER (CLICÁVEL) */
+.qa-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  transition: all 0.2s ease;
+  user-select: none;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.qa-section-header:hover {
+  background: #eef2ff;
+  color: #1f2937;
+}
+
+.qa-section-header:active {
+  transform: scale(0.98);
+}
+
+.qa-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qa-section-icon {
+  font-size: 16px;
+}
+
+.qa-section-title {
+  font-weight: 600;
+}
+
+
+.qa-section-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.qa-section-toggle {
+  font-size: 12px;
+  color: #6b7280;
+  transition: transform 0.3s;
+}
+
+/* 🔥 CONTEÚDO QA */
+.qa-content {
+  padding-top: 12px;
+}
+
+
+/* 🔥 CONTEÚDO QA */
+.qa-content {
+  padding-top: 8px;
+}
+
 
 /* 🔥 SCROLLBAR DA LISTA DE TIPOS */
 .qa-types::-webkit-scrollbar {
