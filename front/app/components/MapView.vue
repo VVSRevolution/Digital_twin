@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
-import type {SearchParkResult} from '~/services/parkService'
 import {searchPark} from "~/services/parkService"
 import {analyzeParkCooling, getParkAnalyses, getParkAnalysesList, getParkAnalysisDetail} from "~/services/eeService"
 import Feature from 'ol/Feature'
@@ -12,10 +11,11 @@ import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
-import type {CoolingAnalysisResult} from '~/types'
+import type {CoolingAnalysisResult, SearchParkResult} from '~/types'
 import {Overlay} from "ol";
 import {Polygon} from "ol/geom";
 import type {ParkSuggestion} from "~/types/parkSearch";
+import {toLonLat} from "ol/proj";
 
 // ===== REFS =====
 const loading = ref(false)
@@ -23,7 +23,7 @@ const mapEl = ref<HTMLDivElement | null>(null)
 const search = ref("")
 const results = ref<SearchParkResult[]>([])
 const coolingData = ref<CoolingAnalysisResult | null>(null)
-const parkAnalyses = ref<CoolingAnalysisResult[]>([])  // 🔥 LISTA DE ANÁLISES
+const parkAnalyses = ref<CoolingAnalysisResult[]>([])
 const showStats = ref(false)
 const parkName = ref("")
 const analyzing = ref(false)
@@ -37,6 +37,8 @@ const tooltipOverlay = ref<Overlay | null>(null)
 const tooltipElement = ref<HTMLElement | null>(null)
 const pixelOpacity = ref(0.50)
 const predefinedParks = ref<SearchParkResult[]>([])
+const searchBarRef = ref<InstanceType<typeof ParkSearchBar> | null>(null)
+const manualPoints = ref<Array<{ lat: number; lon: number }>>([])
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 
 // ===== VARIÁVEIS OPENLAYERS =====
@@ -588,6 +590,9 @@ onMounted(async () => {
   const VectorSource = (await import("ol/source/Vector")).default
   const proj = await import("ol/proj")
 
+
+
+
   fromLonLat = proj.fromLonLat
   vectorSource = new VectorSource()
 
@@ -602,10 +607,9 @@ onMounted(async () => {
   satelliteLayer1.set('satelliteType', 'google')
   satelliteLayer1.setVisible(false)
 
-  // 🔥 CAMADA SATÉLITE 2 (ArcGIS - COM A URL CORRETA)
+  // 🔥 CAMADA SATÉLITE 2 (ArcGIS)
   const satelliteLayer2 = new TileLayer({
     source: new XYZ({
-      // 🔥 ATENÇÃO: ArcGIS usa {y} invertido (sem o 'tile' no meio)
       url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       crossOrigin: 'anonymous'
     })
@@ -617,7 +621,8 @@ onMounted(async () => {
   // 🔥 CRIA A CAMADA BASE (SEM SATÉLITE)
   const baseLayer = new TileLayer({
     source: new XYZ({
-      url: "https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+      url: "https://{a-c}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=cb1_2gax_1_89470145eca0c0cfd945f121",
+      crossOrigin: 'anonymous'
     })
   })
   baseLayer.set('isBaseLayer', true)
@@ -638,6 +643,22 @@ onMounted(async () => {
     })
   })
 
+  map.on('click', (evt: any) => {
+    if (!isDrawingMode.value) return
+
+    const coords = evt.coordinate
+    const lonLat = toLonLat(coords)
+
+    const lat = lonLat[1]
+    const lon = lonLat[0]
+
+    if (lat !== undefined && lon !== undefined) {
+      // 🔥 SE TIVER REFERÊNCIA DO FILHO, ADICIONA TAMBÉM
+      if (searchBarRef.value) {
+        searchBarRef.value.addPoint(lat, lon)
+      }
+    }
+  })
   map.on('pointermove', (evt: any) => {
     const overlay = tooltipOverlay.value
     const el = tooltipElement.value
@@ -705,6 +726,181 @@ onMounted(async () => {
   }
 })
 
+// 🔥 MODO DE DESENHO
+const isDrawingMode = ref(false)
+
+function startDrawing() {
+  isDrawingMode.value = true
+  map.getTargetElement().style.cursor = 'crosshair'
+}
+
+function stopDrawing() {
+  isDrawingMode.value = false
+  map.getTargetElement().style.cursor = 'default'
+}
+
+// 🔥 ADICIONAR UMA CAMADA PARA OS PONTOS TEMPORÁRIOS
+let tempPointsLayer: any = null
+let tempPolygonLayer: any = null
+let tempPointsSource: any = null
+let tempPolygonSource: any = null
+
+// 🔥 FUNÇÃO PARA DESENHAR PONTOS TEMPORÁRIOS NO MAPA
+async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
+
+  // 🔥 REMOVE CAMADAS ANTERIORES (FORÇADO)
+  if (tempPointsLayer) {
+    map.removeLayer(tempPointsLayer)
+    tempPointsLayer = null
+  }
+  if (tempPolygonLayer) {
+    map.removeLayer(tempPolygonLayer)
+    tempPolygonLayer = null
+  }
+
+  if (points.length === 0) {
+    return
+  }
+
+  // 🔥 CRIA NOVOS SOURCES
+  const VectorSource = (await import('ol/source/Vector')).default
+  const Feature = (await import('ol/Feature')).default
+  const Point = (await import('ol/geom/Point')).default
+  const Style = (await import('ol/style/Style')).default
+  const CircleStyle = (await import('ol/style/Circle')).default
+  const FillStyle = (await import('ol/style/Fill')).default
+  const StrokeStyle = (await import('ol/style/Stroke')).default
+  const TextStyle = (await import('ol/style/Text')).default
+  const VectorLayer = (await import('ol/layer/Vector')).default
+  const Polygon = (await import('ol/geom/Polygon')).default
+
+  // 🔥 DESENHA PONTOS
+  const pointSource = new VectorSource()
+  const features: any[] = []
+
+  points.forEach((p, index) => {
+    const coords = fromLonLat([p.lon, p.lat])
+
+    const feature = new Feature({
+      geometry: new Point(coords)
+    })
+
+    feature.setStyle(new Style({
+      image: new CircleStyle({
+        radius: 14,
+        fill: new FillStyle({
+          color: "#3b82f6"
+        }),
+        stroke: new StrokeStyle({
+          color: '#ffffff',
+          width: 3
+        })
+      }),
+      text: new TextStyle({
+        text: String(index + 1),
+        font: 'bold 11px "Titillium Web", Arial, sans-serif',
+        fill: new FillStyle({ color: '#ffffff' }),
+        stroke: new StrokeStyle({
+          color: 'rgba(0,0,0,0.3)',
+          width: 2
+        }),
+        textAlign: 'center',
+        textBaseline: 'middle'
+      })
+    }))
+    features.push(feature)
+  })
+
+  pointSource.addFeatures(features)
+
+  tempPointsLayer = new VectorLayer({
+    source: pointSource,
+    zIndex: 10
+  })
+  map.addLayer(tempPointsLayer)
+
+
+  // 🔥 SE TIVER MAIS DE 2 PONTOS, DESENHA O POLÍGONO
+  if (points.length >= 3) {
+    // 🔥 VERIFICAÇÃO DE SEGURANÇA
+    const firstPoint = points[0]
+    if (!firstPoint) {
+      return
+    }
+
+    const coords3857 = points.map(p => fromLonLat([p.lon, p.lat]))
+
+    // 🔥 VERIFICA SE O PRIMEIRO EXISTE
+    const firstCoord = coords3857[0]
+    if (!firstCoord) {
+      return
+    }
+
+    coords3857.push(firstCoord) // Fecha o polígono
+
+    const polygonFeature = new Feature({
+      geometry: new Polygon([coords3857])
+    })
+
+    polygonFeature.setStyle(new Style({
+      stroke: new StrokeStyle({
+        color: '#3b82f6',
+        width: 2.5,
+        lineDash: [8, 6],
+        lineDashOffset: 4
+      }),
+      fill: new FillStyle({
+        color: 'rgba(59, 130, 246, 0.1)'
+      })
+    }))
+
+    const polygonSource = new VectorSource()
+    polygonSource.addFeature(polygonFeature)
+
+    tempPolygonLayer = new VectorLayer({
+      source: polygonSource,
+      zIndex: 9
+    })
+
+    polygonFeature.setStyle(new Style({
+      stroke: new StrokeStyle({
+        color: '#3b82f6',
+        width: 2.5,
+        lineDash: [8, 6],
+        lineDashOffset: 4
+      }),
+      fill: new FillStyle({
+        color: 'rgba(59, 130, 246, 0.1)'
+      })
+    }))
+
+    map.addLayer(tempPolygonLayer)
+  }
+}
+
+function handlePointsUpdated(points: Array<{ lat: number; lon: number }>) {
+  manualPoints.value = points
+  updateTempPoints(points)
+}
+
+// 🔥 MODIFICAR A FUNÇÃO addPoint PARA ATUALIZAR O MAPA
+function addPointToMap(lat: number, lon: number) {
+  manualPoints.value.push({ lat, lon })
+  updateTempPoints(manualPoints.value)
+}
+
+
+// 🔥 FUNÇÃO PARA LIMPAR OS PONTOS TEMPORÁRIOS
+function clearTempPoints() {
+  if (tempPointsLayer) {
+    map.removeLayer(tempPointsLayer)
+    tempPointsLayer = null
+  }
+  if (tempPolygonLayer) {
+    map.removeLayer(tempPolygonLayer)
+    tempPolygonLayer = null
+  }
+}
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
   if (searchTimeout) {
@@ -739,6 +935,7 @@ onUnmounted(() => {
         🛰️
       </button>
       <ParkSearchBar
+          ref="searchBarRef"
           v-model:search="search"
           v-model:showPixels="showPixels"
           :analyzing="analyzing"
@@ -757,6 +954,9 @@ onUnmounted(() => {
           @togglePixels="togglePixels"
           @updateCoolingData="updateCoolingData"
           @updateOpacity="updatePixelOpacity"
+          @startDrawing="startDrawing"
+          @stopDrawing="stopDrawing"
+          @pointsUpdated="handlePointsUpdated"
       />
 
       <TimelineOverlay

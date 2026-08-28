@@ -250,14 +250,73 @@
                 </small>
               </div>
             </div>
+            <!-- 🔥 GEOMETRIA MANUAL -->
+            <div class="menu-section">
+              <div class="geometry-manual-header">
+                <label class="menu-label">📍 Geometria Manual</label>
+                <Button
+                    :loading="drawingMode"
+                    icon="pi pi-pencil"
+                    label="Desenhar no Mapa"
+                    severity="secondary"
+                    size="small"
+                    class="geometry-btn"
+                    @click="toggleDrawingMode"
+                />
+              </div>
 
+
+              <!-- LISTA DE PONTOS -->
+              <div v-if="manualPoints.length > 0" class="points-list">
+                <div
+                    v-for="(point, index) in manualPoints"
+                    :key="index"
+                    class="point-item"
+                >
+                  <!-- 🔥 NÚMERO DO PONTO -->
+                  <span class="point-number">{{ index + 1 }}</span>
+                  <span class="point-coords">
+                    {{ point.lat.toFixed(6) }}, {{ point.lon.toFixed(6) }}
+                  </span>
+                  <Button
+                      icon="pi pi-times"
+                      rounded
+                      severity="danger"
+                      size="small"
+                      text
+                      @click="removePoint(index)"
+                  />
+                </div>
+              </div>
+
+              <small v-else class="geometry-hint">
+                Clique no botão acima e depois clique no mapa para adicionar pontos
+              </small>
+            </div>
+            <div v-if="drawingMode" class="points-actions">
+              <Button
+
+                  icon="pi pi-times"
+                  label="Cancelar"
+                  severity="danger"
+                  size="small"
+                  @click="cancelDrawing"
+              />
+              <Button
+                  icon="pi pi-check"
+                  label="Usar Geometria"
+                  severity="success"
+                  size="small"
+                  @click="useManualGeometry"
+              />
+            </div>
             <div class="menu-actions">
               <Button
                   fluid
                   icon="pi pi-arrow-left"
                   label="Voltar"
                   severity="secondary"
-                  @click="cancelAddPark"
+                  @click="cancelAddParkLocal()"
               />
               <Button
                   fluid
@@ -594,6 +653,9 @@ const emit = defineEmits<{
   (e: 'togglePixels'): void
   (e: 'updateOpacity', value: number): void
   (e: 'updateCoolingData', data: CoolingAnalysisResult): void
+  (e: 'startDrawing'): void
+  (e: 'stopDrawing'): void
+  (e: 'pointsUpdated', points: Array<{ lat: number; lon: number }>): void
 }>()
 
 onMounted(() => {
@@ -609,6 +671,10 @@ function toggleQaSection() {
   isQaExpanded.value = !isQaExpanded.value
 }
 
+// 🔥 GEOMETRIA MANUAL
+const drawingMode = ref(false)
+const manualPoints = ref<Array<{ lat: number; lon: number }>>([])
+let drawInteraction: any = null
 
 // LOCAL STATE
 const cityWrapperRef = ref<HTMLElement | null>(null)
@@ -684,6 +750,101 @@ async function loadParks() {
   }
 }
 
+// ============================================================
+// 🔥 geometrica manual
+// ============================================================
+
+function toggleDrawingMode() {
+  if (drawingMode.value) {
+    // 🔥 CANCELA O DESENHO
+    drawingMode.value = false
+    manualPoints.value = []
+    emit('pointsUpdated', manualPoints.value)
+    emit('stopDrawing')
+    handleSuccess('Desenho cancelado')
+  } else {
+    // 🔥 ATIVA O DESENHO
+    drawingMode.value = true
+    emit('startDrawing')
+    handleInfo('Clique no mapa para adicionar pontos')
+  }
+}
+
+function cancelDrawing() {
+  // 🔥 LIMPA OS PONTOS
+  manualPoints.value = []
+
+  // 🔥 SAI DO MODO DE DESENHO
+  drawingMode.value = false
+
+  // 🔥 EMITE O EVENTO PARA O PAI
+  emit('pointsUpdated', manualPoints.value)
+  emit('stopDrawing')
+
+  // 🔥 LIMPA OS PONTOS DO MAPA (emite evento para o pai)
+  handleSuccess('Desenho cancelado')
+}
+
+function cancelAddParkLocal() {
+  // 🔥 CANCELA O DESENHO SE ESTIVER ATIVO
+  if (drawingMode.value) {
+    drawingMode.value = false
+    manualPoints.value = []
+    emit('pointsUpdated', manualPoints.value)
+    emit('stopDrawing')
+  }
+
+  // 🔥 CANCELA O CADASTRO (CHAMA A DO COMPOSABLE)
+  cancelAddPark()
+
+}
+
+function addPoint(lat: number, lon: number) {
+  manualPoints.value.push({ lat, lon })
+  emit('pointsUpdated', manualPoints.value)
+}
+
+function removePoint(index: number) {
+  manualPoints.value.splice(index, 1)
+  emit('pointsUpdated', manualPoints.value)
+}
+
+function useManualGeometry() {
+  if (manualPoints.value.length < 3) {
+    handleError('Precisa de pelo menos 3 pontos para formar um polígono')
+    return
+  }
+
+  // 🔥 VERIFICAÇÃO DE SEGURANÇA
+  const firstPoint = manualPoints.value[0]
+  if (!firstPoint) {
+    handleError('Erro ao obter o primeiro ponto')
+    return
+  }
+
+
+  drawingMode.value = false
+  emit('stopDrawing')
+
+  // emit('select', {
+  //   name: 'Geometria Manual',
+  //   city: newParkCity.value || 'Local',
+  //   country: newParkCountry.value || 'Brasil',
+  //   geometry: geometry,
+  //   tags: { name: 'Geometria Manual' }
+  // } as SearchParkResult)
+  //
+  // // Limpa os pontos
+  // manualPoints.value = []
+  // handleSuccess('Geometria manual criada!')
+}
+
+// 🔥 EXPORTA A FUNÇÃO PARA O PAI ADICIONAR PONTO
+defineExpose({
+  addPoint,
+  drawingMode,
+  manualPoints
+})
 
 // ============================================================
 // 🔥 CARREGAR SATÉLITES
@@ -1975,5 +2136,68 @@ function getStQaMessage(value: number | null | undefined): string {
   min-width: 45px;
   text-align: right;
   color: #1f2937;
+}
+
+/* 🔥 GEOMETRIA MANUAL */
+.geometry-manual-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.points-list {
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.point-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+.point-item:last-child {
+  border-bottom: none;
+}
+
+.point-number {
+  font-weight: 700;
+  color: #3b82f6;
+  font-size: 11px;
+  min-width: 24px;
+  background: #eef2ff;
+  padding: 0 6px;
+  border-radius: 10px;
+  text-align: center;
+  font-family: 'Titillium Web', sans-serif;
+}
+
+.point-coords {
+  color: #1f2937;
+  flex: 1;
+}
+
+.points-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  justify-content: flex-end;
+}
+
+.geometry-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+  display: block;
+  margin-top: 4px;
 }
 </style>

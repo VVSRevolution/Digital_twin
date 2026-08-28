@@ -1,5 +1,5 @@
 // services/parkService.ts
-import type {ParkGeometry} from "~/types";
+import type { SearchParkResult} from "~/types";
 
 export interface SearchParkParams {
     query: string
@@ -8,17 +8,6 @@ export interface SearchParkParams {
     osm_id?: number | null
 }
 
-export interface SearchParkResult {
-    id?: number
-    name: string
-    city?: string
-    country?: string
-    geometry: ParkGeometry      // GeoJSON (EPSG:4326)
-    geometry_3857: ParkGeometry // GeoJSON (EPSG:3857) - já convertido
-    tags?: any
-    osm_id?: number
-    osm_type?: string
-}
 
 export interface SearchParkResponse {
     success?: boolean
