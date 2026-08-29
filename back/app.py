@@ -479,7 +479,7 @@ def search_park():
 
 
 # ============================================================
-# 🔥 INICIA SERVIDOR
+# 🔥 INICIA SERVIDOR COM WAITRESS (PRODUÇÃO)
 # ============================================================
 if __name__ == '__main__':
     with app.app_context():
@@ -490,7 +490,7 @@ if __name__ == '__main__':
 
     print('')
     print('=' * 50)
-    print('🚀 Iniciando servidor Digital Twin...')
+    print('🚀 Iniciando servidor Digital Twin com WAITRESS...')
     print(f'📁 Projeto: {Config.PROJECT_ID}')
     print(f'📡 Ditto: {Config.DITTO_URL}')
     print('=' * 50)
@@ -507,4 +507,16 @@ if __name__ == '__main__':
     print('=' * 50)
     print('')
 
-    app.run(host='0.0.0.0', port=3001, debug=True)
+    # 🔥 SUBSTITUINDO app.run() POR WAITRESS
+    from waitress import serve
+
+    serve(
+        app,
+        host='0.0.0.0',
+        port=3001,
+        threads=8,  # Número de threads
+        connection_limit=1000,  # Máximo de conexões simultâneas
+        channel_timeout=1000,  # Timeout em segundos
+        clear_untrusted_proxy_headers=True,  # Segurança
+        ident='DigitalTwin/1.0'  # Identificação do servidor
+    )

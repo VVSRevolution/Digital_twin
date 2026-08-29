@@ -2,23 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Instala dependências do sistema
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y gcc g++ && rm -rf /var/lib/apt/lists/*
 
-# Copia e instala dependências Python
 COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código
 COPY . .
 
-# Expõe as portas
 EXPOSE 3001
 EXPOSE 3002
 
-# Comando padrão
-CMD ["python", "app.py"]
+# 🔥 Waitress com 8 threads
+CMD ["python", "-c", "from waitress import serve; from app import app; serve(app, host='0.0.0.0', port=3001, threads=8)"]

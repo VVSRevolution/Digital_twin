@@ -3,6 +3,7 @@ Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.5
+waitress==3.0.2
 
 # 🔥 BANCO DE DADOS
 psycopg2-binary==2.9.9
