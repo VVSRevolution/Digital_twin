@@ -159,7 +159,10 @@
 
             <!-- 🔥 BUFFERS CONFIG -->
             <div class="menu-section">
-              <label class="menu-label"><i class="pi pi-sitemap"></i> Configuração dos Buffers</label>
+              <label class="menu-label">
+                <PinRotate size="16"/>
+                Configuração dos Buffers
+              </label>
               <div class="buffer-config">
                 <div class="buffer-field">
                   <label for="numBuffers">Número de anéis</label>
@@ -411,7 +414,10 @@
 
       <!-- 🔥 INFO DOS BUFFERS USADOS -->
       <div class="stat-item buffer-info">
-        <span><i class="pi pi-sitemap"></i> Buffers</span>
+        <label>
+          <PinRotate color="#166534" size="16"/>
+          <span>Buffers</span>
+        </label>
         <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 30 }}m</strong>
       </div>
 
@@ -442,7 +448,7 @@
                   @update:model-value="handleTogglePixels"
               />
               <label class="pixels-toggle-label">
-                <i class="pi pi-th-large pixels-icon"></i>
+                <Temperature :size="24" class="pixels-icon"/>
                 <span>Mostrar pixels de temperatura</span>
               </label>
             </div>
@@ -497,7 +503,12 @@
         <Divider/>
         <div class="buffer-stats">
           <div class="buffer-header">
-            <h4><i class="pi pi-sitemap buffer-header-icon"></i> Anéis de Temperatura</h4>
+            <h4>
+              <label>
+                <SignalStream class="buffer-header-icon" size="28"/>
+                <span>Anéis de Temperatura</span>
+              </label>
+            </h4>
             <span class="buffer-total">{{ coolingData.buffers.length }} anéis</span>
           </div>
 
@@ -646,7 +657,7 @@
 </template>
 
 <script lang="ts" setup>
-import {Satellite, Tree} from 'reicon-vue';
+import {PinRotate, Satellite, SignalStream, Temperature, Tree} from 'reicon-vue';
 import {onMounted, ref, watch} from 'vue'
 import {
   analyzeParkCooling,
@@ -1706,6 +1717,7 @@ label .pi {
 
 .stats-header {
   padding-top: 10px;
+  padding-left: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2013,7 +2025,7 @@ label .pi {
   font-size: 14px;
   color: #6366f1;
   background: #eef2ff;
-  padding: 2px 5px;
+  padding: 0 5px;
   border-radius: 4px;
 }
 
