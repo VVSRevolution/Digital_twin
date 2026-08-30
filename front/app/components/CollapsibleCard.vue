@@ -5,12 +5,12 @@
       <!-- HEADER CLICÁVEL -->
       <div class="card-header" @click="toggle">
         <div class="card-header-left">
-          <span class="card-icon">{{ icon }}</span>
+          <i :class="icon || 'pi pi-folder'" class="card-icon"></i>
           <span class="card-title">{{ title }}</span>
           <span v-if="badge !== undefined" class="card-badge">{{ badge }}</span>
         </div>
         <div class="card-header-right">
-          <span class="card-toggle">{{ isExpanded ? '▲' : '▼' }}</span>
+          <i :class="isExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" class="card-toggle"></i>
         </div>
       </div>
 
@@ -109,10 +109,12 @@ function toggle() {
 
 .card-icon {
   font-size: 16px;
+  color: #4b5563;
 }
 
 .card-title {
   font-weight: 600;
+  color: #1f2937;
 }
 
 .card-badge {
@@ -126,8 +128,13 @@ function toggle() {
   text-align: center;
 }
 
+.card-header-right {
+  display: flex;
+  align-items: center;
+}
+
 .card-toggle {
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7280;
   transition: transform 0.3s;
 }

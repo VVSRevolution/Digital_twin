@@ -43,7 +43,7 @@
           <!-- 🔥 MODO NORMAL: SELECIONAR PARQUE -->
           <template v-if="!isAddingPark">
             <div class="menu-section">
-              <label class="menu-label">📍 Selecionar Parque</label>
+              <label class="menu-label"><i class="pi pi-map-marker"></i> Selecionar Parque</label>
               <Select
                   v-model="selectedPark"
                   :loading="loadingParks"
@@ -76,7 +76,7 @@
           <template v-if="isAddingPark">
             <!-- 🔥 PARQUE (com autocomplete) -->
             <div class="menu-section">
-              <label class="menu-label">🌳 Nome do Parque</label>
+              <label class="menu-label"><i class="pi pi-tree"></i> Nome do Parque</label>
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkName"
@@ -103,7 +103,7 @@
 
             <!-- 🔥 PAÍS (com autocomplete, Brasil pré-selecionado) -->
             <div class="menu-section">
-              <label class="menu-label">🌍 País</label>
+              <label class="menu-label"><i class="pi pi-globe"></i> País</label>
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkCountry"
@@ -129,7 +129,7 @@
 
             <!-- 🔥 CIDADE (com autocomplete, filtrada pelo país) -->
             <div class="menu-section">
-              <label class="menu-label">📍 Cidade</label>
+              <label class="menu-label"><i class="pi pi-map"></i> Cidade</label>
               <div ref="cityWrapperRef" class="autocomplete-wrapper">
                 <input
                     v-model="newParkCity"
@@ -156,7 +156,7 @@
 
             <!-- 🔥 BUFFERS CONFIG -->
             <div class="menu-section">
-              <label class="menu-label">📐 Configuração dos Buffers</label>
+              <label class="menu-label"><i class="pi pi-sitemap"></i> Configuração dos Buffers</label>
               <div class="buffer-config">
                 <div class="buffer-field">
                   <label for="numBuffers">Número de anéis</label>
@@ -187,7 +187,7 @@
 
             <!-- 🔥 PERÍODO DE ANÁLISE -->
             <div class="menu-section">
-              <label class="menu-label">📅 Período de Análise</label>
+              <label class="menu-label"><i class="pi pi-calendar"></i> Período de Análise</label>
 
               <!-- 🔥 DATA DE INÍCIO (SEMPRE OBRIGATÓRIA) -->
               <div class="date-range">
@@ -210,7 +210,7 @@
                 </template>
 
                 <!-- 🔥 INDICADOR DE ATUALIZADO -->
-                <span v-else class="date-hint">📡 até a imagem mais recente</span>
+                <span v-else class="date-hint"><i class="pi pi-satellite"></i> até a imagem mais recente</span>
               </div>
 
               <!-- 🔥 TOGGLE: Manter atualizado -->
@@ -222,7 +222,7 @@
 
             <!-- 🔥 SATÉLITES (Multiselect) -->
             <div class="menu-section">
-              <label class="menu-label">🛰️ Satélites</label>
+              <label class="menu-label"><i class="pi pi-satellite"></i> Satélites</label>
               <div class="satellite-select-wrapper">
                 <MultiSelect
                     v-model="selectedSatellites"
@@ -250,21 +250,21 @@
                 </small>
               </div>
             </div>
+
             <!-- 🔥 GEOMETRIA MANUAL -->
             <div class="menu-section">
               <div class="geometry-manual-header">
-                <label class="menu-label">📍 Geometria Manual</label>
+                <label class="menu-label"><i class="pi pi-pencil"></i> Geometria Manual</label>
                 <Button
                     :loading="drawingMode"
+                    class="geometry-btn"
                     icon="pi pi-pencil"
                     label="Desenhar no Mapa"
                     severity="secondary"
                     size="small"
-                    class="geometry-btn"
                     @click="toggleDrawingMode"
                 />
               </div>
-
 
               <!-- LISTA DE PONTOS -->
               <div v-if="manualPoints.length > 0" class="points-list">
@@ -273,7 +273,6 @@
                     :key="index"
                     class="point-item"
                 >
-                  <!-- 🔥 NÚMERO DO PONTO -->
                   <span class="point-number">{{ index + 1 }}</span>
                   <span class="point-coords">
                     {{ point.lat.toFixed(6) }}, {{ point.lon.toFixed(6) }}
@@ -290,12 +289,13 @@
               </div>
 
               <small v-else class="geometry-hint">
+                <i class="pi pi-info-circle"></i>
                 Clique no botão acima e depois clique no mapa para adicionar pontos
               </small>
             </div>
+
             <div v-if="drawingMode" class="points-actions">
               <Button
-
                   icon="pi pi-times"
                   label="Cancelar"
                   severity="danger"
@@ -310,6 +310,7 @@
                   @click="useManualGeometry"
               />
             </div>
+
             <div class="menu-actions">
               <Button
                   fluid
@@ -351,7 +352,7 @@
         v-if="results.length"
         :badge="results.length"
         :defaultExpanded="true"
-        icon="📋"
+        icon="pi pi-list"
         title="Resultados"
     >
       <div
@@ -360,9 +361,18 @@
           class="result-item"
           @click="handleSelect(item)"
       >
-        <div class="result-name">🌳 {{ item.tags?.name || item.name || 'Parque sem nome' }}</div>
-        <div class="result-location">{{ item.city }}, {{ item.country }}</div>
-        <div class="result-osm-id">ID: {{ item.osm_id }}</div>
+        <div class="result-name">
+          <i class="pi pi-tree"></i>
+          {{ item.tags?.name || item.name || 'Parque sem nome' }}
+        </div>
+        <label class="result-location">
+          <i class="pi pi-map-marker"></i>
+          {{ item.city }}, {{ item.country }}
+        </label>
+        <label class="result-osm-id">
+          <i class="pi pi-tag"></i>
+          ID: {{ item.osm_id }}
+        </label>
       </div>
     </CollapsibleCard>
 
@@ -370,12 +380,15 @@
     <CollapsibleCard
         v-if="showStats && coolingData"
         :defaultExpanded="true"
-        icon="📊"
+        icon="pi pi-chart-bar"
         title="Análise Térmica"
     >
       <!-- RESULTADOS DA ANÁLISE -->
       <div class="stats-header">
-        <h4>🌳 {{ parkName }}</h4>
+        <h4>
+          <i class="pi pi-tree"></i>
+          {{ parkName }}
+        </h4>
         <Tag
             :severity="coolingData.success ? 'success' : 'danger'"
             :value="coolingData.success ? 'OK' : 'Falha'"
@@ -384,12 +397,13 @@
 
       <!-- 🔥 DATA DA IMAGEM -->
       <div v-if="coolingData.image_date" class="stat-item image-date">
-        <span>📅 Data da Imagem</span>
+        <span><i class="pi pi-calendar"></i> Data da Imagem</span>
         <strong>{{ formatDate(coolingData.image_date) }}</strong>
       </div>
+
       <!-- 🔥 INFO DOS BUFFERS USADOS -->
       <div class="stat-item buffer-info">
-        <span>📐 Buffers</span>
+        <span><i class="pi pi-sitemap"></i> Buffers</span>
         <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
       </div>
 
@@ -402,46 +416,69 @@
         <strong :style="{ color: stat.color }">{{ stat.value }}</strong>
       </div>
 
-
       <div v-if="coolingData.error" class="error-msg">
-        ⚠️ {{ coolingData.error }}
+        <i class="pi pi-exclamation-triangle"></i>
+        {{ coolingData.error }}
       </div>
 
       <!-- PIXELS -->
       <template v-if="coolingData?.buffers">
         <Divider/>
-        <div class="controls">
-          <div class="toggle-wrapper">
-            <Checkbox
-                v-model="showPixels"
-                binary
-                @update:model-value="handleTogglePixels"
-            />
-            <label>Mostrar pixels de temperatura</label>
-          </div>
-
-          <!-- 🔥 CONTROLE DE OPACIDADE -->
-          <div v-if="showPixels" class="opacity-control">
-            <label>Opacidade: {{ Math.round(pixelOpacity * 100) }}%</label>
-            <input
-                :value="pixelOpacity * 100"
-                class="opacity-slider"
-                max="100"
-                min="0"
-                type="range"
-                @input="handleOpacityChange($event)"
-            />
-          </div>
-
-          <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
-            <div class="gradient-header">
-              <span>🌡️ Temperatura</span>
-              <Badge :value="`${totalPixels} px`"/>
+        <div class="pixels-section">
+          <!-- TOGGLE PRINCIPAL -->
+          <div class="pixels-toggle-wrapper">
+            <div class="pixels-toggle-left">
+              <Checkbox
+                  v-model="showPixels"
+                  binary
+                  @update:model-value="handleTogglePixels"
+              />
+              <label class="pixels-toggle-label">
+                <i class="pi pi-th-large pixels-icon"></i>
+                <span>Mostrar pixels de temperatura</span>
+              </label>
             </div>
-            <div class="gradient-bar"></div>
-            <div class="gradient-labels">
-              <span>{{ gradientMin.toFixed(1) }}°C</span>
-              <span>{{ gradientMax.toFixed(1) }}°C</span>
+            <Badge
+                v-if="showPixels"
+                :value="`${totalPixels} px`"
+                class="pixels-badge"
+                severity="info"
+            />
+          </div>
+
+          <!-- CONTROLES EXPANDIDOS -->
+          <div v-if="showPixels" class="pixels-controls">
+            <!-- OPACIDADE -->
+            <div class="opacity-control">
+              <div class="opacity-header">
+                <i class="pi pi-eye opacity-icon"></i>
+                <span class="opacity-label">Opacidade</span>
+                <span class="opacity-value">{{ Math.round(pixelOpacity * 100) }}%</span>
+              </div>
+              <input
+                  :value="pixelOpacity * 100"
+                  class="opacity-slider"
+                  max="100"
+                  min="0"
+                  type="range"
+                  @input="handleOpacityChange($event)"
+              />
+            </div>
+
+            <!-- GRADIENTE DE TEMPERATURA -->
+            <div v-if="gradientMin !== null && gradientMax !== null" class="gradient-legend">
+              <div class="gradient-header">
+                <div class="gradient-header-left">
+                  <i class="pi pi-thermometer gradient-icon"></i>
+                  <span class="gradient-title">Temperatura</span>
+                </div>
+                <Badge :value="`${totalPixels} px`" class="gradient-badge" severity="secondary"/>
+              </div>
+              <div class="gradient-bar"></div>
+              <div class="gradient-labels">
+                <span class="gradient-min">{{ gradientMin.toFixed(1) }}°C</span>
+                <span class="gradient-max">{{ gradientMax.toFixed(1) }}°C</span>
+              </div>
             </div>
           </div>
         </div>
@@ -451,23 +488,52 @@
       <template v-if="coolingData?.buffers">
         <Divider/>
         <div class="buffer-stats">
-          <h4>📊 Anéis</h4>
+          <div class="buffer-header">
+            <h4><i class="pi pi-sitemap buffer-header-icon"></i> Anéis de Temperatura</h4>
+            <span class="buffer-total">{{ coolingData.buffers.length }} anéis</span>
+          </div>
+
           <div class="stats-grid">
             <div
-                v-for="buffer in coolingData.buffers"
+                v-for="(buffer, index) in coolingData.buffers"
                 :key="buffer.distance"
                 :style="{
-                        background: (buffer.statistics?.mean ?? null) !== null
-                            ? `rgba(255, 100, 0, ${Math.max(0, Math.min(1, ((buffer.statistics?.mean ?? 0) - 25) / 10))})`
-                            : '#f5f5f5'
-                    }"
+            background: getBufferGradient(buffer, coolingData.buffers),
+            borderColor: getBufferBorderColor(buffer, coolingData.buffers),
+          }"
+                :title="`${buffer.distance}m - ${buffer.statistics?.mean?.toFixed(1) ?? 'N/A'}°C - ${buffer.statistics?.count ?? 0} pixels`"
                 class="stats-item"
             >
-              <span>{{ buffer.distance }}m</span>
-              <span>{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}°C</span>
-              <span>{{ buffer.statistics?.count ?? 0 }}px</span>
+              <div class="stats-item-header">
+          <span class="stats-distance">
+            <i class="pi pi-arrow-right" style="font-size: 7px;"></i>
+            {{ buffer.distance }}m
+          </span>
+                <span class="stats-badge">{{ index + 1 }}</span>
+              </div>
+
+              <div class="stats-temperature">
+                <span class="stats-value">{{ buffer.statistics?.mean?.toFixed(1) ?? 'N/A' }}</span>
+                <span class="stats-unit">°C</span>
+              </div>
+
+              <div class="stats-pixels">
+                <span>{{ buffer.statistics?.count ?? 0 }}p</span>
+              </div>
+
+              <!-- BARRA DE PROGRESSO RELATIVA -->
+              <div class="stats-bar-wrapper">
+                <div
+                    :style="{
+              width: getBufferPercent(buffer, coolingData.buffers),
+              background: getBufferBarColor(buffer, coolingData.buffers)
+            }"
+                    class="stats-bar"
+                ></div>
+              </div>
             </div>
           </div>
+
         </div>
       </template>
 
@@ -476,76 +542,91 @@
         <Divider/>
 
         <!-- HEADER CLICÁVEL DA SEÇÃO QA -->
-        <div class="qa-section-header" @click="toggleQaSection">
+        <div
+            :class="{ 'qa-collapsed': !isQaExpanded }"
+            class="qa-section-header"
+            @click="toggleQaSection"
+        >
           <div class="qa-section-header-left">
-            <span class="qa-section-icon">📑</span>
+            <i class="pi pi-shield qa-header-icon"></i>
             <span class="qa-section-title">Qualidade da Imagem (QA)</span>
           </div>
           <div class="qa-section-header-right">
-            <span class="qa-section-toggle">{{ isQaExpanded ? '▲' : '▼' }}</span>
+            <i :class="isQaExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" class="qa-toggle-icon"></i>
           </div>
         </div>
 
         <!-- CONTEÚDO QA (EXPANDE/ENCOLHE) -->
         <transition name="expand">
-          <div v-if="isQaExpanded" class="qa-content">
-            <!-- 🔥 QA_PIXEL -->
-            <div v-if="coolingData.qa_pixel" class="qa-section">
-              <div class="qa-header">
-                <span>📊 Avaliação da Qualidade de Pixels</span>
-                <Badge :value="`${coolingData.qa_pixel.total} pixels`"/>
-              </div>
-
-              <div class="qa-types">
-                <div
-                    v-for="(type, key) in coolingData.qa_pixel.types"
-                    :key="key"
-                    class="qa-type-item"
-                >
-                  <div class="qa-type-row">
-                    <span class="qa-emoji">{{ type.emoji || '❓' }}</span>
-                    <span class="qa-description">{{ type.description }}</span>
+          <div v-if="isQaExpanded" class="qa-content-wrapper">
+            <div class="qa-content">
+              <!-- 🔥 QA_PIXEL -->
+              <div v-if="coolingData.qa_pixel" class="qa-section">
+                <div class="qa-header">
+                  <div class="qa-header-left">
+                    <i class="pi pi-chart-pie qa-header-icon"></i>
+                    <span class="qa-header-title">Qualidade dos Pixels</span>
                   </div>
-                  <div class="qa-type-row">
-                    <span class="qa-count">{{ type.count }} px</span>
-                    <ProgressBar
-                        :showValue="false"
-                        :value="type.percent"
-                        class="qa-progress"
-                    />
-                    <span class="qa-percent">{{ type.percent }}%</span>
+                  <Badge :value="`${coolingData.qa_pixel.total} pixels`" severity="info"/>
+                </div>
+
+                <div class="qa-types">
+                  <div
+                      v-for="(type, key) in coolingData.qa_pixel.types"
+                      :key="key"
+                      class="qa-type-item"
+                  >
+                    <div class="qa-type-row">
+                      <span class="qa-emoji">{{ type.emoji || '❓' }}</span>
+                      <span class="qa-description">{{ type.description }}</span>
+                    </div>
+                    <div class="qa-type-row">
+                      <span class="qa-count">{{ type.count }} px</span>
+                      <ProgressBar
+                          :showValue="false"
+                          :value="type.percent"
+                          class="qa-progress"
+                      />
+                      <span class="qa-percent">{{ type.percent }}%</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- 🔥 ST_QA -->
-            <div v-if="coolingData.st_qa" class="qa-section">
-              <Divider/>
-              <div class="qa-header">
-                <span>🌡️ ST_QA (Incerteza da Temperatura)</span>
-                <Badge :value="`${coolingData.st_qa.count} pixels`"/>
-              </div>
+              <!-- 🔥 ST_QA -->
+              <div v-if="coolingData.st_qa" class="qa-section">
+                <Divider/>
+                <div class="qa-header">
+                  <div class="qa-header-left">
+                    <i class="pi pi-gauge qa-header-icon"></i>
+                    <span class="qa-header-title">Incerteza da Temperatura</span>
+                  </div>
+                  <Badge :value="`${coolingData.st_qa.count} pixels`" severity="info"/>
+                </div>
 
-              <div class="st-qa-stats">
-                <div class="st-qa-item">
-                  <span class="st-qa-label">Média</span>
-                  <span :class="getStQaClass(coolingData.st_qa.mean_kelvin)" class="st-qa-value">
-                                {{ coolingData.st_qa.mean_kelvin }} K
-                            </span>
+                <div class="st-qa-stats">
+                  <div class="st-qa-item">
+                    <span class="st-qa-label">Média</span>
+                    <span :class="getStQaClass(coolingData.st_qa.mean_kelvin)" class="st-qa-value">
+                {{ coolingData.st_qa.mean_kelvin }} K
+              </span>
+                  </div>
+                  <div class="st-qa-item">
+                    <span class="st-qa-label">Mínimo</span>
+                    <span class="st-qa-value">{{ coolingData.st_qa.min_kelvin }} K</span>
+                  </div>
+                  <div class="st-qa-item">
+                    <span class="st-qa-label">Máximo</span>
+                    <span class="st-qa-value">{{ coolingData.st_qa.max_kelvin }} K</span>
+                  </div>
                 </div>
-                <div class="st-qa-item">
-                  <span class="st-qa-label">Mínimo</span>
-                  <span class="st-qa-value">{{ coolingData.st_qa.min_kelvin }} K</span>
-                </div>
-                <div class="st-qa-item">
-                  <span class="st-qa-label">Máximo</span>
-                  <span class="st-qa-value">{{ coolingData.st_qa.max_kelvin }} K</span>
-                </div>
-              </div>
 
-              <div :class="getStQaStatus(coolingData.st_qa.mean_kelvin)" class="st-qa-status">
-                {{ getStQaMessage(coolingData.st_qa.mean_kelvin) }}
+                <div :class="getStQaStatus(coolingData.st_qa.mean_kelvin)" class="st-qa-status">
+                  <label>
+                    <i :class="getStatusIcon(coolingData.st_qa.mean_kelvin)"></i>
+                    <span>{{ getStQaMessage(coolingData.st_qa.mean_kelvin) }}</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -800,7 +881,7 @@ function cancelAddParkLocal() {
 }
 
 function addPoint(lat: number, lon: number) {
-  manualPoints.value.push({ lat, lon })
+  manualPoints.value.push({lat, lon})
   emit('pointsUpdated', manualPoints.value)
 }
 
@@ -1113,9 +1194,98 @@ function getStQaStatus(value: number | null | undefined): string {
 
 function getStQaMessage(value: number | null | undefined): string {
   if (value === null || value === undefined) return 'Sem dados'
-  if (value < 3) return '✅ Temperatura confiável (incerteza < 3K)'
-  if (value < 5) return '⚠️ Temperatura com incerteza moderada (3-5K)'
-  return '❌ Temperatura NÃO é confiável (incerteza > 5K)'
+  if (value < 3) return 'Temperatura confiável (incerteza < 3K)'
+  if (value < 5) return 'Temperatura com incerteza moderada (3-5K)'
+  return 'Temperatura NÃO é confiável (incerteza > 5K)'
+}
+
+function getStatusIcon(meanKelvin: number | null | undefined): string {
+  if (meanKelvin === null || meanKelvin === undefined) return 'pi pi-help-circle';
+  if (meanKelvin < 3) return 'pi pi-check-circle';
+  if (meanKelvin < 5) return 'pi pi-exclamation-circle';
+  return 'pi pi-times-circle';
+}
+
+// 🔥 FUNÇÕES PARA CORES RELATIVAS DOS BUFFERS
+
+// 🔥 CALCULA O PERCENTUAL RELATIVO DA TEMPERATURA
+function getRelativeValue(value: number, min: number, max: number): number {
+  if (max === min) return 0.5;
+  return (value - min) / (max - min);
+}
+
+// 🔥 OBTÉM O GRADIENTE RELATIVO
+function getBufferGradient(buffer: any, buffers: any[]): string {
+  const mean = buffer.statistics?.mean;
+  if (mean === null || mean === undefined) return '#f5f5f5';
+
+  const temps = buffers.map(b => b.statistics?.mean ?? 0).filter(t => t > 0);
+  if (temps.length < 2) return '#f5f5f5';
+
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const relative = getRelativeValue(mean, min, max);
+
+  // 🔥 GRADIENTE DO AZUL (MAIS FRIO) PARA VERMELHO (MAIS QUENTE)
+  const r = Math.round(59 + (196 * relative));  // 59 -> 255
+  const g = Math.round(130 - (100 * relative)); // 130 -> 30
+  const b = Math.round(246 - (200 * relative)); // 246 -> 46
+
+  return `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15), rgba(${r}, ${g}, ${b}, 0.25))`;
+}
+
+// 🔥 OBTÉM A COR DA BORDA RELATIVA
+function getBufferBorderColor(buffer: any, buffers: any[]): string {
+  const mean = buffer.statistics?.mean;
+  if (mean === null || mean === undefined) return '#d1d5db';
+
+  const temps = buffers.map(b => b.statistics?.mean ?? 0).filter(t => t > 0);
+  if (temps.length < 2) return '#d1d5db';
+
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const relative = getRelativeValue(mean, min, max);
+
+  const r = Math.round(59 + (196 * relative));
+  const g = Math.round(130 - (100 * relative));
+  const b = Math.round(246 - (200 * relative));
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+// 🔥 OBTÉM A COR DA BARRA RELATIVA
+function getBufferBarColor(buffer: any, buffers: any[]): string {
+  const mean = buffer.statistics?.mean;
+  if (mean === null || mean === undefined) return '#d1d5db';
+
+  const temps = buffers.map(b => b.statistics?.mean ?? 0).filter(t => t > 0);
+  if (temps.length < 2) return '#d1d5db';
+
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const relative = getRelativeValue(mean, min, max);
+
+  // 🔥 GRADIENTE DO AZUL PARA VERMELHO
+  const r = Math.round(59 + (196 * relative));
+  const g = Math.round(130 - (100 * relative));
+  const b = Math.round(246 - (200 * relative));
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+// 🔥 OBTÉM O PERCENTUAL RELATIVO PARA BARRA
+function getBufferPercent(buffer: any, buffers: any[]): string {
+  const mean = buffer.statistics?.mean;
+  if (mean === null || mean === undefined) return '0%';
+
+  const temps = buffers.map(b => b.statistics?.mean ?? 0).filter(t => t > 0);
+  if (temps.length < 2) return '50%';
+
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const relative = getRelativeValue(mean, min, max);
+
+  return `${Math.max(5, Math.min(100, relative * 100))}%`;
 }
 
 </script>
@@ -1136,6 +1306,7 @@ function getStQaMessage(value: number | null | undefined): string {
   max-height: 98vh;
   overflow-y: auto;
 }
+
 
 /* 🔥 CARDS */
 .search-wrapper :deep(.p-card) {
@@ -1206,6 +1377,21 @@ function getStQaMessage(value: number | null | undefined): string {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* 🔥 ESTILO GLOBAL PARA LABELS COM ÍCONES */
+label:has(i, svg, .pi) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 🔥 ALINHA ÍCONES DENTRO DE LABELS */
+label i,
+label svg,
+label .pi {
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
 
 /* 🔥 AUTOCOMPLETE DA PESQUISA (FORA DO CARD, POSIÇÃO FIXA) */
 .autocomplete-list-search {
@@ -1237,7 +1423,7 @@ function getStQaMessage(value: number | null | undefined): string {
 
 .autocomplete-list-search .park-location {
   font-size: 12px;
-  color: #6b7280;
+  color: #575a61;;
 }
 
 /* 🔥 MENU OPÇÕES */
@@ -1254,11 +1440,21 @@ function getStQaMessage(value: number | null | undefined): string {
 }
 
 .menu-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 500;
   color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.menu-label i,
+.menu-label svg {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* 🔥 BUFFER CONFIG */
@@ -1493,6 +1689,14 @@ function getStQaMessage(value: number | null | undefined): string {
 
 }
 
+.stat-item i,
+.buffer-info i,
+.image-date i {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
 .stat-item:last-of-type {
   border-bottom: none !important;
 }
@@ -1506,22 +1710,157 @@ function getStQaMessage(value: number | null | undefined): string {
   margin-top: 4px;
 }
 
-/* CONTROLS */
-.controls {
+/* 🔥 PIXELS SECTION - DESIGN MELHORADO */
+.pixels-section {
+  margin-top: 4px;
+}
+
+/* 🔥 TOGGLE PRINCIPAL */
+.pixels-toggle-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.pixels-toggle-wrapper:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.pixels-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pixels-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2937;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pixels-icon {
+  font-size: 14px;
+  color: #6366f1;
+}
+
+.pixels-badge {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 🔥 CONTROLES EXPANDIDOS */
+.pixels-controls {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  animation: slideDown 0.25s ease;
 }
 
-.toggle-wrapper {
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 🔥 OPACIDADE */
+.opacity-control {
+  padding: 8px 12px;
+  background: #fafbfc;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.opacity-header {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 4px;
 }
 
+.opacity-icon {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.opacity-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563;
+  flex: 1;
+}
+
+.opacity-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 0 8px;
+  border-radius: 10px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.opacity-slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  border-radius: 2px;
+  outline: none;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6366f1;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+  transition: all 0.15s ease;
+}
+
+.opacity-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+.opacity-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6366f1;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+}
+
+/* 🔥 GRADIENTE */
 .gradient-legend {
   padding: 8px 12px;
-  background: #f9fafb;
+  background: #fafbfc;
   border-radius: 6px;
   border: 1px solid #e5e7eb;
 }
@@ -1529,13 +1868,34 @@ function getStQaMessage(value: number | null | undefined): string {
 .gradient-header {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  align-items: center;
   margin-bottom: 4px;
+}
+
+.gradient-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gradient-icon {
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.gradient-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.gradient-badge {
+  font-size: 10px;
 }
 
 .gradient-bar {
   width: 100%;
-  height: 12px;
+  height: 10px;
   border-radius: 4px;
   background: linear-gradient(to right,
   rgb(0, 0, 200),
@@ -1548,46 +1908,191 @@ function getStQaMessage(value: number | null | undefined): string {
   rgb(200, 0, 0)
   );
   border: 1px solid #e5e7eb;
+  margin: 2px 0;
 }
 
 .gradient-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 500;
 }
 
-/* BUFFERS */
-.buffer-stats h4 {
+.gradient-min {
+  color: #3b82f6;
+}
+
+.gradient-max {
+  color: #ef4444;
+}
+
+/* 🔥 RESPONSIVO */
+@media (max-width: 480px) {
+  .pixels-toggle-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .pixels-toggle-left {
+    width: 100%;
+  }
+
+  .pixels-badge {
+    align-self: flex-start;
+  }
+
+  .opacity-control,
+  .gradient-legend {
+    padding: 6px 10px;
+  }
+}
+
+/* 🔥 BUFFERS - ESTILO COMPACTO */
+.buffer-stats {
+  margin-top: 6px;
+}
+
+.buffer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.buffer-header h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
-  margin: 0 0 4px 0;
-  overflow: visible;
-  flex-shrink: 0;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
 }
 
+.buffer-header-icon {
+  font-size: 14px;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.buffer-total {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 1px 10px;
+  border-radius: 10px;
+}
+
+/* 🔥 GRID MAIS COMPACTO */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
-  gap: 4px;
-  overflow-y: visible;
-  margin-bottom: 5px;
+  gap: 5px;
 }
 
+/* 🔥 CARD DO ANEL - MENOR */
 .stats-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px;
-  border-radius: 4px;
-  border: 1px solid #e5e7eb;
+  padding: 4px 4px 6px 4px;
+  border-radius: 6px;
+  border: 1.5px solid #e5e7eb;
+  transition: all 0.2s ease;
+  position: relative;
+  min-height: 52px;
+  background: #fafafa;
+}
+
+.stats-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: #6366f1;
+  z-index: 1;
+}
+
+/* 🔥 HEADER DO ANEL - MENOR */
+.stats-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 1px;
+}
+
+.stats-distance {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.stats-badge {
   font-size: 10px;
-  text-align: center;
-  flex-shrink: 0;
-
+  font-weight: 700;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0 4px;
+  border-radius: 8px;
+  line-height: 14px;
 }
 
-.stats-item span {
-  line-height: 1.4;
+/* 🔥 TEMPERATURA - MENOR */
+.stats-temperature {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  margin: 0;
+  line-height: 1;
 }
+
+.stats-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.1;
+}
+
+.stats-unit {
+  font-size: 9px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* 🔥 PIXELS - MENOR */
+.stats-pixels {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #575a61;
+  margin-top: 1px;
+}
+
+/* 🔥 BARRA DE PROGRESSO - MAIS FINA */
+.stats-bar-wrapper {
+  width: 100%;
+  height: 3px;
+  background: #f3f4f6;
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.stats-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
 
 /* RESPONSIVIDADE */
 @media (max-width: 360px) {
@@ -1611,51 +2116,6 @@ function getStQaMessage(value: number | null | undefined): string {
     flex-direction: column;
     gap: 8px;
   }
-}
-
-/* 🔥 CONTROLE DE OPACIDADE */
-.opacity-control {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0;
-}
-
-.opacity-control label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #4b5563;
-}
-
-.opacity-slider {
-  width: 100%;
-  height: 4px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: linear-gradient(to right, #3b82f6, #8b5cf6);
-  border-radius: 2px;
-  outline: none;
-}
-
-.opacity-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #3b82f6;
-  cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.opacity-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #3b82f6;
-  cursor: pointer;
-  border: 2px solid white;
 }
 
 /* 🔥 TOGGLE UPDATE */
@@ -1825,7 +2285,7 @@ function getStQaMessage(value: number | null | undefined): string {
 }
 
 .qa-progress {
-  width: 180px;
+  width: 150px;
   height: 6px;
   border-radius: 3px;
 }
@@ -1963,67 +2423,154 @@ function getStQaMessage(value: number | null | undefined): string {
   }
 }
 
-/* 🔥 QA SECTION HEADER (CLICÁVEL) */
+/* 🔥 QA SECTION HEADER (CLICÁVEL) - MAIS VISÍVEL */
 .qa-section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  background: #f8fafc;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8edf5 100%);
+  border: 2px solid #c7d2fe;
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   user-select: none;
-  border-radius: 8px;
-  margin-top: 8px;
+  margin: 12px 0 4px 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .qa-section-header:hover {
-  background: #eef2ff;
-  color: #1f2937;
+  background: linear-gradient(135deg, #e8edff 0%, #dce3f5 100%);
+  border-color: #818cf8;
+  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.15);
+  transform: translateY(-1px);
 }
 
 .qa-section-header:active {
   transform: scale(0.98);
 }
 
+.qa-section-header.qa-collapsed {
+  background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f5 100%);
+  border-color: #d1d5db;
+}
+
+.qa-section-header.qa-collapsed:hover {
+  background: linear-gradient(135deg, #f1f3f5 0%, #e5e7eb 100%);
+  border-color: #9ca3af;
+}
+
 .qa-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qa-header-icon {
+  font-size: 20px;
+  color: #6366f1;
+  background: white;
+  padding: 6px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.15);
+}
+
+.qa-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.qa-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+}
+
+.qa-section-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.qa-section-icon {
-  font-size: 16px;
+.qa-toggle-icon {
+  font-size: 18px;
+  color: #6366f1;
+  transition: transform 0.3s ease;
+  font-weight: 700;
 }
 
-.qa-section-title {
-  font-weight: 600;
-}
-
-
-.qa-section-header-right {
-  display: flex;
-  align-items: center;
-}
-
-.qa-section-toggle {
+.qa-toggle-label {
   font-size: 12px;
   color: #6b7280;
-  transition: transform 0.3s;
+  font-weight: 500;
 }
 
-/* 🔥 CONTEÚDO QA */
-.qa-content {
-  padding-top: 12px;
+/* 🔥 WRAPPER DO CONTEÚDO EXPANSÍVEL */
+.qa-content-wrapper {
+  background: #fafbfc;
+  border-radius: 8px;
+  padding: 4px;
+  margin-top: 4px;
+  border: 1px solid #e5e7eb;
 }
 
-
-/* 🔥 CONTEÚDO QA */
 .qa-content {
-  padding-top: 8px;
+  padding: 8px 12px 12px 12px;
+}
+
+/* 🔥 HEADERS DAS SEÇÕES INTERNAS */
+.qa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0 8px 0;
+}
+
+.qa-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qa-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* 🔥 RESPONSIVIDADE */
+@media (max-width: 480px) {
+  .qa-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+
+  .qa-section-header-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .qa-toggle-label {
+    font-size: 11px;
+  }
+}
+
+/* 🔥 TRANSIÇÃO SUAVE */
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.3s ease;
+  max-height: 1000px;
+  overflow: hidden;
+  opacity: 1;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 
 

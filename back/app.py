@@ -479,7 +479,7 @@ def search_park():
 
 
 # ============================================================
-# 🔥 INICIA SERVIDOR COM WAITRESS (PRODUÇÃO)
+# 🔥 INICIA SERVIDOR
 # ============================================================
 if __name__ == '__main__':
     with app.app_context():
@@ -490,33 +490,21 @@ if __name__ == '__main__':
 
     print('')
     print('=' * 50)
-    print('🚀 Iniciando servidor Digital Twin com WAITRESS...')
+    print('🚀 Iniciando servidor Digital Twin (DESENVOLVIMENTO)')
     print(f'📁 Projeto: {Config.PROJECT_ID}')
     print(f'📡 Ditto: {Config.DITTO_URL}')
     print('=' * 50)
     print('')
-    print('📡 Endpoints disponíveis:')
-    print('   - GET  /                    (informações)')
-    print('   - GET  /health              (status)')
-    print('   - GET  /api/park/search     (buscar parques)')
-    print('   - POST /api/park/polygon    (buscar polígono)')
-    print('   - POST /api/park/analyze    (analisar cooling island)')
-    print('   - POST /park-cooling        (compatibilidade)')
-    print('')
+    print('🔄 Servidor: FLASK (desenvolvimento)')
+    print('📝 Auto-reload ATIVADO - modifique e salve que reinicia!')
     print('🧪 Teste: http://localhost:3001/health')
     print('=' * 50)
     print('')
 
-    # 🔥 SUBSTITUINDO app.run() POR WAITRESS
-    from waitress import serve
-
-    serve(
-        app,
+    # 🔥 USA FLASK PARA DESENVOLVIMENTO LOCAL
+    app.run(
         host='0.0.0.0',
         port=3001,
-        threads=8,  # Número de threads
-        connection_limit=1000,  # Máximo de conexões simultâneas
-        channel_timeout=1000,  # Timeout em segundos
-        clear_untrusted_proxy_headers=True,  # Segurança
-        ident='DigitalTwin/1.0'  # Identificação do servidor
+        debug=True,
+        threaded=True
     )

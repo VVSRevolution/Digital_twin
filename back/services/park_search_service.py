@@ -46,7 +46,7 @@ class ParkSearchService:
 
             # 3. BUSCAR NO OVERPASS (COM RETRY)
             try:
-                overpass_results = OverpassService.search_park(query, city, country)
+                overpass_results = OverpassService.search_park(query, city, country, osm_id)
             except Exception as e:
                 return {
                     'success': False,
