@@ -76,7 +76,10 @@
           <template v-if="isAddingPark">
             <!-- 🔥 PARQUE (com autocomplete) -->
             <div class="menu-section">
-              <label class="menu-label"><i class="pi pi-tree"></i> Nome do Parque</label>
+              <label class="menu-label">
+                <Tree :size="16"/>
+                <span>Nome do Parque</span>
+              </label>
               <div class="autocomplete-wrapper">
                 <input
                     v-model="newParkName"
@@ -222,7 +225,11 @@
 
             <!-- 🔥 SATÉLITES (Multiselect) -->
             <div class="menu-section">
-              <label class="menu-label"><i class="pi pi-satellite"></i> Satélites</label>
+
+              <label class="menu-label">
+                <Satellite :size="16"/>
+                <span>Satélites</span>
+              </label>
               <div class="satellite-select-wrapper">
                 <MultiSelect
                     v-model="selectedSatellites"
@@ -323,7 +330,6 @@
                   fluid
                   icon="pi pi-check"
                   label="Cadastrar"
-                  severity="success"
                   @click="confirmAddPark"
               />
             </div>
@@ -361,10 +367,10 @@
           class="result-item"
           @click="handleSelect(item)"
       >
-        <div class="result-name">
-          <i class="pi pi-tree"></i>
-          {{ item.tags?.name || item.name || 'Parque sem nome' }}
-        </div>
+        <label class="result-name">
+          <Tree :size="16"/>
+          <span>{{ item.tags?.name || item.name || 'Parque sem nome' }}</span>
+        </label>
         <label class="result-location">
           <i class="pi pi-map-marker"></i>
           {{ item.city }}, {{ item.country }}
@@ -386,8 +392,10 @@
       <!-- RESULTADOS DA ANÁLISE -->
       <div class="stats-header">
         <h4>
-          <i class="pi pi-tree"></i>
-          {{ parkName }}
+          <label>
+            <Tree :size="16"/>
+            <span>{{ parkName }}</span>
+          </label>
         </h4>
         <Tag
             :severity="coolingData.success ? 'success' : 'danger'"
@@ -404,7 +412,7 @@
       <!-- 🔥 INFO DOS BUFFERS USADOS -->
       <div class="stat-item buffer-info">
         <span><i class="pi pi-sitemap"></i> Buffers</span>
-        <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 90 }}m</strong>
+        <strong>{{ coolingData.num_buffers || 11 }} anéis × {{ coolingData.buffer_distance || 30 }}m</strong>
       </div>
 
       <div
@@ -638,6 +646,7 @@
 </template>
 
 <script lang="ts" setup>
+import {Satellite, Tree} from 'reicon-vue';
 import {onMounted, ref, watch} from 'vue'
 import {
   analyzeParkCooling,
@@ -657,7 +666,7 @@ import {useParkMenu} from '~/composables/useParkMenu'
 import {debounce} from '@/utils/parkSearchUtils'
 import type {AddParkData, CitySuggestion, CountrySuggestion, ParkSuggestion} from '@/types/parkSearch'
 import {fetchSatellites} from "~/services/satelliteService";
-import {searchPark} from "~/services/parkService";
+import {searchPark, type SearchParkParams} from "~/services/parkService";
 
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 const {parkSuggestions, showParkSuggestions, searchParks, hideSuggestions: hideParkSuggestions} = useParkSearch()
@@ -720,6 +729,7 @@ const props = defineProps<{
   gradientMin: number | null
   gradientMax: number | null
   totalPixels: number
+  manualGeometry?: any
 }>()
 
 // EMITS
@@ -1080,6 +1090,7 @@ async function confirmAddPark() {
 
   try {
     let osmId = selectedParkData.value?.osm_id ?? null
+    let geometryToSend = null
 
     // 🔥 SE NÃO TIVER OSM_ID, BUSCA NO NOMINATIM
     if (!osmId) {
@@ -1103,18 +1114,44 @@ async function confirmAddPark() {
       selectedParkData.value = selected
     }
 
+
+    // 🔥 PRIORIDADE: GEOMETRIA MANUAL
+    if (manualPoints.value.length >= 3) {
+      const coords: number[][] = manualPoints.value.map(p => [p.lon, p.lat])
+
+      const firstPoint = coords[0]
+      if (!firstPoint) {
+        handleError('Erro ao criar geometria: primeiro ponto não encontrado')
+        return
+      }
+
+      coords.push(firstPoint)
+
+      geometryToSend = {
+        type: 'Polygon' as const,
+        coordinates: [coords]
+      }
+    }
+
     // 🔥 VERIFICA SE TEM OSM_ID ANTES DE ENVIAR
-    if (!osmId) {
-      handleError('Não foi possível obter o ID do parque')
+    if (!geometryToSend && !osmId) {
+      handleError('Não foi possível obter o ID do parque ou geometria manual')
       return
     }
-    // 🔥 ENVIA PARA O BACKEND
-    const result = await searchPark({
+
+    const payload: SearchParkParams = {
       query: name,
       city: city,
       country: country,
-      osm_id: osmId ?? undefined,
-    })
+    }
+    if (osmId) {
+      payload.osm_id = osmId
+    }
+    if (geometryToSend) {
+      payload.geometry = geometryToSend
+    }
+    // 🔥 ENVIA PARA O BACKEND
+    const result = await searchPark(payload)
 
     if (!result.results || result.results.length === 0) {
       handleError('Parque não encontrado no backend')

@@ -454,12 +454,31 @@ def search_park():
         city = data.get('city', '')
         country = data.get('country', 'Brasil')
         osm_id = data.get('osm_id')
-
-        if osm_id:
-            osm_id = str(osm_id)
+        geometry = data.get('geometry')
 
         if not query or len(query) < 2:
             return jsonify({'results': []})
+
+        # 🔥 SE TIVER GEOMETRIA, USA ELA DIRETO
+        if geometry:
+            print(f"📐 Usando geometria manual para: {query}")
+            # 🔥 CRIA UM PARQUE COM A GEOMETRIA MANUAL
+            park = DatabaseService.save_park(
+                name=query,
+                country=country or "Brazil",
+                geometry=geometry,
+                city=city,
+                osm_id=osm_id or None,
+                osm_type='manual',
+                tags={'name': query, 'source': 'manual'}
+            )
+            return jsonify({
+                'success': True,
+                'source': 'manual',
+                'results': [park.to_dict()]
+            })
+        if osm_id:
+            osm_id = str(osm_id)
 
         result = ParkSearchService.search(query, city, country, osm_id)
 

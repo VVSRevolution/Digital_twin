@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
-import {searchPark} from "~/services/parkService"
+import {searchPark, type SearchParkParams} from "~/services/parkService"
 import {analyzeParkCooling, getParkAnalyses, getParkAnalysesList, getParkAnalysisDetail} from "~/services/eeService"
 import Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
@@ -11,7 +11,7 @@ import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
-import type {CoolingAnalysisResult, SearchParkResult} from '~/types'
+import type {CoolingAnalysisResult, ParkGeometry, SearchParkResult} from '~/types'
 import {Overlay} from "ol";
 import {Polygon} from "ol/geom";
 import type {ParkSuggestion} from "~/types/parkSearch";
@@ -48,6 +48,7 @@ let parkFeature: Feature<Geometry> | null = null
 let pixelLayer: any = null
 let fromLonLat: (coord: number[]) => number[]
 const format = new GeoJSON()
+const manualGeometry = ref<ParkGeometry | null>(null)
 // ===== CONTROLE DO SATÉLITE =====
 const showSatellite = ref(false)
 const currentSatellite = ref<'arcgis' | 'google'>('arcgis')
@@ -260,7 +261,7 @@ async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometr
 
         updateCoolingData(data)
         const numBuffers = data.num_buffers || 11
-        const bufferDistance = data.buffer_distance || 90
+        const bufferDistance = data.buffer_distance || 30
         drawBuffers(feature, vectorSource, numBuffers, bufferDistance)
         handleSuccess(`Análise do parque "${park.name}" carregada!`)
         isSearching.value = false
@@ -512,9 +513,7 @@ async function addPixelLayer(buffers: any[]) {
 
 // ===== FUNÇÃO DE BUSCA =====
 async function searchPlace(selectedParkData: ParkSuggestion | null | undefined) {
-  console.log("searchPlace")
   if (!search.value || loading.value || isSearching.value) return
-  // results.value = []
 
   loading.value = true
   isSearching.value = true
@@ -531,15 +530,25 @@ async function searchPlace(selectedParkData: ParkSuggestion | null | undefined) 
   }
 
   try {
-    const data = await searchPark({
+
+    const payload: SearchParkParams = {
       query: search.value,
-      city: selectedParkData?.city || '',
-      country: selectedParkData?.country || 'Brazil',
-      osm_id: selectedParkData?.osm_id || undefined
-    })
+      country: selectedParkData?.country || 'Brazil'
+    }
+
+    if (selectedParkData?.city) {
+      payload.city = selectedParkData.city
+    }
+    if (selectedParkData?.osm_id) {
+      payload.osm_id = selectedParkData.osm_id
+    }
+    if (manualGeometry.value) {
+      payload.geometry = manualGeometry.value
+    }
+
+    const data = await searchPark(payload)
 
     const elements = data.results || []
-    // results.value = elements
 
     if (elements.length === 0) {
       handleInfo('Nenhum parque encontrado')
@@ -589,8 +598,6 @@ onMounted(async () => {
   const VectorLayer = (await import("ol/layer/Vector")).default
   const VectorSource = (await import("ol/source/Vector")).default
   const proj = await import("ol/proj")
-
-
 
 
   fromLonLat = proj.fromLonLat
@@ -742,8 +749,6 @@ function stopDrawing() {
 // 🔥 ADICIONAR UMA CAMADA PARA OS PONTOS TEMPORÁRIOS
 let tempPointsLayer: any = null
 let tempPolygonLayer: any = null
-let tempPointsSource: any = null
-let tempPolygonSource: any = null
 
 // 🔥 FUNÇÃO PARA DESENHAR PONTOS TEMPORÁRIOS NO MAPA
 async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
@@ -799,7 +804,7 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
       text: new TextStyle({
         text: String(index + 1),
         font: 'bold 11px "Titillium Web", Arial, sans-serif',
-        fill: new FillStyle({ color: '#ffffff' }),
+        fill: new FillStyle({color: '#ffffff'}),
         stroke: new StrokeStyle({
           color: 'rgba(0,0,0,0.3)',
           width: 2
@@ -878,29 +883,36 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
   }
 }
 
+function createManualGeometry(points: Array<{ lat: number; lon: number }>): ParkGeometry | null {
+  if (points.length < 3) return null
+
+  const coords = points.map(p => [p.lon, p.lat])
+
+  const firstPoint = coords[0]
+  if (!firstPoint) return null
+
+  coords.push(firstPoint)
+  return {
+    type: 'Polygon',
+    coordinates: [coords] as number[][][]
+  }
+}
+
 function handlePointsUpdated(points: Array<{ lat: number; lon: number }>) {
   manualPoints.value = points
   updateTempPoints(points)
-}
 
-// 🔥 MODIFICAR A FUNÇÃO addPoint PARA ATUALIZAR O MAPA
-function addPointToMap(lat: number, lon: number) {
-  manualPoints.value.push({ lat, lon })
-  updateTempPoints(manualPoints.value)
-}
-
-
-// 🔥 FUNÇÃO PARA LIMPAR OS PONTOS TEMPORÁRIOS
-function clearTempPoints() {
-  if (tempPointsLayer) {
-    map.removeLayer(tempPointsLayer)
-    tempPointsLayer = null
-  }
-  if (tempPolygonLayer) {
-    map.removeLayer(tempPolygonLayer)
-    tempPolygonLayer = null
+  if (points.length >= 3) {
+    const geometry = createManualGeometry(points)
+    if (geometry) {
+      manualGeometry.value = geometry
+    }
+  } else {
+    manualGeometry.value = null
   }
 }
+
+
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
   if (searchTimeout) {
@@ -949,14 +961,14 @@ onUnmounted(() => {
           :results="results"
           :showStats="showStats"
           :totalPixels="totalPixels"
+          @pointsUpdated="handlePointsUpdated"
           @search="searchPlace"
           @select="selectPark"
+          @startDrawing="startDrawing"
+          @stopDrawing="stopDrawing"
           @togglePixels="togglePixels"
           @updateCoolingData="updateCoolingData"
           @updateOpacity="updatePixelOpacity"
-          @startDrawing="startDrawing"
-          @stopDrawing="stopDrawing"
-          @pointsUpdated="handlePointsUpdated"
       />
 
       <TimelineOverlay

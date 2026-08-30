@@ -13,11 +13,29 @@ class ParkSearchService:
             query: str,
             city: Optional[str] = None,
             country: Optional[str] = None,
-            osm_id: Optional[str] = None
+            osm_id: Optional[str] = None,
+            geometry: Optional[dict] = None  # 🔥 ADICIONADO
     ):
-        """Busca parque: DB primeiro, depois Overpass"""
+        """Busca parque: DB primeiro, depois Overpass, ou usa geometria manual"""
 
         try:
+            # 🔥 PRIORIDADE 0: GEOMETRIA MANUAL
+            if geometry:
+                print(f"📐 Usando geometria manual para: {query}")
+                park = DatabaseService.save_park(
+                    name=query,
+                    country=country or "Brazil",
+                    geometry=geometry,
+                    city=city,
+                    osm_id=None,
+                    osm_type='manual',
+                    tags={'name': query, 'source': 'manual'}
+                )
+                return {
+                    'success': True,
+                    'source': 'manual',
+                    'results': [park.to_dict()]
+                }
 
             # 🔥 1. BUSCAR NO DB POR OSM_ID
             if osm_id:

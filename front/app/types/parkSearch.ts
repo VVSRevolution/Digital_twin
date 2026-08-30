@@ -1,6 +1,8 @@
+//types/parkSearch.ts
 /**
  * Tipos e Interfaces para o sistema de busca de parques
  */
+import type {ParkGeometry} from "~/types/index";
 
 export interface ParkSuggestion {
     id: number
@@ -12,6 +14,7 @@ export interface ParkSuggestion {
     lat: number
     lon: number
     display_name: string
+    geometry?: ParkGeometry
 }
 
 export interface CountrySuggestion {
@@ -35,7 +38,7 @@ export interface AddParkData {
     country: string
     startDate: string | null
     endDate: string | null
-    geometry?: any
+    geometry?: ParkGeometry
     isUpToDate?: boolean
     satellites?: string[]
     numBuffers?: number

@@ -1,11 +1,12 @@
 // services/parkService.ts
-import type { SearchParkResult} from "~/types";
+import type {ParkGeometry, SearchParkResult} from "~/types";
 
 export interface SearchParkParams {
     query: string
     city?: string
     country?: string
     osm_id?: number | null
+    geometry?: ParkGeometry
 }
 
 
@@ -15,10 +16,11 @@ export interface SearchParkResponse {
     results: SearchParkResult[]
     error?: string
 }
+
 function getApiUrl() {
     if (import.meta.client) {
         try {
-            const { getApiUrl } = useApiConfig()
+            const {getApiUrl} = useApiConfig()
             return getApiUrl()
         } catch (e) {
             const config = useRuntimeConfig()
@@ -28,6 +30,7 @@ function getApiUrl() {
     const config = useRuntimeConfig()
     return config.public.apiUrl || 'http://localhost:3001'
 }
+
 /**
  * Busca parques no backend (que consulta DB + Overpass)
  */
@@ -38,12 +41,7 @@ export async function searchPark(params: SearchParkParams): Promise<SearchParkRe
         const response = await fetch(`${getApiUrl()}/api/park/search`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                query: params.query,
-                city: params.city || '',
-                country: params.country || 'Brasil',
-                osm_id: params.osm_id || null
-            })
+            body: JSON.stringify(params)
         })
 
         const data = await response.json()

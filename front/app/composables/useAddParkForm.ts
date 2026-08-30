@@ -23,7 +23,7 @@ export function useAddParkForm() {
     const isUpToDate = ref(true)
     const selectedSatellites = ref<string[]>([''])
     const newNumBuffers = ref(11)
-    const newBufferDistance = ref(90)
+    const newBufferDistance = ref(30)
 
     function resetForm() {
         newParkName.value = ''
@@ -35,7 +35,7 @@ export function useAddParkForm() {
         isUpToDate.value = true
         selectedSatellites.value = ['Landsat 8']
         newNumBuffers.value = 11
-        newBufferDistance.value = 90
+        newBufferDistance.value = 30
     }
 
     function startAddPark() {
