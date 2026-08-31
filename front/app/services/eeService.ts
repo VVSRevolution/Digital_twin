@@ -1,17 +1,17 @@
 import {useNotifications} from '~/composables/useErrorHandler'
-import type {CoolingAnalysisResult, ParkGeometry, ParkListResponse,} from '~/types'
-import type {SearchParkResult} from "~/services/parkService";
+import type {CoolingAnalysisResult, ParkGeometry, ParkListResponse, SearchParkResult,} from '~/types'
 
 function getApiUrl() {
     // No cliente, usa o composable
     if (import.meta.client) {
-        const { getApiUrl } = useApiConfig()
+        const {getApiUrl} = useApiConfig()
         return getApiUrl()
     }
     // No servidor, fallback
     const config = useRuntimeConfig()
     return config.public.apiUrl || 'http://localhost:3001'
 }
+
 // ===== FUNÇÕES =====
 
 /**

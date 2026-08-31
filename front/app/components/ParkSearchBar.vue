@@ -70,7 +70,21 @@
                 label=" Adicionar Parque"
                 @click="startAddPark"
             />
+            <Button
+                fluid
+                icon="pi pi-trash"
+                label=" Deletar Parque"
+                outlined
+                severity="danger"
+                @click="showDeleteDialog = true"
+            />
           </template>
+
+          <!-- 🔥 DIALOG PARA DELETAR PARQUE -->
+          <ParkDeleteDialog
+              v-model:visible="showDeleteDialog"
+              @deleted="handleParkDeleted"
+          />
 
           <!-- 🔥 MODO CADASTRO: FORMULÁRIO COMPLETO -->
           <template v-if="isAddingPark">
@@ -657,6 +671,7 @@
 </template>
 
 <script lang="ts" setup>
+import ParkDeleteDialog from "~/components/ParkDeleteDialog.vue";
 import {PinRotate, Satellite, SignalStream, Temperature, Tree} from 'reicon-vue';
 import {onMounted, ref, watch} from 'vue'
 import {
@@ -747,6 +762,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'search', selectedPark?: ParkSuggestion | null): void
   (e: 'select', park: SearchParkResult): void
+  (e: 'parkDeleted'): void
   (e: 'addPark', data: AddParkData & { numBuffers: number; bufferDistance: number }): void
   (e: 'refresh'): void
   (e: 'export'): void
@@ -1202,6 +1218,7 @@ function handleSelectPark() {
   }
 }
 
+
 function handleSearch() {
   console.log(selectedParkData.value)
   if (!search.value || search.value.trim().length < 2) {
@@ -1334,6 +1351,26 @@ function getBufferPercent(buffer: any, buffers: any[]): string {
   const relative = getRelativeValue(mean, min, max);
 
   return `${Math.max(5, Math.min(100, relative * 100))}%`;
+}
+
+// ============================================================
+// 🔥 DELETE PARK
+// ============================================================
+const showDeleteDialog = ref(false)
+
+// 🔥 HANDLER PARA QUANDO O PARQUE É DELETADO
+function handleParkDeleted(parkId: number) {
+  loadParks()
+  if (selectedPark.value?.id === parkId) {
+    selectedPark.value = null
+    emit('parkDeleted', parkId)
+  }
+}
+
+// 🔥 FUNÇÃO PARA ABRIR O DIALOG
+
+function openDeleteDialog() {
+  showDeleteDialog.value = true
 }
 
 </script>
@@ -1655,6 +1692,22 @@ label .pi {
   display: flex;
   gap: 8px;
   margin-top: 4px;
+}
+
+.menu-actions-delete {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.menu-actions-delete .p-button {
+  flex: 1;
+}
+
+@media (max-width: 480px) {
+  .menu-actions-delete {
+    flex-direction: column;
+  }
 }
 
 

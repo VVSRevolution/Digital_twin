@@ -912,6 +912,21 @@ function handlePointsUpdated(points: Array<{ lat: number; lon: number }>) {
   }
 }
 
+function handleParkDeleted(parkId: number) {
+  // 🔥 LIMPA OS DADOS DO PARQUE SELECIONADO
+  coolingData.value = null
+  showStats.value = false
+  parkName.value = ''
+
+  if (vectorSource) {
+    vectorSource.clear()
+  }
+  if (pixelLayer) {
+    map.removeLayer(pixelLayer)
+    pixelLayer = null
+  }
+  handleSuccess(`Parque deletado com sucesso!`)
+}
 
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
@@ -961,6 +976,7 @@ onUnmounted(() => {
           :results="results"
           :showStats="showStats"
           :totalPixels="totalPixels"
+          @parkDeleted="handleParkDeleted"
           @pointsUpdated="handlePointsUpdated"
           @search="searchPlace"
           @select="selectPark"
