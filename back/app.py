@@ -195,6 +195,53 @@ def get_park_detail(park_id):
             'error': str(e)
         }), 500
 
+# ============================================================
+# 🔥 ENDPOINT: DELETAR PARQUE E TODAS AS ANÁLISES
+# ============================================================
+@app.route('/api/parks/<int:park_id>', methods=['DELETE'])
+def delete_park(park_id):
+    """Deleta um parque e todas as suas análises"""
+    try:
+        from models import Park, CoolingAnalysis
+
+        # 🔥 BUSCA O PARQUE
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        park_name = park.name
+
+        # 🔥 DELETA AS ANÁLISES PRIMEIRO
+        analyses = CoolingAnalysis.query.filter_by(park_id=park_id).all()
+        analysis_count = len(analyses)
+
+        for analysis in analyses:
+            db.session.delete(analysis)
+
+        # 🔥 DELETA O PARQUE
+        db.session.delete(park)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Parque "{park_name}" e {analysis_count} análises deletados com sucesso',
+            'park_id': park_id,
+            'park_name': park_name,
+            'analyses_deleted': analysis_count
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erro ao deletar parque: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 @app.route('/api/parks/<int:park_id>/analyses/list', methods=['GET'])
 def get_park_analyses(park_id):
@@ -359,6 +406,58 @@ def get_latest_analysis_detail(park_id):
             'error': str(e)
         }), 500
 
+# ============================================================
+# 🔥 ENDPOINT: DELETAR TODAS AS ANÁLISES DE UM PARQUE
+# ============================================================
+@app.route('/api/parks/<int:park_id>/analyses', methods=['DELETE'])
+def delete_all_analyses(park_id):
+    """Deleta todas as análises de um parque"""
+    try:
+        from models import Park, CoolingAnalysis
+
+        # 🔥 VERIFICA SE O PARQUE EXISTE
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        # 🔥 BUSCA TODAS AS ANÁLISES
+        analyses = CoolingAnalysis.query.filter_by(park_id=park_id).all()
+        analysis_count = len(analyses)
+
+        if analysis_count == 0:
+            return jsonify({
+                'success': True,
+                'message': f'Nenhuma análise encontrada para o parque "{park.name}"',
+                'park_id': park_id,
+                'park_name': park.name,
+                'analyses_deleted': 0
+            })
+
+        # 🔥 DELETA TODAS
+        for analysis in analyses:
+            db.session.delete(analysis)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'{analysis_count} análises deletadas do parque "{park.name}"',
+            'park_id': park_id,
+            'park_name': park.name,
+            'analyses_deleted': analysis_count
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erro ao deletar análises: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/parks/<int:park_id>/analyses/<int:analysis_id>', methods=['GET'])
 def get_analysis_detail(park_id, analysis_id):
@@ -446,6 +545,56 @@ def get_analysis_detail(park_id, analysis_id):
         }), 500
 
 
+# ============================================================
+# 🔥 ENDPOINT: DELETAR UMA ANÁLISE ESPECÍFICA
+# ============================================================
+@app.route('/api/parks/<int:park_id>/analyses/<int:analysis_id>', methods=['DELETE'])
+def delete_analysis(park_id, analysis_id):
+    """Deleta uma análise específica"""
+    try:
+        from models import Park, CoolingAnalysis
+
+        # 🔥 VERIFICA SE O PARQUE EXISTE
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        # 🔥 BUSCA A ANÁLISE
+        analysis = CoolingAnalysis.query.filter_by(
+            park_id=park_id,
+            id=analysis_id
+        ).first()
+
+        if not analysis:
+            return jsonify({
+                'success': False,
+                'error': 'Análise não encontrada'
+            }), 404
+
+        # 🔥 DELETA
+        db.session.delete(analysis)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Análise {analysis_id} deletada com sucesso',
+            'analysis_id': analysis_id,
+            'park_id': park_id,
+            'park_name': park.name
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erro ao deletar análise: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/park/search', methods=['POST'])
 def search_park():
     try:
@@ -507,6 +656,12 @@ if __name__ == '__main__':
         DatabaseService.seed_satellites()
         print("✅ Satélites populados!")
 
+        # 🔥 IMPORTA DO CAMINHO CORRETO
+        from test.sensor_service import SensorService
+        result = SensorService.import_all_if_empty()
+        print(f"📊 Sensores: {result['sensors']['message']}")
+        print(f"📊 Temperaturas: {result['temperatures']['message']}")
+
     print('')
     print('=' * 50)
     print('🚀 Iniciando servidor Digital Twin (DESENVOLVIMENTO)')
@@ -519,6 +674,8 @@ if __name__ == '__main__':
     print('🧪 Teste: http://localhost:3001/health')
     print('=' * 50)
     print('')
+
+
 
     # 🔥 USA FLASK PARA DESENVOLVIMENTO LOCAL
     app.run(
