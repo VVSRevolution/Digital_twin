@@ -35,3 +35,4 @@ geojson==3.3.0
 
 # 🔥 (Opcional) Para melhor performance
 geographiclib==2.0
+pytz>=2024.1
