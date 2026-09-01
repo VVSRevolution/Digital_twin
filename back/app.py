@@ -646,6 +646,100 @@ def search_park():
         }), 500
 
 
+@app.route('/api/sensors', methods=['GET'])
+def get_all_sensors():
+    """Retorna todos os sensores com localização e temperatura."""
+    try:
+        from models import Sensor, TemperatureReading
+
+        datetime_param = request.args.get('datetime')
+
+        sensors = Sensor.query.order_by(Sensor.name).all()
+
+        if not sensors:
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'sensors': []
+            })
+
+        sensor_ids = [sensor.id for sensor in sensors]
+        readings = {}
+
+        if datetime_param:
+            try:
+                target_datetime = datetime.fromisoformat(datetime_param)
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de datetime inválido. Use YYYY-MM-DDTHH:MM:SS'
+                }), 400
+
+            # Busca todas as leituras anteriores ou iguais à data/hora solicitada.
+            # Depois mantém somente a mais recente de cada sensor.
+            temperature_readings = TemperatureReading.query.filter(
+                TemperatureReading.sensor_id.in_(sensor_ids),
+                TemperatureReading.timestamp <= target_datetime
+            ).order_by(
+                TemperatureReading.timestamp.desc()
+            ).all()
+
+            for reading in temperature_readings:
+                if reading.sensor_id not in readings:
+                    readings[reading.sensor_id] = {
+                        'temperature': reading.temperature,
+                        'timestamp': reading.timestamp.isoformat()
+                    }
+
+        else:
+            # Sem data/hora: pega a leitura mais recente de cada sensor.
+            temperature_readings = TemperatureReading.query.filter(
+                TemperatureReading.sensor_id.in_(sensor_ids)
+            ).order_by(
+                TemperatureReading.timestamp.desc()
+            ).all()
+
+            for reading in temperature_readings:
+                if reading.sensor_id not in readings:
+                    readings[reading.sensor_id] = {
+                        'temperature': reading.temperature,
+                        'timestamp': reading.timestamp.isoformat()
+                    }
+
+        result = []
+
+        for sensor in sensors:
+            temperature_data = readings.get(sensor.id)
+
+            result.append({
+                'id': sensor.id,
+                'name': sensor.name,
+                'latitude': sensor.latitude,
+                'longitude': sensor.longitude,
+                'altitude': sensor.altitude,
+                'temperature': temperature_data['temperature'] if temperature_data else None,
+                'timestamp': temperature_data['timestamp'] if temperature_data else None
+            })
+
+        return jsonify({
+            'success': True,
+            'count': len(result),
+            'datetime': datetime_param,
+            'sensors': result
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erro ao listar sensores: {e}")
+        traceback.print_exc()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+
 # ============================================================
 # 🔥 INICIA SERVIDOR
 # ============================================================
