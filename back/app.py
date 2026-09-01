@@ -765,18 +765,19 @@ def get_all_sensors():
 # ============================================================
 # 🔥 INICIA SERVIDOR
 # ============================================================
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        print("✅ Tabelas verificadas/criadas!")
-        DatabaseService.seed_satellites()
-        print("✅ Satélites populados!")
+with app.app_context():
+    db.create_all()
+    print("✅ Tabelas verificadas/criadas!")
+    DatabaseService.seed_satellites()
+    print("✅ Satélites populados!")
 
-        # 🔥 IMPORTA DO CAMINHO CORRETO
-        from test.sensor_service import SensorService
-        result = SensorService.import_all_if_empty()
-        print(f"📊 Sensores: {result['sensors']['message']}")
-        print(f"📊 Temperaturas: {result['temperatures']['message']}")
+    # 🔥 IMPORTA DO CAMINHO CORRETO
+    from test.sensor_service import SensorService
+    result = SensorService.import_all_if_empty()
+    print(f"📊 Sensores: {result['sensors']['message']}")
+    print(f"📊 Temperaturas: {result['temperatures']['message']}")
+
+if __name__ == '__main__':
 
     print('')
     print('=' * 50)
