@@ -1,14 +1,17 @@
 # services/sensor_service.py
+from __future__ import annotations
+
 import csv
 import os
-
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from geoalchemy2 import WKTElement
 from shapely.geometry import Point
 from extensions import db
 from models.sensor import Sensor, TemperatureReading
+from pyproj import Transformer
 
 
 class SensorService:
@@ -69,21 +72,31 @@ class SensorService:
 
     @staticmethod
     def import_sensors(csv_path: str, mapping: Dict[str, str]) -> Dict:
-        """Importa sensores de um CSV genérico."""
+        """
+        Importa sensores de um CSV genérico
+        Converte coordenadas de EPSG:27700 para EPSG:4326
+        """
         try:
             imported = 0
             updated = 0
+
+            # 🔥 TRANSFORMADOR: EPSG:27700 (British National Grid) -> EPSG:4326 (WGS84)
+            transformer = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
 
             with open(csv_path, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
 
                 for row in reader:
-                    name = row.get(mapping.get('name', ''), '').strip()
+                    name = row.get(mapping.get('name', '')).strip()
                     if not name:
                         continue
 
-                    lat = float(row.get(mapping.get('latitude', ''), 0))
-                    lon = float(row.get(mapping.get('longitude', ''), 0))
+                    # 🔥 COORDENADAS ORIGINAIS (EPSG:27700 - metros)
+                    x = float(row.get(mapping.get('longitude', ''), 0))  # Easting
+                    y = float(row.get(mapping.get('latitude', ''), 0))   # Northing
+
+                    # 🔥 CONVERTE PARA EPSG:4326 (graus)
+                    lon, lat = transformer.transform(x, y)
 
                     altitude = None
                     if mapping.get('altitude'):
@@ -91,15 +104,17 @@ class SensorService:
                         if alt_val:
                             altitude = float(alt_val)
 
+                    # 🔥 DESCRIÇÃO: JUNTA TUDO QUE NÃO FOI MAPEADO
                     description_parts = []
                     mapped_cols = list(mapping.values())
-
                     for col, value in row.items():
-                        if col not in mapped_cols and value and value.strip():
-                            description_parts.append(f"{col}: {value.strip()}")
+                        if col not in mapped_cols:
+                            if value and value.strip():
+                                description_parts.append(f"{col}: {value.strip()}")
 
                     description = ' | '.join(description_parts) if description_parts else None
 
+                    # 🔥 CRIA OU ATUALIZA
                     sensor = Sensor.query.filter_by(name=name).first()
 
                     if sensor:
@@ -133,32 +148,44 @@ class SensorService:
 
         except Exception as e:
             db.session.rollback()
-            print(f"❌ Erro: {e}", flush=True)
+            print(f"❌ Erro: {e}")
             return {'success': False, 'error': str(e)}
+
 
     @staticmethod
     def import_temperatures(csv_path: str, sensor_id_mapping=None) -> dict:
         """
         Importa temperaturas de um CSV.
-
-        Carrega sensores e leituras existentes uma única vez, compara
-        todos os CSV em memória e só faz INSERT/COMMIT depois de terminar
-        toda a comparação.
+        Só importa se não houver dados no banco.
         """
         try:
+            import pytz
+
+            # 🔥 VERIFICA SE JÁ TEM DADOS
+            existing_count = TemperatureReading.query.count()
+            if existing_count > 0:
+                print(f"✅ Já existem {existing_count:,} leituras no banco. Pulando importação.", flush=True)
+                return {
+                    'success': True,
+                    'imported': 0,
+                    'updated': 0,
+                    'skipped': 0,
+                    'already_exists': existing_count,
+                    'invalid': 0,
+                    'total': existing_count,
+                    'message': f'Já existem {existing_count:,} leituras no banco'
+                }
+
             if sensor_id_mapping is None:
                 sensor_id_mapping = {}
 
+            # 🔥 TIMEZONE DE LONDRES (UK)
+            london_tz = pytz.timezone('Europe/London')
+
+            # 🔥 1. CARREGA SENSORES UMA VEZ
             print("🔎 Carregando sensores do banco...", flush=True)
             sensors = {sensor.name: sensor.id for sensor in Sensor.query.all()}
             print(f"✅ {len(sensors):,} sensores carregados.", flush=True)
-
-            print("🔎 Carregando histórico de temperaturas existente...", flush=True)
-            existing_readings = {
-                (reading.sensor_id, reading.timestamp)
-                for reading in TemperatureReading.query.all()
-            }
-            print(f"✅ {len(existing_readings):,} leituras existentes carregadas.", flush=True)
 
             print(f"📂 Analisando arquivo: {csv_path}", flush=True)
 
@@ -169,17 +196,17 @@ class SensorService:
 
             readings_to_insert = []
             imported = 0
-            already_exists = 0
             skipped = 0
             invalid = 0
             processed_rows = 0
+            insert_batch_size = 1000
 
             with open(csv_path, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
                 sensor_columns = [col for col in reader.fieldnames if col not in ('Time', 'timestamp')]
 
                 print(f"🌡️ Sensores encontrados no CSV: {len(sensor_columns):,}", flush=True)
-                print("🔄 Iniciando comparação com o banco...", flush=True)
+                print("🔄 Iniciando processamento em memória...", flush=True)
 
                 for row_number, row in enumerate(reader, start=1):
                     processed_rows += 1
@@ -188,7 +215,7 @@ class SensorService:
                         percentual = (row_number / total_rows * 100) if total_rows else 100
                         print(
                             f"⏳ Processando: {row_number:,}/{total_rows:,} ({percentual:.2f}%) | "
-                            f"🆕 novas: {imported:,} | ✓ existentes: {already_exists:,} | ⚠️ ignoradas: {skipped:,}",
+                            f"🆕 novas: {imported:,}",
                             flush=True
                         )
 
@@ -198,10 +225,14 @@ class SensorService:
                         continue
 
                     try:
-                        timestamp = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+                        naive_datetime = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+                        local_datetime = london_tz.localize(naive_datetime)
+                        timestamp_utc = local_datetime.astimezone(pytz.UTC)
                     except ValueError:
                         try:
-                            timestamp = datetime.fromisoformat(time_str)
+                            naive_datetime = datetime.fromisoformat(time_str)
+                            local_datetime = london_tz.localize(naive_datetime)
+                            timestamp_utc = local_datetime.astimezone(pytz.UTC)
                         except ValueError:
                             invalid += 1
                             continue
@@ -224,43 +255,35 @@ class SensorService:
                             skipped += 1
                             continue
 
-                        key = (sensor_id, timestamp)
-
-                        if key in existing_readings:
-                            already_exists += 1
-                            continue
-
                         readings_to_insert.append({
                             'sensor_id': sensor_id,
-                            'timestamp': timestamp,
+                            'timestamp': timestamp_utc,
                             'temperature': temperature
                         })
-                        existing_readings.add(key)
                         imported += 1
 
-            print("🏁 Comparação do CSV concluída.", flush=True)
+                        # 🔥 INSERE EM LOTE
+                        if len(readings_to_insert) >= insert_batch_size:
+                            db.session.bulk_insert_mappings(TemperatureReading, readings_to_insert)
+                            db.session.commit()
+                            print(f"💾 Inseridas {imported:,} leituras...", flush=True)
+                            readings_to_insert = []
+
+            # 🔥 INSERE O RESTANTE
+            if readings_to_insert:
+                db.session.bulk_insert_mappings(TemperatureReading, readings_to_insert)
+                db.session.commit()
+
+            print("🏁 Importação concluída!", flush=True)
             print(f"   📊 Linhas processadas: {processed_rows:,}", flush=True)
             print(f"   🆕 Novas leituras: {imported:,}", flush=True)
-            print(f"   ✓ Já existentes: {already_exists:,}", flush=True)
-            print(f"   ⚠️ Ignoradas: {skipped:,}", flush=True)
-            print(f"   ❌ Inválidas: {invalid:,}", flush=True)
-
-            if readings_to_insert:
-                print(f"📥 Inserindo {len(readings_to_insert):,} novas leituras no banco...", flush=True)
-                db.session.bulk_insert_mappings(TemperatureReading, readings_to_insert)
-            else:
-                print("ℹ️ Nenhuma leitura nova para inserir.", flush=True)
-
-            print("💾 Fazendo COMMIT...", flush=True)
-            db.session.commit()
-            print("✅ COMMIT concluído. Importação finalizada!", flush=True)
 
             return {
                 'success': True,
                 'imported': imported,
                 'updated': 0,
                 'skipped': skipped,
-                'already_exists': already_exists,
+                'already_exists': 0,
                 'invalid': invalid,
                 'total': imported
             }
@@ -268,59 +291,10 @@ class SensorService:
         except Exception as e:
             db.session.rollback()
             print(f"❌ Erro durante importação: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return {
                 'success': False,
                 'error': str(e)
             }
 
-    @staticmethod
-    def get_sensors(limit: int = 100, offset: int = 0) -> Dict:
-        try:
-            sensors = Sensor.query.order_by(Sensor.name).limit(limit).offset(offset).all()
-            total = Sensor.query.count()
-
-            return {
-                'success': True,
-                'count': len(sensors),
-                'total': total,
-                'sensors': [s.to_dict() for s in sensors]
-            }
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
-
-    @staticmethod
-    def get_temperatures(
-            sensor_name: str,
-            start_date: Optional[str] = None,
-            end_date: Optional[str] = None,
-            limit: int = 100
-    ) -> Dict:
-        try:
-            sensor = Sensor.query.filter_by(name=sensor_name).first()
-            if not sensor:
-                return {'success': False, 'error': 'Sensor não encontrado'}
-
-            query = TemperatureReading.query.filter_by(sensor_id=sensor.id)
-
-            if start_date:
-                start = datetime.fromisoformat(start_date)
-                query = query.filter(TemperatureReading.timestamp >= start)
-
-            if end_date:
-                end = datetime.fromisoformat(end_date)
-                query = query.filter(TemperatureReading.timestamp <= end)
-
-            readings = query.order_by(
-                TemperatureReading.timestamp.desc()
-            ).limit(limit).all()
-
-            return {
-                'success': True,
-                'sensor': sensor.to_dict(),
-                'count': len(readings),
-                'readings': [r.to_dict() for r in readings]
-            }
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}

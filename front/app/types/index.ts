@@ -42,6 +42,29 @@ export type ParkGeometry = {
     coordinates: number[][][] | number[][][][]
 }
 
+// 🔥 TIPOS PARA SENSORES
+export interface SensorData {
+    id: number
+    name: string
+    latitude: number
+    longitude: number
+    altitude: number | null
+    description: string | null
+    temperature: number | null
+    timestamp: string | null
+    geometry: {
+        type: string
+        coordinates: number[]
+    }
+    created_at: string
+}
+
+export interface TemperatureData {
+    id: number
+    sensor_id: number
+    timestamp: string
+    temperature: number
+}
 // ============================================================
 // 🔥 PARK (UNIFICADO)
 // ============================================================
@@ -285,3 +308,4 @@ export function osmToSearchResult(element: OSMElement): SearchParkResult {
         lon: element.lon
     }
 }
+

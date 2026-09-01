@@ -644,82 +644,108 @@ def search_park():
             'error': str(e),
             'results': []
         }), 500
-
-
 @app.route('/api/sensors', methods=['GET'])
 def get_all_sensors():
-    """Retorna todos os sensores com localização e temperatura."""
+    """Retorna todos os sensores com a temperatura mais recente ou mais próxima da data informada"""
     try:
         from models import Sensor, TemperatureReading
+        from sqlalchemy import func, desc
+        from datetime import datetime, timezone
 
         datetime_param = request.args.get('datetime')
-
         sensors = Sensor.query.order_by(Sensor.name).all()
 
         if not sensors:
-            return jsonify({
-                'success': True,
-                'count': 0,
-                'sensors': []
-            })
+            return jsonify({'success': True, 'count': 0, 'sensors': []})
 
-        sensor_ids = [sensor.id for sensor in sensors]
-        readings = {}
+        result = []
+        sensor_ids = [s.id for s in sensors]
 
+        # 🔥 SE TIVER DATA, BUSCA A MAIS RECENTE ANTERIOR OU IGUAL
         if datetime_param:
             try:
                 target_datetime = datetime.fromisoformat(datetime_param)
+                if target_datetime.tzinfo is None:
+                    target_datetime = target_datetime.replace(tzinfo=timezone.utc)
             except ValueError:
                 return jsonify({
                     'success': False,
                     'error': 'Formato de datetime inválido. Use YYYY-MM-DDTHH:MM:SS'
                 }), 400
 
-            # Busca todas as leituras anteriores ou iguais à data/hora solicitada.
-            # Depois mantém somente a mais recente de cada sensor.
-            temperature_readings = TemperatureReading.query.filter(
-                TemperatureReading.sensor_id.in_(sensor_ids),
-                TemperatureReading.timestamp <= target_datetime
-            ).order_by(
-                TemperatureReading.timestamp.desc()
-            ).all()
+            for sensor in sensors:
+                reading = TemperatureReading.query.filter_by(sensor_id=sensor.id) \
+                    .filter(TemperatureReading.timestamp <= target_datetime) \
+                    .order_by(TemperatureReading.timestamp.desc()) \
+                    .first()
 
-            for reading in temperature_readings:
-                if reading.sensor_id not in readings:
-                    readings[reading.sensor_id] = {
+                if not reading:
+                    reading = TemperatureReading.query.filter_by(sensor_id=sensor.id) \
+                        .order_by(TemperatureReading.timestamp.desc()) \
+                        .first()
+
+                if reading:
+                    result.append({
+                        'id': sensor.id,
+                        'name': sensor.name,
+                        'latitude': sensor.latitude,
+                        'longitude': sensor.longitude,
+                        'altitude': sensor.altitude,
                         'temperature': reading.temperature,
-                        'timestamp': reading.timestamp.isoformat()
-                    }
+                        # 🔥 ADICIONA O Z NO FINAL
+                        'timestamp': reading.timestamp.isoformat() + 'Z'
+                    })
+                else:
+                    result.append({
+                        'id': sensor.id,
+                        'name': sensor.name,
+                        'latitude': sensor.latitude,
+                        'longitude': sensor.longitude,
+                        'altitude': sensor.altitude,
+                        'temperature': None,
+                        'timestamp': None
+                    })
 
+        # 🔥 SEM DATA: PEGA A MAIS RECENTE DE CADA SENSOR
         else:
-            # Sem data/hora: pega a leitura mais recente de cada sensor.
-            temperature_readings = TemperatureReading.query.filter(
-                TemperatureReading.sensor_id.in_(sensor_ids)
-            ).order_by(
-                TemperatureReading.timestamp.desc()
-            ).all()
+            subquery = db.session.query(
+                TemperatureReading.sensor_id,
+                func.max(TemperatureReading.timestamp).label('max_timestamp')
+            ).filter(TemperatureReading.sensor_id.in_(sensor_ids)) \
+                .group_by(TemperatureReading.sensor_id) \
+                .subquery()
 
-            for reading in temperature_readings:
-                if reading.sensor_id not in readings:
-                    readings[reading.sensor_id] = {
+            latest_readings = db.session.query(TemperatureReading) \
+                .join(subquery,
+                      (TemperatureReading.sensor_id == subquery.c.sensor_id) &
+                      (TemperatureReading.timestamp == subquery.c.max_timestamp)) \
+                .all()
+
+            readings_dict = {r.sensor_id: r for r in latest_readings}
+
+            for sensor in sensors:
+                reading = readings_dict.get(sensor.id)
+                if reading:
+                    result.append({
+                        'id': sensor.id,
+                        'name': sensor.name,
+                        'latitude': sensor.latitude,
+                        'longitude': sensor.longitude,
+                        'altitude': sensor.altitude,
                         'temperature': reading.temperature,
-                        'timestamp': reading.timestamp.isoformat()
-                    }
-
-        result = []
-
-        for sensor in sensors:
-            temperature_data = readings.get(sensor.id)
-
-            result.append({
-                'id': sensor.id,
-                'name': sensor.name,
-                'latitude': sensor.latitude,
-                'longitude': sensor.longitude,
-                'altitude': sensor.altitude,
-                'temperature': temperature_data['temperature'] if temperature_data else None,
-                'timestamp': temperature_data['timestamp'] if temperature_data else None
-            })
+                        # 🔥 ADICIONA O Z NO FINAL
+                        'timestamp': reading.timestamp.isoformat() + 'Z'
+                    })
+                else:
+                    result.append({
+                        'id': sensor.id,
+                        'name': sensor.name,
+                        'latitude': sensor.latitude,
+                        'longitude': sensor.longitude,
+                        'altitude': sensor.altitude,
+                        'temperature': None,
+                        'timestamp': None
+                    })
 
         return jsonify({
             'success': True,
@@ -732,14 +758,10 @@ def get_all_sensors():
         db.session.rollback()
         print(f"❌ Erro ao listar sensores: {e}")
         traceback.print_exc()
-
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
-
-
-
 # ============================================================
 # 🔥 INICIA SERVIDOR
 # ============================================================

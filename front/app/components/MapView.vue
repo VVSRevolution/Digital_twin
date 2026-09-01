@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
 import {searchPark, type SearchParkParams} from "~/services/parkService"
+import SensorOverlay from "~/components/SensorOverlay.vue";
 import {analyzeParkCooling, getParkAnalyses, getParkAnalysesList, getParkAnalysisDetail} from "~/services/eeService"
 import Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
@@ -11,7 +12,7 @@ import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
 import ParkSearchBar from "~/components/ParkSearchBar.vue"
-import type {CoolingAnalysisResult, ParkGeometry, SearchParkResult} from '~/types'
+import type {CoolingAnalysisResult, ParkGeometry, SearchParkResult, SensorData} from '~/types'
 import {Overlay} from "ol";
 import {Polygon} from "ol/geom";
 import type {ParkSuggestion} from "~/types/parkSearch";
@@ -928,6 +929,208 @@ function handleParkDeleted(parkId: number) {
   handleSuccess(`Parque deletado com sucesso!`)
 }
 
+// ============================================================
+// 🔥 DESENHAR SENSORES NO MAPA COM TOOLTIP
+// ============================================================
+let sensorsLayer: any = null
+let sensorTooltipOverlay: any = null
+let sensorsVisible = true
+
+async function drawSensorsOnMap(sensors: SensorData[]) {
+  // 🔥 REMOVE CAMADA ANTERIOR E TOOLTIP
+  if (sensorsLayer) {
+    map.removeLayer(sensorsLayer)
+    sensorsLayer = null
+  }
+  if (sensorTooltipOverlay) {
+    map.removeOverlay(sensorTooltipOverlay)
+    sensorTooltipOverlay = null
+  }
+
+  if (!sensors || sensors.length === 0 || !sensorsVisible) return
+
+  const VectorLayer = (await import('ol/layer/Vector')).default
+  const VectorSource = (await import('ol/source/Vector')).default
+  const Feature = (await import('ol/Feature')).default
+  const Point = (await import('ol/geom/Point')).default
+  const Style = (await import('ol/style/Style')).default
+  const CircleStyle = (await import('ol/style/Circle')).default
+  const FillStyle = (await import('ol/style/Fill')).default
+  const StrokeStyle = (await import('ol/style/Stroke')).default
+  const TextStyle = (await import('ol/style/Text')).default
+
+  const source = new VectorSource()
+  const features: any[] = []
+
+  sensors.forEach(sensor => {
+    if (sensor.latitude && sensor.longitude) {
+      const coords = fromLonLat([sensor.longitude, sensor.latitude])
+
+      const feature = new Feature({
+        geometry: new Point(coords),
+        sensor: sensor
+      })
+
+      // 🔥 COR DA TEMPERATURA
+      let color = 'rgba(59, 130, 246, 0.85)'
+      let tempText = '--'
+
+      if (sensor.temperature !== null && sensor.temperature !== undefined) {
+        tempText = sensor.temperature.toFixed(1)
+        if (sensor.temperature < 15) color = 'rgba(59, 130, 246, 0.85)'
+        else if (sensor.temperature < 20) color = 'rgba(16, 185, 129, 0.85)'
+        else if (sensor.temperature < 25) color = 'rgba(245, 158, 11, 0.85)'
+        else if (sensor.temperature < 30) color = 'rgba(249, 115, 22, 0.85)'
+        else color = 'rgba(239, 68, 68, 0.85)'
+      }
+
+      feature.setStyle(new Style({
+        image: new CircleStyle({
+          radius: 18,
+          fill: new FillStyle({
+            color: color
+          }),
+          stroke: new StrokeStyle({
+            color: 'white',
+            width: 2
+          })
+        }),
+        text: new TextStyle({
+          text: tempText,
+          font: 'bold 10px "Titillium Web", sans-serif',
+          fill: new FillStyle({
+            color: 'white'
+          }),
+          stroke: new StrokeStyle({
+            color: 'rgba(0,0,0,0.3)',
+            width: 1
+          }),
+          textAlign: 'center',
+          textBaseline: 'middle'
+        })
+      }))
+
+      features.push(feature)
+    }
+  })
+
+  source.addFeatures(features)
+
+  // 🔥 TOOLTIP - POSIÇÃO ABAIXO DO PONTO (top)
+  const tooltipElement = document.createElement('div')
+  tooltipElement.style.cssText = `
+    position: relative;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.15);
+    font-family: 'Titillium Web', sans-serif;
+    transition: opacity 0.15s ease;
+    opacity: 0;
+    z-index: 1000;
+    max-width: 250px;
+    line-height: 1.4;
+  `
+
+  sensorTooltipOverlay = new Overlay({
+    element: tooltipElement,
+    positioning: 'top-center',  // 🔥 MUDA PARA top-center (aparece em baixo)
+    offset: [0, 10],            // 🔥 OFFSET PARA FICAR ABAIXO
+    stopEvent: false
+  })
+
+  map.addOverlay(sensorTooltipOverlay)
+
+  // 🔥 MOUSEMOVE PARA MOSTRAR TOOLTIP (SÓ SE ESTIVER VISÍVEL)
+  map.on('pointermove', (evt: any) => {
+    // 🔥 SÓ MOSTRA SE OS SENSORES ESTIVEREM VISÍVEIS
+    if (!sensorsVisible) {
+      tooltipElement.style.opacity = '0'
+      sensorTooltipOverlay.setPosition(undefined)
+      return
+    }
+
+    const pixel = evt.pixel
+    const hit = map.forEachFeatureAtPixel(pixel, (feature: any) => {
+      return feature
+    })
+
+    if (hit && hit.get('sensor')) {
+      const sensor = hit.get('sensor')
+      const coordinate = evt.coordinate
+
+      const altitude = sensor.altitude !== null && sensor.altitude !== undefined
+          ? `${sensor.altitude.toFixed(1)}m`
+          : 'N/A'
+
+      const timestamp = sensor.timestamp
+          ? new Date(sensor.timestamp).toLocaleString('pt-BR')
+          : 'N/A'
+
+      tooltipElement.innerHTML = `
+        <strong>${sensor.name}</strong><br>
+        🌡️ ${sensor.temperature !== null ? sensor.temperature.toFixed(1) : '--'}°C<br>
+        📍 ${sensor.latitude.toFixed(4)}, ${sensor.longitude.toFixed(4)}<br>
+        📏 Altitude: ${altitude}<br>
+        🕐 ${timestamp}
+      `
+      tooltipElement.style.opacity = '1'
+      sensorTooltipOverlay.setPosition(coordinate)
+    } else {
+      tooltipElement.style.opacity = '0'
+      sensorTooltipOverlay.setPosition(undefined)
+    }
+  })
+
+  sensorsLayer = new VectorLayer({
+    source: source,
+    zIndex: 15
+  })
+
+  map.addLayer(sensorsLayer)
+
+  // 🔥 AJUSTA A VISÃO
+  if (features.length > 0) {
+    const extent = source.getExtent()
+    map.getView().fit(extent, {
+      padding: [50, 50, 50, 50],
+      duration: 1000
+    })
+  }
+}
+
+// ============================================================
+// 🔥 HANDLER PARA SENSORES ATUALIZADOS
+// ============================================================
+function handleSensorsUpdated(sensors: SensorData[]) {
+  sensorsVisible = true
+  drawSensorsOnMap(sensors)
+}
+
+function handleToggleSensors(show: boolean) {
+  sensorsVisible = show
+  if (!show) {
+    // 🔥 REMOVE OS SENSORES E O TOOLTIP DO MAPA
+    if (sensorsLayer) {
+      map.removeLayer(sensorsLayer)
+      sensorsLayer = null
+    }
+    if (sensorTooltipOverlay) {
+      // 🔥 OCULTA O TOOLTIP
+      const el = sensorTooltipOverlay.getElement()
+      if (el) el.style.opacity = '0'
+      sensorTooltipOverlay.setPosition(undefined)
+    }
+  }
+}
+
+
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
   if (searchTimeout) {
@@ -985,6 +1188,11 @@ onUnmounted(() => {
           @togglePixels="togglePixels"
           @updateCoolingData="updateCoolingData"
           @updateOpacity="updatePixelOpacity"
+      />
+      <!-- 🔥 SENSOR OVERLAY -->
+      <SensorOverlay
+          @sensorsUpdated="handleSensorsUpdated"
+          @toggleSensors="handleToggleSensors"
       />
 
       <TimelineOverlay
@@ -1128,6 +1336,63 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
 }
+/* 🔥 BOTÃO TOGGLE SENSORES */
+:global(.sensor-toggle-btn) {
+  position: absolute !important;
+  bottom: 25px !important;
+  right: 190px !important;
+  z-index: 9999 !important;
 
+  width: 55px !important;
+  height: 55px !important;
+  border-radius: 8px !important;
+  background-color: #ffffff !important;
+  color: #333 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+  font-size: 32px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+:global(.sensor-toggle-btn:hover) {
+  background-color: #f0f0f0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  transform: scale(1.05);
+}
+
+:global(.sensor-toggle-btn:active) {
+  transform: scale(0.95);
+}
+
+/* 🔥 SENSOR TOOLTIP */
+.sensor-toggle-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Titillium Web', sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 10000;
+}
+
+.sensor-toggle-btn:hover::after {
+  opacity: 1;
+}
 
 </style>

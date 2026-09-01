@@ -762,7 +762,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'search', selectedPark?: ParkSuggestion | null): void
   (e: 'select', park: SearchParkResult): void
-  (e: 'parkDeleted'): void
+  (e: 'parkDeleted', parkId: number): void
   (e: 'addPark', data: AddParkData & { numBuffers: number; bufferDistance: number }): void
   (e: 'refresh'): void
   (e: 'export'): void
