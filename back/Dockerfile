@@ -13,4 +13,4 @@ EXPOSE 3001
 EXPOSE 3002
 
 # 🔥 Waitress com 8 threads
-CMD ["python", "-c", "from waitress import serve; frpython:3.12om app import app; serve(app, host='0.0.0.0', port=3001, threads=8)"]
+CMD ["python", "-c", "from waitress import serve; from app import app; serve(app, host='0.0.0.0', port=3001, threads=8)"]
