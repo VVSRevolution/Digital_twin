@@ -7,7 +7,7 @@ from flask_cors import CORS
 
 from config import Config
 from extensions import db, migrate
-from models import Park, CoolingAnalysis, SatelliteSource
+from models import Park, CoolingAnalysis, SatelliteSource, Sensor, TemperatureReading
 from services.analysis_service import AnalysisService
 from services.database_service import DatabaseService
 from services.earth_engine_service import EarthEngineService
