@@ -1,3 +1,4 @@
+//services/eeService.ts
 import {useNotifications} from '~/composables/useErrorHandler'
 import type {CoolingAnalysisResult, ParkGeometry, ParkListResponse, SearchParkResult,} from '~/types'
 
@@ -12,13 +13,85 @@ function getApiUrl() {
     return config.public.apiUrl || 'http://localhost:3001'
 }
 
-// ===== FUNÇÕES =====
+// ============================================================
+// 🔥 FUNÇÕES DE DELETE
+// ============================================================
+
+/**
+ * Deleta um parque e todas as suas análises
+ */
+export async function deletePark(parkId: number): Promise<{
+    success: boolean
+    message?: string
+    park_id?: number
+    park_name?: string
+    analyses_deleted?: number
+    error?: string
+}> {
+    try {
+        const API_URL = getApiUrl()
+        const response = await fetch(`${API_URL}/api/parks/${parkId}`, {
+            method: 'DELETE'
+        })
+        return await response.json()
+    } catch (error) {
+        console.error('❌ Erro ao deletar parque:', error)
+        return {success: false, error: String(error)}
+    }
+}
+
+/**
+ * Deleta todas as análises de um parque
+ */
+export async function deleteAllAnalyses(parkId: number): Promise<{
+    success: boolean
+    message?: string
+    park_id?: number
+    park_name?: string
+    analyses_deleted?: number
+    error?: string
+}> {
+    try {
+        const API_URL = getApiUrl()
+        const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses`, {
+            method: 'DELETE'
+        })
+        return await response.json()
+    } catch (error) {
+        console.error('❌ Erro ao deletar análises:', error)
+        return {success: false, error: String(error)}
+    }
+}
+
+/**
+ * Deleta uma análise específica
+ */
+export async function deleteAnalysis(parkId: number, analysisId: number): Promise<{
+    success: boolean
+    message?: string
+    analysis_id?: number
+    park_id?: number
+    park_name?: string
+    error?: string
+}> {
+    try {
+        const API_URL = getApiUrl()
+        const response = await fetch(`${API_URL}/api/parks/${parkId}/analyses/${analysisId}`, {
+            method: 'DELETE'
+        })
+        return await response.json()
+    } catch (error) {
+        console.error('❌ Erro ao deletar análise:', error)
+        return {success: false, error: String(error)}
+    }
+}
+
+// ============================================================
+// 🔥 FUNÇÕES EXISTENTES
+// ============================================================
 
 /**
  * Analisa o Park Cooling Island para uma geometria de parque
- * @param geometry - Geometria do parque em GeoJSON (EPSG:4326)
- * @param metadata
- * @returns Dados do cooling island (PCI, PCD, PCA, buffers)
  */
 export async function analyzeParkCooling(
     geometry: ParkGeometry,
@@ -26,11 +99,10 @@ export async function analyzeParkCooling(
 ): Promise<CoolingAnalysisResult> {
     try {
         const API_URL = getApiUrl()
-        console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`, geometry,
-            metadata)
+        console.log('📡 Enviando requisição para:', `${API_URL}/api/park/analyze`, geometry, metadata)
         const payload: any = {
             geometry: geometry,
-            ...metadata  // 🔥 TUDO QUE TIVER NO METADATA VAI DIRETO
+            ...metadata
         }
 
         const response = await fetch(`${API_URL}/api/park/analyze`, {
@@ -51,7 +123,6 @@ export async function analyzeParkCooling(
         return {success: false, error: String(error)}
     }
 }
-
 
 /**
  * Formata dados de cooling island para exibição
@@ -125,7 +196,6 @@ export async function getParks(): Promise<ParkListResponse> {
         const data = await response.json()
         console.log('📋 Parques recebidos:', data)
 
-        // 🔥 GARANTE QUE A GEOMETRIA ESTÁ SENDO RETORNADA
         if (data.success && data.parks) {
             data.parks = data.parks.map((p: any) => ({
                 ...p,
@@ -153,9 +223,7 @@ export async function getParkAnalyses(parkId: number): Promise<CoolingAnalysisRe
         const data = await response.json()
 
         if (data.success) {
-            // 🔥 O RETORNO AGORA É O DETALHE COMPLETO
             return data
-
         }
 
         return {success: false, error: data.error}
@@ -238,4 +306,3 @@ export async function getParkDetail(parkId: number): Promise<{
         return {success: false, error: String(error)}
     }
 }
-

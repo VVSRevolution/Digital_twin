@@ -133,8 +133,6 @@
                     <span class="delete-analysis-label">Satélite:</span>
                     <span class="delete-analysis-value">{{ analysis.satellite_name || 'Landsat 8' }}</span>
                   </div>
-
-                  <!-- STATUS -->
                 </div>
                 <!-- BOTÃO DELETAR ANÁLISE -->
                 <div class="tooltip-wrapper">
@@ -198,10 +196,10 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, ref, watch} from 'vue'
+import {computed, ref, watch, onMounted, onUnmounted} from 'vue'
 import {getParks, type Park} from '@/services'
 import {useNotifications} from '~/composables/useErrorHandler'
-import {getParkAnalysesList} from '~/services/eeService'
+import {getParkAnalysesList, deletePark, deleteAllAnalyses, deleteAnalysis} from '~/services/eeService'
 import type {CoolingAnalysisResult} from '~/types'
 import ConfirmDialog from '~/components/ConfirmDialog.vue'
 import {Eraser} from 'reicon-vue'
@@ -284,11 +282,11 @@ function formatTime(dateStr: string): string {
 }
 
 function getTemperatureColor(temp: number): string {
-  if (temp < 20) return '#3b82f6'  // Azul - frio
-  if (temp < 25) return '#10b981'  // Verde - ameno
-  if (temp < 30) return '#f59e0b'  // Amarelo - morno
-  if (temp < 35) return '#f97316'  // Laranja - quente
-  return '#ef4444'  // Vermelho - muito quente
+  if (temp < 20) return '#3b82f6'
+  if (temp < 25) return '#10b981'
+  if (temp < 30) return '#f59e0b'
+  if (temp < 35) return '#f97316'
+  return '#ef4444'
 }
 
 // ============================================================
@@ -385,25 +383,17 @@ async function confirmDeleteAllAnalyses() {
   showConfirmDeleteAllAnalyses.value = false
 
   try {
-    // 🔥 ENDPOINT PARA DELETAR TODAS AS ANÁLISES DO PARQUE
-    const response = await fetch(`http://localhost:3001/api/parks/${parkId}/analyses`, {
-      method: 'DELETE'
-    })
+    const result = await deleteAllAnalyses(parkId)
+    if (result.success) {
+      handleSuccess(`Todas as ${result.analyses_deleted || 0} análises do parque "${parkName}" foram deletadas!`)
 
-    const data = await response.json()
-
-    if (data.success) {
-      handleSuccess(`Todas as ${data.analyses_deleted || 0} análises do parque "${parkName}" foram deletadas!`)
-
-      // 🔥 LIMPA AS ANÁLISES DO PARQUE NA LISTA
       if (analyses.value[parkId]) {
         analyses.value[parkId] = []
       }
 
-      // 🔥 RECARREGA AS ANÁLISES (agora vazio)
       await loadAnalyses(parkId)
     } else {
-      handleError(data.error || 'Erro ao deletar análises')
+      handleError(result.error || 'Erro ao deletar análises')
     }
   } catch (error) {
     console.error('❌ Erro ao deletar análises:', error)
@@ -442,14 +432,9 @@ async function confirmDeletePark() {
   showConfirmDeletePark.value = false
 
   try {
-    const response = await fetch(`http://localhost:3001/api/parks/${parkId}`, {
-      method: 'DELETE'
-    })
-
-    const data = await response.json()
-
-    if (data.success) {
-      handleSuccess(`Parque "${parkName}" e ${data.analyses_deleted || 0} análises deletados!`)
+    const result = await deletePark(parkId)
+    if (result.success) {
+      handleSuccess(`Parque "${parkName}" e ${result.analyses_deleted || 0} análises deletados!`)
 
       parks.value = parks.value.filter(p => p.id !== parkId)
       delete analyses.value[parkId]
@@ -461,7 +446,7 @@ async function confirmDeletePark() {
 
       emit('deleted', parkId)
     } else {
-      handleError(data.error || 'Erro ao deletar parque')
+      handleError(result.error || 'Erro ao deletar parque')
     }
   } catch (error) {
     console.error('❌ Erro ao deletar parque:', error)
@@ -506,23 +491,17 @@ async function confirmDeleteAnalysis() {
   showConfirmDeleteAnalysis.value = false
 
   try {
-    const response = await fetch(`http://localhost:3001/api/parks/${parkId}/analyses/${analysisId}`, {
-      method: 'DELETE'
-    })
-
-    const data = await response.json()
-
-    if (data.success) {
+    const result = await deleteAnalysis(parkId, analysisId)
+    if (result.success) {
       handleSuccess(`Análise deletada com sucesso!`)
 
-      // 🔥 VERIFICA ANTES DE FILTRAR
       if (analyses.value[parkId]) {
         analyses.value[parkId] = analyses.value[parkId].filter(a => a.analysis_id !== analysisId)
       }
 
       emit('analysisDeleted', analysisId)
     } else {
-      handleError(data.error || 'Erro ao deletar análise')
+      handleError(result.error || 'Erro ao deletar análise')
     }
   } catch (error) {
     console.error('❌ Erro ao deletar análise:', error)
@@ -553,7 +532,7 @@ watch(() => props.visible, (newVal) => {
 })
 
 // ============================================================
-// 🔥 TOOLTIP POSITION - CORRIGIDO
+// 🔥 TOOLTIP POSITION
 // ============================================================
 function updateTooltipPosition(event: Event) {
   const target = event.currentTarget as HTMLElement
@@ -571,7 +550,6 @@ function updateTooltipPosition(event: Event) {
 // 🔥 ADICIONAR EVENTOS NO MOUNT
 // ============================================================
 onMounted(() => {
-  // Usa setTimeout para garantir que o DOM está renderizado
   setTimeout(() => {
     document.querySelectorAll('.tooltip-wrapper').forEach(el => {
       el.addEventListener('mouseenter', updateTooltipPosition)
