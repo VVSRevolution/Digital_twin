@@ -1,3 +1,4 @@
+<!--/components/TimelineOverlay.vue-->
 <template>
   <div class="timeline-overlay">
     <!-- HEADER -->
@@ -21,6 +22,7 @@
           <div class="timeline-date">
             <span class="date-day">{{ event.day }}</span>
             <span class="date-month">{{ event.month }}</span>
+            <span class="date-year">{{ event.year }}</span>
             <span class="date-time">{{ event.time }}</span>
           </div>
 
@@ -65,11 +67,9 @@ const emit = defineEmits<{
   (e: 'select', analysis: CoolingAnalysisResult): void
 }>()
 
-
 // STATE
 const isExpanded = ref(true)
 const selectedId = ref<string | null>(null)
-
 
 // Processa os eventos sem filtro
 const events = computed(() => {
@@ -90,6 +90,7 @@ const events = computed(() => {
           }),
           day: date.getDate().toString().padStart(2, '0'),
           month: date.toLocaleDateString('pt-BR', {month: 'short'}),
+          year: date.getFullYear().toString(), // 🔥 ADICIONA O ANO
           time: date.toLocaleTimeString('pt-BR', {
             hour: '2-digit',
             minute: '2-digit',
@@ -104,6 +105,7 @@ const events = computed(() => {
         }
       })
 })
+
 watch(
     [events, () => props.selectedAnalysis],
     ([newEvents, selectedAnalysis]) => {
@@ -150,6 +152,7 @@ function selectEvent(event: any) {
   }
 }
 </script>
+
 <style scoped>
 /* TIMELINE OVERLAY - DIREITA */
 .timeline-overlay {
@@ -359,7 +362,7 @@ function selectEvent(event: any) {
 .timeline-date {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   text-align: right;
   line-height: 1.2;
   white-space: nowrap;
@@ -378,8 +381,19 @@ function selectEvent(event: any) {
   text-transform: uppercase;
 }
 
+/* 🔥 ESTILO PARA O ANO */
+.date-year {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0 6px;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+
 .date-time {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #6b7280;
 }

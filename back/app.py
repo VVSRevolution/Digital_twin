@@ -7,7 +7,7 @@ from flask_cors import CORS
 
 from config import Config
 from extensions import db, migrate
-from models import Park, CoolingAnalysis, SatelliteSource, Sensor, TemperatureReading
+from models import Park, CoolingAnalysis, SatelliteSource
 from services.analysis_service import AnalysisService
 from services.database_service import DatabaseService
 from services.earth_engine_service import EarthEngineService
@@ -194,6 +194,7 @@ def get_park_detail(park_id):
             'success': False,
             'error': str(e)
         }), 500
+
 
 # ============================================================
 # 🔥 ENDPOINT: DELETAR PARQUE E TODAS AS ANÁLISES
@@ -406,6 +407,7 @@ def get_latest_analysis_detail(park_id):
             'error': str(e)
         }), 500
 
+
 # ============================================================
 # 🔥 ENDPOINT: DELETAR TODAS AS ANÁLISES DE UM PARQUE
 # ============================================================
@@ -458,6 +460,7 @@ def delete_all_analyses(park_id):
             'success': False,
             'error': str(e)
         }), 500
+
 
 @app.route('/api/parks/<int:park_id>/analyses/<int:analysis_id>', methods=['GET'])
 def get_analysis_detail(park_id, analysis_id):
@@ -595,6 +598,7 @@ def delete_analysis(park_id, analysis_id):
             'error': str(e)
         }), 500
 
+
 @app.route('/api/park/search', methods=['POST'])
 def search_park():
     try:
@@ -644,6 +648,8 @@ def search_park():
             'error': str(e),
             'results': []
         }), 500
+
+
 @app.route('/api/sensors', methods=['GET'])
 def get_all_sensors():
     """Retorna todos os sensores com a temperatura mais recente ou mais próxima da data informada"""
@@ -664,13 +670,19 @@ def get_all_sensors():
         # 🔥 SE TIVER DATA, BUSCA A MAIS RECENTE ANTERIOR OU IGUAL
         if datetime_param:
             try:
-                target_datetime = datetime.fromisoformat(datetime_param)
+                # 🔥 CORREÇÃO: ACEITA TANTO ' ' QUANTO 'T'
+                datetime_param_fixed = datetime_param.replace(' ', 'T')
+                # 🔥 REMOVE O Z SE TIVER
+                if datetime_param_fixed.endswith('Z'):
+                    datetime_param_fixed = datetime_param_fixed[:-1]
+                target_datetime = datetime.fromisoformat(datetime_param_fixed)
                 if target_datetime.tzinfo is None:
                     target_datetime = target_datetime.replace(tzinfo=timezone.utc)
-            except ValueError:
+            except ValueError as e:
+                print(f"❌ Erro ao parsear datetime: {datetime_param} -> {e}")
                 return jsonify({
                     'success': False,
-                    'error': 'Formato de datetime inválido. Use YYYY-MM-DDTHH:MM:SS'
+                    'error': f'Formato de datetime inválido. Use YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DD HH:MM:SS. Recebido: {datetime_param}'
                 }), 400
 
             for sensor in sensors:
@@ -692,7 +704,6 @@ def get_all_sensors():
                         'longitude': sensor.longitude,
                         'altitude': sensor.altitude,
                         'temperature': reading.temperature,
-                        # 🔥 ADICIONA O Z NO FINAL
                         'timestamp': reading.timestamp.isoformat() + 'Z'
                     })
                 else:
@@ -733,7 +744,6 @@ def get_all_sensors():
                         'longitude': sensor.longitude,
                         'altitude': sensor.altitude,
                         'temperature': reading.temperature,
-                        # 🔥 ADICIONA O Z NO FINAL
                         'timestamp': reading.timestamp.isoformat() + 'Z'
                     })
                 else:
@@ -762,6 +772,8 @@ def get_all_sensors():
             'success': False,
             'error': str(e)
         }), 500
+
+
 # ============================================================
 # 🔥 INICIA SERVIDOR
 # ============================================================
@@ -773,12 +785,12 @@ with app.app_context():
 
     # 🔥 IMPORTA DO CAMINHO CORRETO
     from test.sensor_service import SensorService
+
     result = SensorService.import_all_if_empty()
     print(f"📊 Sensores: {result['sensors']['message']}")
     print(f"📊 Temperaturas: {result['temperatures']['message']}")
 
 if __name__ == '__main__':
-
     print('')
     print('=' * 50)
     print('🚀 Iniciando servidor Digital Twin (DESENVOLVIMENTO)')
@@ -791,8 +803,6 @@ if __name__ == '__main__':
     print('🧪 Teste: http://localhost:3001/health')
     print('=' * 50)
     print('')
-
-
 
     # 🔥 USA FLASK PARA DESENVOLVIMENTO LOCAL
     app.run(

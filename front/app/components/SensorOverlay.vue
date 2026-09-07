@@ -1,3 +1,4 @@
+<!--\components\SensorOverlay.vue-->
 <template>
   <div class="sensor-overlay">
     <CollapsibleCard
@@ -14,7 +15,7 @@
               @update:model-value="onToggleSensors"
           />
           <label class="sensor-toggle-label">
-            <i class="pi pi-eye" :class="{ 'pi-eye-slash': !showSensors }"></i>
+            <i :class="{ 'pi-eye-slash': !showSensors }" class="pi pi-eye"></i>
             {{ showSensors ? 'Mostrar sensores no mapa' : 'Ocultar sensores' }}
           </label>
           <Badge
@@ -33,19 +34,13 @@
               @change="onDateTimeChange"
           />
           <Button
+              :loading="loading"
               icon="pi pi-refresh"
               label="Atualizar"
               severity="secondary"
               size="small"
-              :loading="loading"
               @click="refreshSensors"
           />
-        </div>
-        <div class="datetime-info">
-          <span v-if="lastUpdate" class="last-update">
-            Última atualização: {{ formatDateTime(lastUpdate) }}
-          </span>
-          <span v-else class="last-update">Carregando dados...</span>
         </div>
       </div>
     </CollapsibleCard>
@@ -53,10 +48,16 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, computed } from 'vue'
-import { getSensors } from '~/services/sensorService'
-import type { SensorData } from '~/types'
+import {computed, onMounted, ref} from 'vue'
+import {getSensors} from '~/services/sensorService'
+import type {SensorData} from '~/types'
 import CollapsibleCard from '~/components/CollapsibleCard.vue'
+import {useNotifications} from "~/composables/useErrorHandler";
+import {format, parseISO} from 'date-fns'
+import {fromZonedTime, toZonedTime} from 'date-fns-tz'
+
+const {handleError, handleSuccess, handleInfo} = useNotifications()
+
 
 // ============================================================
 // 🔥 EMITS
@@ -70,27 +71,35 @@ const emit = defineEmits<{
 // 🔥 STATE
 // ============================================================
 const loading = ref(false)
-const selectedDateTime = ref('')
 const lastUpdate = ref('')
 const sensors = ref<SensorData[]>([])
 const showSensors = ref(true)
 
 const sensorCount = computed(() => sensors.value.length)
 
+defineExpose({
+  loadSensors
+})
+
+
+const selectedDateTime = ref('') // Hora LOCAL para exibição
+const currentUtcDateTime = ref('') // Hora UTC para o backend
+
 // ============================================================
 // 🔥 FUNÇÕES
 // ============================================================
-async function loadSensors(datetime?: string) {
+async function loadSensors(datetime?: string) { // sempre espera UTC
   loading.value = true
   try {
-    // 🔥 SE TIVER DATETIME, CONVERTE PARA O FORMATO COM ESPAÇO
-    let formattedDatetime = datetime
     if (datetime) {
-      // '2024-05-19T11:01:00' -> '2024-05-19 11:01:00'
-      formattedDatetime = datetime.replace('T', ' ')
+      // Guarda a data UTC
+      currentUtcDateTime.value = datetime
+
+      // Atualiza o input com hora LOCAL
+      selectedDateTime.value = utcToLocal(datetime)
     }
 
-    const result = await getSensors(formattedDatetime)
+    const result = await getSensors(datetime)
     if (result.success) {
       sensors.value = result.sensors
       lastUpdate.value = new Date().toISOString()
@@ -108,9 +117,9 @@ async function loadSensors(datetime?: string) {
 function onDateTimeChange() {
   const datetime = selectedDateTime.value
   if (datetime) {
-    // 🔥 O INPUT JÁ VEM COM 'T', SÓ ADICIONA OS SEGUNDOS
-    const formatted = datetime + ':00'
-    loadSensors(formatted)
+    // 🔥 CONVERTE LOCAL -> UTC COM Z
+    const utcString = localToUTC(datetime)
+    loadSensors(utcString)
   } else {
     loadSensors()
   }
@@ -127,7 +136,12 @@ function onToggleSensors() {
 
 
 function refreshSensors() {
-  loadSensors()
+  if (currentUtcDateTime.value) {
+    // 🔥 USA A DATA UTC QUE JÁ FOI GUARDADA
+    loadSensors(currentUtcDateTime.value)
+  } else {
+    loadSensors()
+  }
 }
 
 function formatDateTime(dateStr: string): string {
@@ -139,6 +153,28 @@ function formatDateTime(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+/**
+ * LOCAL → UTC (para enviar ao backend)
+ * Ex: '2026-09-01T01:00' → '2026-09-01T04:00:00.000Z'
+ */
+
+function localToUTC(localString: string): string {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const utcDate = fromZonedTime(localString, timeZone)  // 🔥 fromZonedTime
+  return utcDate.toISOString()
+}
+
+/**
+ * UTC → LOCAL (para exibir no input)
+ * Ex: '2026-09-01T04:00:00.000Z' → '2026-09-01T01:00'
+ */
+function utcToLocal(utcString: string): string {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const date = parseISO(utcString)
+  const localDate = toZonedTime(date, timeZone)  // 🔥 toZonedTime
+  return format(localDate, "yyyy-MM-dd'T'HH:mm")
 }
 
 // ============================================================
@@ -169,8 +205,6 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 6px 4px 10px 4px;
-  border-bottom: 1px solid #f3f4f6;
-  margin-bottom: 10px;
 }
 
 .sensor-toggle-label {
@@ -225,15 +259,6 @@ onMounted(() => {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.datetime-info {
-  margin-top: 8px;
-  text-align: center;
-}
-
-.last-update {
-  font-size: 11px;
-  color: #9ca3af;
-}
 
 /* RESPONSIVIDADE */
 @media (max-width: 480px) {

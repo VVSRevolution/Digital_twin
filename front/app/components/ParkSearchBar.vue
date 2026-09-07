@@ -1,3 +1,4 @@
+<!--/components/ParkSearchBar.vue-->
 <template>
   <div class="search-wrapper">
     <!-- 🔥 CARD 1: MENU + PESQUISA (LADO A LADO) -->

@@ -1,3 +1,4 @@
+<!--/components/MapView.vue-->
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
 import {searchPark, type SearchParkParams} from "~/services/parkService"
@@ -264,7 +265,6 @@ async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometr
         const numBuffers = data.num_buffers || 11
         const bufferDistance = data.buffer_distance || 30
         drawBuffers(feature, vectorSource, numBuffers, bufferDistance)
-        handleSuccess(`Análise do parque "${park.name}" carregada!`)
         isSearching.value = false
         return
       }
@@ -361,6 +361,9 @@ async function handleAnalysisSelect(analysis: CoolingAnalysisResult) {
           await addPixelLayer(detail.buffers)
         }
         showStats.value = true
+        if (detail.image_date) {
+          await loadSensorsForDateTime(detail.image_date)
+        }
         handleSuccess(`Análise de ${detail.image_date} carregada!`)
         return
       }
@@ -373,6 +376,12 @@ async function handleAnalysisSelect(analysis: CoolingAnalysisResult) {
     await addPixelLayer(analysis.buffers)
   }
   showStats.value = true
+
+  // 🔥 CARREGA SENSORES PARA O HORÁRIO DA ANÁLISE
+  if (analysis.image_date) {
+    await loadSensorsForDateTime(analysis.image_date)
+  }
+
   handleSuccess(`Análise de ${analysis.image_date} carregada!`)
 }
 
@@ -464,18 +473,30 @@ async function addPixelLayer(buffers: any[]) {
   const StrokeStyle = (await import('ol/style/Stroke')).default
   const Polygon = (await import('ol/geom/Polygon')).default
 
-  const pixelSizeDegrees = 0.00026
   const source = new VectorSource()
   const features: any[] = []
+
+  // 🔥 TAMANHO BASE EM GRAUS
+  const basePixelSizeDegrees = 0.00026
 
   points.forEach(p => {
     let normalized = (p.temp - gradientMinVal) / gradientRange
     normalized = Math.max(0, Math.min(1, normalized))
     const color = getGradientColor(normalized)
 
-    const half = pixelSizeDegrees / 2
-    const [x1, y1] = fromLonLat([p.lon - half, p.lat - half]) as [number, number]
-    const [x2, y2] = fromLonLat([p.lon + half, p.lat + half]) as [number, number]
+    // 🔥 CORRIGE APENAS A LARGURA (LONGITUDE)
+    const latRad = p.lat * Math.PI / 180
+    const correctionFactor = Math.cos(latRad)
+    const adjustedWidthDegrees = basePixelSizeDegrees / Math.max(correctionFactor, 0.1)
+
+    // 🔥 ALTURA PERMANECE CONSTANTE
+    const heightDegrees = basePixelSizeDegrees
+
+    const halfWidth = adjustedWidthDegrees / 2
+    const halfHeight = heightDegrees / 2
+
+    const [x1, y1] = fromLonLat([p.lon - halfWidth, p.lat - halfHeight]) as [number, number]
+    const [x2, y2] = fromLonLat([p.lon + halfWidth, p.lat + halfHeight]) as [number, number]
 
     const square = new Polygon([[
       [x1, y1],
@@ -884,6 +905,22 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
   }
 }
 
+const sensorOverlayRef = ref<InstanceType<typeof SensorOverlay> | null>(null)
+
+async function loadSensorsForDateTime(imageDate: string) {
+  console.log("carregando sensores", imageDate)
+  try {
+    // 🔥 USA A DATA DIRETAMENTE, SEM CONVERTER DE NOVO
+    // A data já está no formato ISO: '2025-01-07T10:52:28Z'
+    if (sensorOverlayRef.value) {
+      await sensorOverlayRef.value.loadSensors(imageDate)
+    }
+  } catch (error) {
+    console.error('❌ Erro ao carregar sensores:', error)
+    handleError(error, "Erro ao carregar sensores")
+  }
+}
+
 function createManualGeometry(points: Array<{ lat: number; lon: number }>): ParkGeometry | null {
   if (points.length < 3) return null
 
@@ -1096,13 +1133,13 @@ async function drawSensorsOnMap(sensors: SensorData[]) {
   map.addLayer(sensorsLayer)
 
   // 🔥 AJUSTA A VISÃO
-  if (features.length > 0) {
-    const extent = source.getExtent()
-    map.getView().fit(extent, {
-      padding: [50, 50, 50, 50],
-      duration: 1000
-    })
-  }
+  // if (features.length > 0) {
+  //   const extent = source.getExtent()
+  //   map.getView().fit(extent, {
+  //     padding: [50, 50, 50, 50],
+  //     duration: 1000
+  //   })
+  // }
 }
 
 // ============================================================
@@ -1191,6 +1228,7 @@ onUnmounted(() => {
       />
       <!-- 🔥 SENSOR OVERLAY -->
       <SensorOverlay
+          ref="sensorOverlayRef"
           @sensorsUpdated="handleSensorsUpdated"
           @toggleSensors="handleToggleSensors"
       />
@@ -1336,6 +1374,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
 /* 🔥 BOTÃO TOGGLE SENSORES */
 :global(.sensor-toggle-btn) {
   position: absolute !important;
