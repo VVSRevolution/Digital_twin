@@ -1,8 +1,112 @@
-<!--/components/MapView.vue-->
+<!--components/MapView.vue-->
+<template>
+  <div class="page">
+    <div class="map-wrapper">
+      <!-- MAPA -->
+      <div ref="mapEl" class="map"></div>
+
+      <!-- 🔥 BOTÃO TOGGLE SATÉLITE -->
+      <button
+          id="satellite-toggle-btn"
+          :data-tooltip="showSatellite ? (currentSatellite === 'arcgis' ? 'Satélite (Google)' : 'Mapa') : 'Satélite (ArcGIS)'"
+          :title="showSatellite ? (currentSatellite === 'arcgis' ? 'ArcGIS Satélite' : 'Google Satélite') : 'Mapa'"
+          class="satellite-toggle-btn"
+          @click="toggleSatellite"
+      >
+        🛰️
+      </button>
+
+      <!-- 🔥 OVERLAYS AGRUPADOS -->
+      <div class="overlays-container">
+        <!-- CARD 1: MAIN MENU -->
+        <MainMenuOverlay
+            ref="searchBarRef"
+            v-model:search="search"
+            v-model:showPixels="showPixels"
+            :analyzing="analyzing"
+            :coolingData="coolingData"
+            :gradientMax="gradientMax"
+            :gradientMin="gradientMin"
+            :loading="loading"
+            :parkName="parkName"
+            :pixelOpacity="pixelOpacity"
+            :predefinedParks="predefinedParks"
+            :results="results"
+            :showStats="showStats"
+            :totalPixels="totalPixels"
+            @parkDeleted="handleParkDeleted"
+            @pointsUpdated="handlePointsUpdated"
+            @search="searchPlace"
+            @select="selectPark"
+            @startDrawing="startDrawing"
+            @stopDrawing="stopDrawing"
+            @togglePixels="togglePixels"
+            @updateCoolingData="updateCoolingData"
+            @updateOpacity="updatePixelOpacity"
+        />
+
+        <!-- CARD 2: RESULTADOS -->
+        <ResultOverlay
+            :results="results"
+            @select="selectPark"
+        />
+        <!-- LAYER CONTROLS (Pixels + NDVI) -->
+
+        <LayerControlsOverlay
+            v-if="selectedParkId"
+            :showStats="showStats"
+            :coolingData="coolingData"
+            :totalPixels="totalPixels"
+            :pixelOpacity="pixelOpacity"
+            :gradientMin="gradientMin"
+            :gradientMax="gradientMax"
+            :ndviData="ndviData"
+            :ndviTotalPixels="ndviTotalPixels"
+            v-model:showPixels="showPixels"
+            v-model:showNdvi="showNdvi"
+            @togglePixels="togglePixels"
+            @updateOpacity="updatePixelOpacity"
+            @toggleNdvi="handleToggleNdvi"
+            @updateNdvi="handleNdviUpdate"
+            @updateNdviOpacity="handleNdviOpacity"
+        />
+
+        <!-- CARD 3: ANÁLISE -->
+        <AnalysisOverlay
+            :showStats="showStats"
+            :coolingData="coolingData"
+            :parkName="parkName"
+            :pixelOpacity="pixelOpacity"
+            :gradientMin="gradientMin"
+            :gradientMax="gradientMax"
+            :totalPixels="totalPixels"
+        />
+      </div>
+
+      <!-- 🔥 SENSOR OVERLAY -->
+      <SensorOverlay
+          ref="sensorOverlayRef"
+          @sensorsUpdated="handleSensorsUpdated"
+          @toggleSensors="handleToggleSensors"
+      />
+
+
+      <!-- 🔥 TIMELINE OVERLAY -->
+      <TimelineOverlay
+          v-if="parkAnalyses.length > 0"
+          :analyses="parkAnalyses"
+          :selectedAnalysis="coolingData"
+          @select="handleAnalysisSelect"
+      />
+    </div>
+  </div>
+</template>
+
+
 <script lang="ts" setup>
 import {onMounted, onUnmounted, ref} from "vue"
 import {searchPark, type SearchParkParams} from "~/services/parkService"
-import SensorOverlay from "~/components/SensorOverlay.vue";
+import SensorOverlay from "~/components/Overlays/SensorOverlay.vue";
 import {analyzeParkCooling, getParkAnalyses, getParkAnalysesList, getParkAnalysisDetail} from "~/services/eeService"
 import Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
@@ -18,6 +122,11 @@ import {Overlay} from "ol";
 import {Polygon} from "ol/geom";
 import type {ParkSuggestion} from "~/types/parkSearch";
 import {toLonLat} from "ol/proj";
+import TimelineOverlay from "~/components/Overlays/TimelineOverlay.vue";
+import ResultOverlay from "~/components/Overlays/ResultOverlay.vue";
+import AnalysisOverlay from "~/components/Overlays/AnalysisOverlay.vue";
+import MainMenuOverlay from "~/components/Overlays/MainMenuOverlay.vue";
+import LayerControlsOverlay from "~/components/Overlays/LayerControlsOverlay.vue";
 
 // ===== REFS =====
 const loading = ref(false)
@@ -39,8 +148,11 @@ const tooltipOverlay = ref<Overlay | null>(null)
 const tooltipElement = ref<HTMLElement | null>(null)
 const pixelOpacity = ref(0.50)
 const predefinedParks = ref<SearchParkResult[]>([])
-const searchBarRef = ref<InstanceType<typeof ParkSearchBar> | null>(null)
+const searchBarRef = ref<InstanceType<typeof MainMenuOverlay> | null>(null)
 const manualPoints = ref<Array<{ lat: number; lon: number }>>([])
+const ndviData = ref<any>(null)
+const ndviTotalPixels = ref(0)
+const showNdvi = ref(false)
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 
 // ===== VARIÁVEIS OPENLAYERS =====
@@ -287,6 +399,7 @@ async function selectPark(park: SearchParkResult) {
     handleError(`analyzing=${analyzing.value}`)
     return
   }
+  selectedParkId.value = park.id || null
 
   console.log('🎯 Selecionando parque:', park.name)
 
@@ -963,6 +1076,12 @@ function handleParkDeleted(parkId: number) {
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
+
+  selectedParkId.value = null
+  if (ndviLayer) {
+    map.removeLayer(ndviLayer)
+    ndviLayer = null
+  }
   handleSuccess(`Parque deletado com sucesso!`)
 }
 
@@ -1167,6 +1286,154 @@ function handleToggleSensors(show: boolean) {
   }
 }
 
+// ===== NVDA REFS =====
+const selectedParkId = ref<number | null>(null)
+let ndviLayer: any = null
+let ndviVisible = false
+let ndviOpacity = ref(0.70)
+
+// ===== FUNÇÕES PARA NDVI =====
+function handleNdviUpdate(ndviData: any) {
+  console.log('🌿 NDVI atualizado:', ndviData)
+
+  // 🔥 ATUALIZA A REF
+  ndviData.value = ndviData
+
+  // Calcula total de pixels
+  if (ndviData) {
+    let total = 0
+    ndviData.forEach((buffer: any) => {
+      total += buffer.pixels?.length || 0
+    })
+    ndviTotalPixels.value = total
+  } else {
+    ndviTotalPixels.value = 0
+  }
+}
+
+function handleToggleNdvi(show: boolean) {
+  showNdvi.value = show
+  ndviVisible = show
+
+  if (!show && ndviLayer) {
+    map.removeLayer(ndviLayer)
+    ndviLayer = null
+  }
+
+  if (show && ndviData.value) {
+    drawNdviOnMap(ndviData.value)
+  }
+}
+
+function handleNdviOpacity(value: number) {
+  ndviOpacity.value = value
+  if (ndviLayer) {
+    ndviLayer.setOpacity(value)
+  }
+}
+
+async function drawNdviOnMap(ndviData: any) {
+  // Remove camada anterior
+  if (ndviLayer) {
+    map.removeLayer(ndviLayer)
+    ndviLayer = null
+  }
+
+  if (!ndviData || !ndviVisible) return
+
+  // 🔥 EXTRAI PONTOS DO NDVI
+  const points: { lon: number; lat: number; ndvi: number }[] = []
+
+  ndviData.forEach((buffer: any) => {
+    buffer.pixels?.forEach((pixel: any) => {
+      if (pixel.lat && pixel.lon && pixel.ndvi !== null && pixel.ndvi !== undefined) {
+        points.push({
+          lon: pixel.lon,
+          lat: pixel.lat,
+          ndvi: pixel.ndvi
+        })
+      }
+    })
+  })
+
+  if (points.length === 0) {
+    console.log('⚠️ Nenhum ponto NDVI para desenhar')
+    return
+  }
+
+  console.log(`🌿 Desenhando ${points.length} pontos NDVI`)
+
+  // 🔥 CRIA CAMADA DE PIXELS
+  const VectorLayer = (await import('ol/layer/Vector')).default
+  const VectorSource = (await import('ol/source/Vector')).default
+  const Feature = (await import('ol/Feature')).default
+  const Style = (await import('ol/style/Style')).default
+  const FillStyle = (await import('ol/style/Fill')).default
+  const StrokeStyle = (await import('ol/style/Stroke')).default
+  const Polygon = (await import('ol/geom/Polygon')).default
+
+  const source = new VectorSource()
+  const features: any[] = []
+
+  const basePixelSizeDegrees = 0.00026
+
+  points.forEach(p => {
+    // 🔥 COR DO NDVI (verde para vegetação)
+    // NDVI varia de -0.1 a 1.0
+    const normalized = Math.max(0, Math.min(1, (p.ndvi + 0.1) / 1.1))
+    // Verde: quanto maior o NDVI, mais verde
+    const r = Math.round(59 * (1 - normalized) + 22 * normalized)
+    const g = Math.round(130 * (1 - normalized) + 197 * normalized)
+    const b = Math.round(246 * (1 - normalized) + 94 * normalized)
+    const color = `rgb(${r}, ${g}, ${b})`
+
+    const latRad = p.lat * Math.PI / 180
+    const correctionFactor = Math.cos(latRad)
+    const adjustedWidthDegrees = basePixelSizeDegrees / Math.max(correctionFactor, 0.1)
+    const heightDegrees = basePixelSizeDegrees
+
+    const halfWidth = adjustedWidthDegrees / 2
+    const halfHeight = heightDegrees / 2
+
+    const [x1, y1] = fromLonLat([p.lon - halfWidth, p.lat - halfHeight]) as [number, number]
+    const [x2, y2] = fromLonLat([p.lon + halfWidth, p.lat + halfHeight]) as [number, number]
+
+    const square = new Polygon([[
+      [x1, y1],
+      [x1, y2],
+      [x2, y2],
+      [x2, y1],
+      [x1, y1]
+    ]])
+
+    const feature = new Feature({
+      geometry: square,
+      ndvi: p.ndvi
+    })
+
+    feature.setStyle(new Style({
+      fill: new FillStyle({color}),
+      stroke: new StrokeStyle({
+        color: 'rgba(255,255,255,0.1)',
+        width: 0.3
+      })
+    }))
+
+    features.push(feature)
+  })
+
+  source.addFeatures(features)
+
+  ndviLayer = new VectorLayer({
+    source: source,
+    zIndex: 4,
+    opacity: ndviOpacity.value,
+  })
+
+  map.addLayer(ndviLayer)
+  console.log('✅ Camada NDVI adicionada ao mapa')
+}
+
 
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
@@ -1184,68 +1451,46 @@ onUnmounted(() => {
     map.dispose()
   }
 })
+
+
 </script>
-
-<template>
-  <div class="page">
-    <div class="map-wrapper">
-      <!-- MAPA -->
-      <div ref="mapEl" class="map"></div>
-      <!-- 🔥 BOTÃO TOGGLE SATÉLITE (AO LADO DO ZOOM) -->
-      <button
-          id="satellite-toggle-btn"
-          :data-tooltip="showSatellite ? (currentSatellite === 'arcgis' ? 'Satélite (Google)' : 'Mapa') : 'Satélite (ArcGIS)'"
-          :title="showSatellite ? (currentSatellite === 'arcgis' ? 'ArcGIS Satélite' : 'Google Satélite') : 'Mapa'"
-          class="satellite-toggle-btn"
-          @click="toggleSatellite"
-      >
-        🛰️
-      </button>
-      <ParkSearchBar
-          ref="searchBarRef"
-          v-model:search="search"
-          v-model:showPixels="showPixels"
-          :analyzing="analyzing"
-          :coolingData="coolingData"
-          :gradientMax="gradientMax"
-          :gradientMin="gradientMin"
-          :loading="loading"
-          :parkName="parkName"
-          :pixelOpacity="pixelOpacity"
-          :predefinedParks="predefinedParks"
-          :results="results"
-          :showStats="showStats"
-          :totalPixels="totalPixels"
-          @parkDeleted="handleParkDeleted"
-          @pointsUpdated="handlePointsUpdated"
-          @search="searchPlace"
-          @select="selectPark"
-          @startDrawing="startDrawing"
-          @stopDrawing="stopDrawing"
-          @togglePixels="togglePixels"
-          @updateCoolingData="updateCoolingData"
-          @updateOpacity="updatePixelOpacity"
-      />
-      <!-- 🔥 SENSOR OVERLAY -->
-      <SensorOverlay
-          ref="sensorOverlayRef"
-          @sensorsUpdated="handleSensorsUpdated"
-          @toggleSensors="handleToggleSensors"
-      />
-
-      <TimelineOverlay
-          v-if="parkAnalyses.length > 0"
-          :analyses="parkAnalyses"
-          :selectedAnalysis="coolingData"
-          @select="handleAnalysisSelect"
-      />
-    </div>
-  </div>
-</template>
 
 <style scoped>
 
-/* 🔥 TODOS OS COMPONENTES FLUTUANTES USAM A MESMA CLASSE */
+/*  CONTAINER DOS OVERLAYS */
+.overlays-container {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 98vh;
+  overflow-y: auto;
+}
+
+.overlays-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.overlays-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overlays-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.30);
+  border-radius: 4px;
+}
+
+.overlays-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.40);
+}
+
+
+
+/* TODOS OS COMPONENTES FLUTUANTES USAM A MESMA CLASSE */
 .page {
   position: relative;
   height: 100vh;

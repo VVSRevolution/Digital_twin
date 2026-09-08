@@ -5,6 +5,7 @@
 </template>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&display=swap');
+@import '~/assets/styles/overlays.css';
 
 * {
   font-family: 'Titillium Web', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
