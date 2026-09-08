@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue'
-import type { SearchResult } from '@/types/parkSearch'
+import type { SearchResult} from "~/types";
 
 export function useParkMenu() {
   const isMenuOpen = ref(false)

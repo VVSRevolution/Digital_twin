@@ -679,8 +679,8 @@ def get_park_ndvi_by_date(park_id, date):
 
 
 @app.route('/api/parks/<int:park_id>/ndvi/list', methods=['GET'])
-def get_park_ndvi(park_id):
-    """Retorna todos os NDVI de um parque"""
+def get_park_ndvi_list(park_id):
+    """Retorna lista de datas disponíveis de NDVI (apenas metadados, sem dados pesados)"""
     try:
         from models import Park, NDVIAnalysis
 
@@ -691,20 +691,32 @@ def get_park_ndvi(park_id):
                 'error': 'Parque não encontrado'
             }), 404
 
+        # 🔥 BUSCA TODOS OS NDVI DO PARQUE (ORDENADOS POR DATA)
         ndvis = NDVIAnalysis.query.filter_by(park_id=park_id).order_by(
             NDVIAnalysis.image_date.desc()
         ).all()
 
+        # 🔥 RETORNA APENAS METADADOS (SEM ndvi_data)
         return jsonify({
             'success': True,
             'park_id': park_id,
             'park_name': park.name,
             'count': len(ndvis),
-            'ndvi_list': [n.to_dict() for n in ndvis]
+            'dates': [n.image_date for n in ndvis],
+            'metadata': [
+                {
+                    'id': n.id,
+                    'park_id': n.park_id,
+                    'satellite_name': n.satellite_name,
+                    'image_date': n.image_date,
+                    'created_at': n.created_at.isoformat() if n.created_at else None
+                }
+                for n in ndvis
+            ]
         })
 
     except Exception as e:
-        print(f"❌ Erro ao buscar NDVI: {e}")
+        print(f"❌ Erro ao listar NDVI: {e}")
         traceback.print_exc()
         return jsonify({
             'success': False,

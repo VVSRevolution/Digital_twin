@@ -54,20 +54,18 @@
 
         <LayerControlsOverlay
             v-if="selectedParkId"
+            :parkId="selectedParkId"
             :showStats="showStats"
             :coolingData="coolingData"
             :totalPixels="totalPixels"
             :pixelOpacity="pixelOpacity"
             :gradientMin="gradientMin"
             :gradientMax="gradientMax"
-            :ndviData="ndviData"
-            :ndviTotalPixels="ndviTotalPixels"
             v-model:showPixels="showPixels"
             v-model:showNdvi="showNdvi"
             @togglePixels="togglePixels"
-            @updateOpacity="updatePixelOpacity"
-            @toggleNdvi="handleToggleNdvi"
-            @updateNdvi="handleNdviUpdate"
+            @updatePixelOpacity="updatePixelOpacity"
+            @ndviDataLoaded="drawNdviOnMap"
             @updateNdviOpacity="handleNdviOpacity"
         />
 
@@ -127,6 +125,9 @@ import ResultOverlay from "~/components/Overlays/ResultOverlay.vue";
 import AnalysisOverlay from "~/components/Overlays/AnalysisOverlay.vue";
 import MainMenuOverlay from "~/components/Overlays/MainMenuOverlay.vue";
 import LayerControlsOverlay from "~/components/Overlays/LayerControlsOverlay.vue";
+import {error} from "ol/console";
+import type VectorLayer from "ol/layer/Vector";
+import type {NDVIBuffer} from "~/types/ndvi";
 
 // ===== REFS =====
 const loading = ref(false)
@@ -150,8 +151,6 @@ const pixelOpacity = ref(0.50)
 const predefinedParks = ref<SearchParkResult[]>([])
 const searchBarRef = ref<InstanceType<typeof MainMenuOverlay> | null>(null)
 const manualPoints = ref<Array<{ lat: number; lon: number }>>([])
-const ndviData = ref<any>(null)
-const ndviTotalPixels = ref(0)
 const showNdvi = ref(false)
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 
@@ -167,7 +166,19 @@ const manualGeometry = ref<ParkGeometry | null>(null)
 const showSatellite = ref(false)
 const currentSatellite = ref<'arcgis' | 'google'>('arcgis')
 
-// ===== FUNÇÃO PARA GERAR COR DO GRADIENTE =====
+// ============================================================
+// 🔥 NDVI REFS
+// ============================================================
+const selectedParkId = ref<number | null>(null)
+let ndviLayer: VectorLayer<any> | null = null
+let ndviOpacity = ref<number>(0.70)
+let ndviDataCache: NDVIBuffer[] | null = null
+
+
+
+// ============================================================
+// 🔥 FUNÇÃO PARA GERAR COR DO GRADIENTE
+// ============================================================
 function getGradientColor(t: number): string {
   let r: number, g: number, b: number
 
@@ -339,7 +350,6 @@ function toggleSatellite() {
     if (!showSatellite.value) {
       btn.textContent = '🛰️'
       btn.title = 'Mapa base (sem satélite)'
-      // 🔥 TOOLTIP COM ESTILO
       btn.setAttribute('data-tooltip', 'Mapa base')
     } else if (currentSatellite.value === 'arcgis') {
       btn.textContent = '🌍'
@@ -359,7 +369,6 @@ function toggleSatellite() {
 async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometry>) {
   console.log('📊 Carregando análise para:', park.name)
 
-  // Se tem ID, tenta buscar do cache
   if (park.id) {
     try {
       const data = await getParkAnalyses(park.id)
@@ -370,7 +379,6 @@ async function loadParkAnalysis(park: SearchParkResult, feature: Feature<Geometr
       parkAnalyses.value = analyses
 
       if (data.success) {
-        // Tem análise em cache
         console.log('📊 Buffers do cache:', data.buffers?.length || 0)
 
         updateCoolingData(data)
@@ -403,19 +411,24 @@ async function selectPark(park: SearchParkResult) {
 
   console.log('🎯 Selecionando parque:', park.name)
 
-  // 🔥 VERIFICA SE TEM GEOMETRIA
   if (!park.geometry && !park.geometry_3857) {
     handleError('Parque sem geometria')
     return
   }
 
-  // Limpa pixels antigos
   if (pixelLayer) {
     map.removeLayer(pixelLayer)
     pixelLayer = null
   }
 
-  // Reseta dados
+  // 🔥 LIMPA NDVI
+  if (ndviLayer) {
+    map.removeLayer(ndviLayer)
+    ndviLayer = null
+  }
+
+  showNdvi.value = false
+
   coolingData.value = null
   showStats.value = false
   gradientMin.value = null
@@ -423,16 +436,13 @@ async function selectPark(park: SearchParkResult) {
   totalPixels.value = 0
   parkAnalyses.value = []
 
-  // Desenha o polígono
   const feature = drawParkOnMap(park)
   if (!feature) {
     handleError('Falha ao desenhar polígono')
     return
   }
-  // Carrega a análise
   await loadParkAnalysis(park, feature)
 
-  // Limpa resultados da busca
   search.value = ""
 }
 
@@ -443,7 +453,6 @@ function updateCoolingData(data: CoolingAnalysisResult) {
   console.log('🔥 updateCoolingData:', data)
   coolingData.value = data
 
-  // Atualiza os pixels no mapa
   if (data.buffers && data.buffers.length > 0) {
     console.log('✅ Chamando addPixelLayer com', data.buffers.length, 'buffers')
     addPixelLayer(data.buffers)
@@ -459,7 +468,6 @@ function updateCoolingData(data: CoolingAnalysisResult) {
 async function handleAnalysisSelect(analysis: CoolingAnalysisResult) {
   console.log('🎯 Análise selecionada:', analysis)
 
-  // 🔥 SE NÃO TEM BUFFERS, BUSCA O DETALHE
   if (!analysis.buffers || analysis.buffers.length === 0) {
     const parkId = analysis.park_id
     const analysisId = analysis.analysis_id
@@ -483,14 +491,12 @@ async function handleAnalysisSelect(analysis: CoolingAnalysisResult) {
     }
   }
 
-  // 🔥 SE JÁ TEM BUFFERS, USA DIRETO
   coolingData.value = analysis
   if (analysis.buffers && analysis.buffers.length > 0) {
     await addPixelLayer(analysis.buffers)
   }
   showStats.value = true
 
-  // 🔥 CARREGA SENSORES PARA O HORÁRIO DA ANÁLISE
   if (analysis.image_date) {
     await loadSensorsForDateTime(analysis.image_date)
   }
@@ -589,7 +595,6 @@ async function addPixelLayer(buffers: any[]) {
   const source = new VectorSource()
   const features: any[] = []
 
-  // 🔥 TAMANHO BASE EM GRAUS
   const basePixelSizeDegrees = 0.00026
 
   points.forEach(p => {
@@ -597,12 +602,9 @@ async function addPixelLayer(buffers: any[]) {
     normalized = Math.max(0, Math.min(1, normalized))
     const color = getGradientColor(normalized)
 
-    // 🔥 CORRIGE APENAS A LARGURA (LONGITUDE)
     const latRad = p.lat * Math.PI / 180
     const correctionFactor = Math.cos(latRad)
     const adjustedWidthDegrees = basePixelSizeDegrees / Math.max(correctionFactor, 0.1)
-
-    // 🔥 ALTURA PERMANECE CONSTANTE
     const heightDegrees = basePixelSizeDegrees
 
     const halfWidth = adjustedWidthDegrees / 2
@@ -690,7 +692,6 @@ async function searchPlace(selectedParkData: ParkSuggestion | null | undefined) 
       return
     }
 
-    // Seleciona o primeiro resultado automaticamente
     const element = elements[0]
     if (element && element.geometry) {
       await selectPark(element)
@@ -738,7 +739,6 @@ onMounted(async () => {
   fromLonLat = proj.fromLonLat
   vectorSource = new VectorSource()
 
-  // 🔥 CAMADA SATÉLITE 1 (Google)
   const satelliteLayer1 = new TileLayer({
     source: new XYZ({
       url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
@@ -749,7 +749,6 @@ onMounted(async () => {
   satelliteLayer1.set('satelliteType', 'google')
   satelliteLayer1.setVisible(false)
 
-  // 🔥 CAMADA SATÉLITE 2 (ArcGIS)
   const satelliteLayer2 = new TileLayer({
     source: new XYZ({
       url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -760,7 +759,6 @@ onMounted(async () => {
   satelliteLayer2.set('satelliteType', 'arcgis')
   satelliteLayer2.setVisible(false)
 
-  // 🔥 CRIA A CAMADA BASE (SEM SATÉLITE)
   const baseLayer = new TileLayer({
     source: new XYZ({
       url: "https://{a-c}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=cb1_2gax_1_89470145eca0c0cfd945f121",
@@ -795,16 +793,24 @@ onMounted(async () => {
     const lon = lonLat[0]
 
     if (lat !== undefined && lon !== undefined) {
-      // 🔥 SE TIVER REFERÊNCIA DO FILHO, ADICIONA TAMBÉM
       if (searchBarRef.value) {
         searchBarRef.value.addPoint(lat, lon)
       }
     }
   })
+
+  // 🔥 POINTERMOVE COM VERIFICAÇÃO DE showPixels
   map.on('pointermove', (evt: any) => {
     const overlay = tooltipOverlay.value
     const el = tooltipElement.value
     if (!overlay || !el) return
+
+    // 🔥 SÓ MOSTRA SE OS PIXELS ESTIVEREM ATIVOS
+    if (!showPixels.value) {
+      el.style.opacity = '0'
+      overlay.setPosition(undefined)
+      return
+    }
 
     const coordinate = evt.coordinate
     const lonLat = proj.toLonLat(coordinate)
@@ -841,7 +847,7 @@ onMounted(async () => {
     }
 
     if (closestTemp !== null) {
-      el.innerHTML = `🌡️ ${closestTemp.toFixed(2)}°C ${emoji_qa_pixel}`
+      el.innerHTML = `🌡️ ${closestTemp.toFixed(2)}°C ${emoji_qa_pixel || ''}`
       el.style.opacity = '1'
       el.style.transform = 'translate(-50%, -100%)'
       overlay.setPosition(coordinate)
@@ -888,7 +894,6 @@ let tempPolygonLayer: any = null
 // 🔥 FUNÇÃO PARA DESENHAR PONTOS TEMPORÁRIOS NO MAPA
 async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
 
-  // 🔥 REMOVE CAMADAS ANTERIORES (FORÇADO)
   if (tempPointsLayer) {
     map.removeLayer(tempPointsLayer)
     tempPointsLayer = null
@@ -902,7 +907,6 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
     return
   }
 
-  // 🔥 CRIA NOVOS SOURCES
   const VectorSource = (await import('ol/source/Vector')).default
   const Feature = (await import('ol/Feature')).default
   const Point = (await import('ol/geom/Point')).default
@@ -914,7 +918,6 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
   const VectorLayer = (await import('ol/layer/Vector')).default
   const Polygon = (await import('ol/geom/Polygon')).default
 
-  // 🔥 DESENHA PONTOS
   const pointSource = new VectorSource()
   const features: any[] = []
 
@@ -959,10 +962,7 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
   })
   map.addLayer(tempPointsLayer)
 
-
-  // 🔥 SE TIVER MAIS DE 2 PONTOS, DESENHA O POLÍGONO
   if (points.length >= 3) {
-    // 🔥 VERIFICAÇÃO DE SEGURANÇA
     const firstPoint = points[0]
     if (!firstPoint) {
       return
@@ -970,13 +970,12 @@ async function updateTempPoints(points: Array<{ lat: number; lon: number }>) {
 
     const coords3857 = points.map(p => fromLonLat([p.lon, p.lat]))
 
-    // 🔥 VERIFICA SE O PRIMEIRO EXISTE
     const firstCoord = coords3857[0]
     if (!firstCoord) {
       return
     }
 
-    coords3857.push(firstCoord) // Fecha o polígono
+    coords3857.push(firstCoord)
 
     const polygonFeature = new Feature({
       geometry: new Polygon([coords3857])
@@ -1023,8 +1022,6 @@ const sensorOverlayRef = ref<InstanceType<typeof SensorOverlay> | null>(null)
 async function loadSensorsForDateTime(imageDate: string) {
   console.log("carregando sensores", imageDate)
   try {
-    // 🔥 USA A DATA DIRETAMENTE, SEM CONVERTER DE NOVO
-    // A data já está no formato ISO: '2025-01-07T10:52:28Z'
     if (sensorOverlayRef.value) {
       await sensorOverlayRef.value.loadSensors(imageDate)
     }
@@ -1064,7 +1061,6 @@ function handlePointsUpdated(points: Array<{ lat: number; lon: number }>) {
 }
 
 function handleParkDeleted(parkId: number) {
-  // 🔥 LIMPA OS DADOS DO PARQUE SELECIONADO
   coolingData.value = null
   showStats.value = false
   parkName.value = ''
@@ -1082,6 +1078,8 @@ function handleParkDeleted(parkId: number) {
     map.removeLayer(ndviLayer)
     ndviLayer = null
   }
+  showNdvi.value = false
+
   handleSuccess(`Parque deletado com sucesso!`)
 }
 
@@ -1093,7 +1091,6 @@ let sensorTooltipOverlay: any = null
 let sensorsVisible = true
 
 async function drawSensorsOnMap(sensors: SensorData[]) {
-  // 🔥 REMOVE CAMADA ANTERIOR E TOOLTIP
   if (sensorsLayer) {
     map.removeLayer(sensorsLayer)
     sensorsLayer = null
@@ -1127,7 +1124,6 @@ async function drawSensorsOnMap(sensors: SensorData[]) {
         sensor: sensor
       })
 
-      // 🔥 COR DA TEMPERATURA
       let color = 'rgba(59, 130, 246, 0.85)'
       let tempText = '--'
 
@@ -1172,7 +1168,6 @@ async function drawSensorsOnMap(sensors: SensorData[]) {
 
   source.addFeatures(features)
 
-  // 🔥 TOOLTIP - POSIÇÃO ABAIXO DO PONTO (top)
   const tooltipElement = document.createElement('div')
   tooltipElement.style.cssText = `
     position: relative;
@@ -1196,16 +1191,14 @@ async function drawSensorsOnMap(sensors: SensorData[]) {
 
   sensorTooltipOverlay = new Overlay({
     element: tooltipElement,
-    positioning: 'top-center',  // 🔥 MUDA PARA top-center (aparece em baixo)
-    offset: [0, 10],            // 🔥 OFFSET PARA FICAR ABAIXO
+    positioning: 'top-center',
+    offset: [0, 10],
     stopEvent: false
   })
 
   map.addOverlay(sensorTooltipOverlay)
 
-  // 🔥 MOUSEMOVE PARA MOSTRAR TOOLTIP (SÓ SE ESTIVER VISÍVEL)
   map.on('pointermove', (evt: any) => {
-    // 🔥 SÓ MOSTRA SE OS SENSORES ESTIVEREM VISÍVEIS
     if (!sensorsVisible) {
       tooltipElement.style.opacity = '0'
       sensorTooltipOverlay.setPosition(undefined)
@@ -1250,15 +1243,6 @@ async function drawSensorsOnMap(sensors: SensorData[]) {
   })
 
   map.addLayer(sensorsLayer)
-
-  // 🔥 AJUSTA A VISÃO
-  // if (features.length > 0) {
-  //   const extent = source.getExtent()
-  //   map.getView().fit(extent, {
-  //     padding: [50, 50, 50, 50],
-  //     duration: 1000
-  //   })
-  // }
 }
 
 // ============================================================
@@ -1272,13 +1256,11 @@ function handleSensorsUpdated(sensors: SensorData[]) {
 function handleToggleSensors(show: boolean) {
   sensorsVisible = show
   if (!show) {
-    // 🔥 REMOVE OS SENSORES E O TOOLTIP DO MAPA
     if (sensorsLayer) {
       map.removeLayer(sensorsLayer)
       sensorsLayer = null
     }
     if (sensorTooltipOverlay) {
-      // 🔥 OCULTA O TOOLTIP
       const el = sensorTooltipOverlay.getElement()
       if (el) el.style.opacity = '0'
       sensorTooltipOverlay.setPosition(undefined)
@@ -1286,45 +1268,9 @@ function handleToggleSensors(show: boolean) {
   }
 }
 
-// ===== NVDA REFS =====
-const selectedParkId = ref<number | null>(null)
-let ndviLayer: any = null
-let ndviVisible = false
-let ndviOpacity = ref(0.70)
-
-// ===== FUNÇÕES PARA NDVI =====
-function handleNdviUpdate(ndviData: any) {
-  console.log('🌿 NDVI atualizado:', ndviData)
-
-  // 🔥 ATUALIZA A REF
-  ndviData.value = ndviData
-
-  // Calcula total de pixels
-  if (ndviData) {
-    let total = 0
-    ndviData.forEach((buffer: any) => {
-      total += buffer.pixels?.length || 0
-    })
-    ndviTotalPixels.value = total
-  } else {
-    ndviTotalPixels.value = 0
-  }
-}
-
-function handleToggleNdvi(show: boolean) {
-  showNdvi.value = show
-  ndviVisible = show
-
-  if (!show && ndviLayer) {
-    map.removeLayer(ndviLayer)
-    ndviLayer = null
-  }
-
-  if (show && ndviData.value) {
-    drawNdviOnMap(ndviData.value)
-  }
-}
-
+// ============================================================
+// 🔥 FUNÇÃO NDVI
+// ============================================================
 function handleNdviOpacity(value: number) {
   ndviOpacity.value = value
   if (ndviLayer) {
@@ -1339,21 +1285,43 @@ async function drawNdviOnMap(ndviData: any) {
     ndviLayer = null
   }
 
-  if (!ndviData || !ndviVisible) return
+  // 🔥 GUARDA EM CACHE PARA USAR DEPOIS
+  ndviDataCache = ndviData
 
-  // 🔥 EXTRAI PONTOS DO NDVI
+  // 🔥 SÓ DESENHA SE TIVER DADOS E showNdvi ESTIVER ATIVO
+  if (!ndviData || !showNdvi.value) {
+    console.log('⚠️ NDVI não visível ou sem dados')
+    return
+  }
+
+  // 🔥 SÓ DESENHA SE ESTIVER VISÍVEL
+  if (!ndviData || !showNdvi.value) {
+    console.log('⚠️ NDVI não visível ou sem dados')
+    handleError(error, '⚠️ NDVI não visível ou sem dados')
+    return
+  }
+
+  // 🔥 VERIFICA SE É ARRAY
+  if (!Array.isArray(ndviData)) {
+    console.warn('⚠️ ndviData não é um array:', ndviData)
+    handleError(error, '⚠️ ndviData não é um array')
+    return
+  }
+
   const points: { lon: number; lat: number; ndvi: number }[] = []
 
   ndviData.forEach((buffer: any) => {
-    buffer.pixels?.forEach((pixel: any) => {
-      if (pixel.lat && pixel.lon && pixel.ndvi !== null && pixel.ndvi !== undefined) {
-        points.push({
-          lon: pixel.lon,
-          lat: pixel.lat,
-          ndvi: pixel.ndvi
-        })
-      }
-    })
+    if (buffer.pixels && Array.isArray(buffer.pixels)) {
+      buffer.pixels.forEach((pixel: any) => {
+        if (pixel.lat && pixel.lon && pixel.ndvi !== null && pixel.ndvi !== undefined) {
+          points.push({
+            lon: pixel.lon,
+            lat: pixel.lat,
+            ndvi: pixel.ndvi
+          })
+        }
+      })
+    }
   })
 
   if (points.length === 0) {
@@ -1363,7 +1331,6 @@ async function drawNdviOnMap(ndviData: any) {
 
   console.log(`🌿 Desenhando ${points.length} pontos NDVI`)
 
-  // 🔥 CRIA CAMADA DE PIXELS
   const VectorLayer = (await import('ol/layer/Vector')).default
   const VectorSource = (await import('ol/source/Vector')).default
   const Feature = (await import('ol/Feature')).default
@@ -1378,10 +1345,7 @@ async function drawNdviOnMap(ndviData: any) {
   const basePixelSizeDegrees = 0.00026
 
   points.forEach(p => {
-    // 🔥 COR DO NDVI (verde para vegetação)
-    // NDVI varia de -0.1 a 1.0
     const normalized = Math.max(0, Math.min(1, (p.ndvi + 0.1) / 1.1))
-    // Verde: quanto maior o NDVI, mais verde
     const r = Math.round(59 * (1 - normalized) + 22 * normalized)
     const g = Math.round(130 * (1 - normalized) + 197 * normalized)
     const b = Math.round(246 * (1 - normalized) + 94 * normalized)
@@ -1445,6 +1409,9 @@ onUnmounted(() => {
   }
   if (tooltipOverlay.value) {
     map?.removeOverlay(tooltipOverlay.value)
+  }
+  if (ndviLayer) {
+    map?.removeLayer(ndviLayer)
   }
   if (map) {
     map.setTarget(undefined)

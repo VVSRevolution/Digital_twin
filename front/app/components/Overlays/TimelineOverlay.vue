@@ -157,12 +157,12 @@ function selectEvent(event: any) {
 /* TIMELINE OVERLAY - DIREITA */
 .timeline-overlay {
   position: absolute;
-  top: 50%;
+  top: 52%;
   right: 12px;
   transform: translateY(-50%);
   z-index: 1000;
   width: auto;
-  max-height: 80vh;
+  max-height: 72vh;
   background: transparent;
   overflow: visible;
   display: flex;

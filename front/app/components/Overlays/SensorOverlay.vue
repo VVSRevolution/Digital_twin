@@ -53,10 +53,10 @@ import {getSensors} from '~/services/sensorService'
 import type {SensorData} from '~/types'
 import CollapsibleCard from '~/components/CollapsibleCard.vue'
 import {useNotifications} from "~/composables/useErrorHandler";
-import {format, parseISO} from 'date-fns'
-import {fromZonedTime, toZonedTime} from 'date-fns-tz'
+import {useTimeZone} from "~/composables/useTimeZone";
 
 const {handleError, handleSuccess, handleInfo} = useNotifications()
+const {localToUTC, utcToLocal} = useTimeZone()
 
 
 // ============================================================
@@ -142,39 +142,6 @@ function refreshSensors() {
   } else {
     loadSensors()
   }
-}
-
-function formatDateTime(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-/**
- * LOCAL → UTC (para enviar ao backend)
- * Ex: '2026-09-01T01:00' → '2026-09-01T04:00:00.000Z'
- */
-
-function localToUTC(localString: string): string {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const utcDate = fromZonedTime(localString, timeZone)  // 🔥 fromZonedTime
-  return utcDate.toISOString()
-}
-
-/**
- * UTC → LOCAL (para exibir no input)
- * Ex: '2026-09-01T04:00:00.000Z' → '2026-09-01T01:00'
- */
-function utcToLocal(utcString: string): string {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const date = parseISO(utcString)
-  const localDate = toZonedTime(date, timeZone)  // 🔥 toZonedTime
-  return format(localDate, "yyyy-MM-dd'T'HH:mm")
 }
 
 // ============================================================
