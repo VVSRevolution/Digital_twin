@@ -49,7 +49,7 @@ class DatabaseService:
                     'sensor': 'MSI',
                     'band_thermal': 'Band 10',
                     'resolution_m': 10,
-                    'active': False,
+                    'active': True,
                     'collection_id': 'COPERNICUS/S2_SR'  # 🔥 ADICIONA
                 },
                 {
@@ -240,3 +240,25 @@ class DatabaseService:
         except Exception as e:
             print(f"❌ Erro ao buscar histórico: {e}")
             return []
+
+    @staticmethod
+    def save_ndvi_analysis(park_id: int, image_date: str, ndvi_data: dict):
+        """Salva uma análise de NDVI"""
+        try:
+            from models import NDVIAnalysis
+
+            ndvi = NDVIAnalysis(
+                park_id=park_id,
+                satellite_name='SENTINEL_2',
+                image_date=image_date,
+                ndvi_data=ndvi_data
+            )
+            db.session.add(ndvi)
+            db.session.flush()
+            db.session.commit()
+            print(f"✅ NDVI salvo: {ndvi.id} - satélite: {ndvi.satellite_name} - data: {image_date}")
+            return ndvi
+        except Exception as e:
+            print(f"❌ Erro ao salvar NDVI: {e}")
+            db.session.rollback()
+            raise

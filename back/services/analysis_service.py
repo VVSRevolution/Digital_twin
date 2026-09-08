@@ -8,7 +8,6 @@ from shapely.geometry import shape
 from extensions import db
 from models import Park, CoolingAnalysis
 from services.database_service import DatabaseService
-from services.ditto_service import DittoService
 from services.earth_engine_service import EarthEngineService
 
 
@@ -129,10 +128,6 @@ class AnalysisService:
     def process_analysis(park: Park, geometry: Any, metadata: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Processa a análise de cooling island.
-        - Se startDate for fornecido, processa TODAS as imagens disponíveis a partir daquela data.
-        - Se endDate for fornecido, limita o período (exceto se isUpToDate for True, aí usa hoje).
-        - Se isUpToDate for True e startDate for None, busca a mais recente.
-        - Retorna a análise mais recente (para exibição) e salva todas no banco.
         """
         num_buffers = metadata.get('numBuffers', 11)
         buffer_distance = metadata.get('bufferDistance', 90)
@@ -167,7 +162,6 @@ class AnalysisService:
                 if end_date:
                     filter_end = end_date
                 else:
-                    # Busca a data mais recente disponível no GEE
                     latest = EarthEngineService.get_latest_single_date(geometry, satellite_name)
                     filter_end = latest[:10] if latest else datetime.now().strftime('%Y-%m-%d')
                 print(f"📅 isUpToDate=False, usando endDate: {filter_end}")
@@ -198,7 +192,25 @@ class AnalysisService:
             print(f"📅 Data mais recente no GEE: {latest_gee_date}")
 
         # ============================================================
-        # 🔥 PROCESSAR CADA IMAGEM (CRIAR OU RECUPERAR)
+        # 🔥 BUSCA TODAS AS DATAS DO SENTINEL-2 NO MESMO PERÍODO
+        # ============================================================
+        sentinel_dates = []
+        if start_date:
+            sentinel_dates = EarthEngineService.list_image_datetimes(
+                geometry=geometry,
+                start_date=filter_start,
+                end_date=filter_end,
+                satellite_name='SENTINEL_2'  # 🔥 USA SEMPRE SENTINEL-2
+            )
+            print(f"📊 Total de imagens Sentinel-2 no período: {len(sentinel_dates)}")
+        else:
+            # Se não tem start_date, pega a mais recente do Sentinel-2
+            latest_sentinel = EarthEngineService.get_latest_single_date(geometry, 'SENTINEL_2')
+            if latest_sentinel:
+                sentinel_dates = [latest_sentinel]
+
+        # ============================================================
+        # 🔥 PROCESSAR CADA IMAGEM LST
         # ============================================================
         all_analyses = []  # Guarda objetos CoolingAnalysis já salvos
 
@@ -252,26 +264,45 @@ class AnalysisService:
                 st_qa=result.get('st_qa')
             )
 
-            # Atualiza DITTO (opcional)
-            park_data = {
-                'name': park.name,
-                'city': park.city,
-                'country': park.country,
-                'osm_id': park.osm_id,
-                'park_lst': result['park_lst']['celsius'],
-                'pci': result['pci'],
-                'pcd': result['pcd'],
-                'pca': result['pca'],
-                'buffers': result['buffers'],
-                'geometry': geometry
-            }
-            ditto_success = DittoService.update_park_twin(park_id, park_data)
-            if ditto_success:
-                DatabaseService.update_ditto_status(analysis.id, True)
-
             db.session.commit()
             all_analyses.append(analysis)
-            print(f"✅ Análise salva para {img_date} (ID: {analysis.id})")
+            print(f"✅ Análise LST salva para {img_date} (ID: {analysis.id})")
+
+        # ============================================================
+        # 🔥 PROCESSAR CADA DATA DO SENTINEL-2 (INDEPENDENTE DO LST)
+        # ============================================================
+        for sentinel_date in sentinel_dates:
+            # Verifica se já existe NDVI para esta data
+            from models import NDVIAnalysis
+            existing_ndvi = NDVIAnalysis.query.filter_by(
+                park_id=park.id,
+                image_date=sentinel_date
+            ).first()
+
+            if existing_ndvi:
+                print(f"✅ NDVI já existe para {sentinel_date} (ID: {existing_ndvi.id})")
+                continue
+
+            # 🔥 CALCULA O NDVI PARA ESTA DATA
+            ndvi_buffers, ndvi_date = EarthEngineService.calculate_ndvi_for_buffers(
+                geometry=geometry,
+                num_buffers=num_buffers,
+                buffer_distance=buffer_distance,
+                start_date=sentinel_date[:10],
+                end_date=sentinel_date[:10],
+                is_up_to_date=False
+            )
+
+            if ndvi_buffers and ndvi_date:
+                try:
+                    DatabaseService.save_ndvi_analysis(
+                        park_id=park.id,
+                        image_date=ndvi_date,
+                        ndvi_data=ndvi_buffers
+                    )
+                    print(f"✅ NDVI salvo para data {ndvi_date}")
+                except Exception as e:
+                    print(f"❌ Erro ao salvar NDVI: {e}")
 
         # ============================================================
         # 🔥 RETORNA A ANÁLISE MAIS RECENTE (primeira da lista ordenada)

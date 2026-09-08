@@ -1,5 +1,6 @@
 # models/__init__.py
 from .analysis import CoolingAnalysis
+from .ndvi import NDVIAnalysis
 from .park import Park, ParkData, ParkGeometry
 from .satellite_source import SatelliteSource
 from .sensor import Sensor, TemperatureReading
@@ -11,5 +12,6 @@ __all__ = [
     'ParkGeometry',
     'CoolingAnalysis',
     'Sensor',
-    'TemperatureReading'
+    'TemperatureReading',
+    'NDVIAnalysis'
 ]

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 import ee
+from sqlalchemy import func
 
 from config import Config
 from models import SatelliteSource
@@ -93,11 +94,32 @@ class EarthEngineService:
         """
         Retorna a coleção de imagens do satélite especificado
         """
+        # 🔥 PRINTS DE DEBUG
+        print(f"🔍 DEBUG get_satellite_collection()")
+        print(f"   satellite_name recebido: '{satellite_name}'")
+
         # 🔥 BUSCA SATÉLITE NO BANCO
         if satellite_name:
+            print(f"   🔍 Buscando por nome EXATO: '{satellite_name}'")
             satellite = SatelliteSource.query.filter_by(name=satellite_name, active=True).first()
+
+            # 🔥 SE NÃO ACHAR, TENTA BUSCAR IGNORANDO CASE COM func.upper()
+            if not satellite:
+                print(f"   ⚠️ Não encontrou por nome exato, tentando com func.upper()")
+                satellite = SatelliteSource.query.filter(
+                    func.upper(SatelliteSource.name) == satellite_name.upper(),
+                    SatelliteSource.active == True
+                ).first()
+
+            # 🔥 SE AINDA NÃO ACHAR, LISTA TODOS OS SATÉLITES ATIVOS
+            if not satellite:
+                print(f"   ❌ NENHUM SATÉLITE ENCONTRADO!")
+                print(f"   📊 LISTANDO TODOS OS SATÉLITES ATIVOS:")
+                all_active = SatelliteSource.query.filter_by(active=True).all()
+                for s in all_active:
+                    print(f"      - {s.name} (active={s.active})")
         else:
-            # Pega o primeiro ativo
+            print(f"   🔍 satellite_name é None, pegando o primeiro ativo")
             satellite = SatelliteSource.query.filter_by(active=True).first()
 
         if not satellite:
@@ -109,8 +131,6 @@ class EarthEngineService:
         print(f"🛰️ Usando satélite: {satellite.name} -> {collection_id}")
 
         return ee.ImageCollection(collection_id)
-
-    # services/earth_engine_service.py
 
     @staticmethod
     def get_latest_single_date(geometry, satellite_name=None):
@@ -501,12 +521,21 @@ class EarthEngineService:
 
                 qa_stats = EarthEngineService._calculate_qa_statistics(buffers)
 
+                # 🔥 CALCULA NDVI APENAS SE FOR SENTINEL-2
+                ndvi_buffers = None
+                if satellite_name and 'SENTINEL' in satellite_name.upper():
+                    print(f"🌿 Calculando NDVI para Sentinel-2...")
+                    ndvi_buffers = EarthEngineService.calculate_ndvi_for_buffers(
+                        geometry, image, num_buffers, buffer_distance
+                    )
+
                 return {
                     'park_lst': {
                         'kelvin': park_lst_celsius + 273.15 if park_lst_celsius is not None else None,
                         'celsius': park_lst_celsius
                     },
                     'buffers': buffers,
+                    'ndvi': ndvi_buffers,
                     'pci': pci,
                     'pcd': pcd,
                     'pca': {
@@ -877,3 +906,143 @@ class EarthEngineService:
             'qa_pixel': qa_result,
             'st_qa': st_qa_result
         }
+
+    @staticmethod
+    def calculate_ndvi_for_buffers(geometry, num_buffers, buffer_distance, start_date=None, end_date=None,
+                                   is_up_to_date=None):
+        """
+        Calcula o NDVI para cada buffer SEMPRE usando Sentinel-2
+        USA A MESMA LÓGICA DE DATA DO LST
+        """
+        try:
+            park_geom = ee.Geometry(geometry)
+
+            # 🔥 USA SEMPRE SENTINEL-2 PARA NDVI
+            collection = ee.ImageCollection("COPERNICUS/S2_SR")
+            collection = collection.filterBounds(park_geom)
+
+            # 🔥 FILTRA PELO PERÍODO (MESMA LÓGICA DO LST)
+            if start_date:
+                if is_up_to_date:
+                    end_date = datetime.now().strftime('%Y-%m-%d')
+                    print(f"📅 NDVI isUpToDate=True, usando data atual: {end_date}")
+                else:
+                    if not end_date:
+                        # Busca a data mais recente disponível no GEE para Sentinel-2
+                        latest = EarthEngineService._get_latest_sentinel_date(geometry)
+                        end_date = latest[:10] if latest else datetime.now().strftime('%Y-%m-%d')
+                    print(f"📅 NDVI isUpToDate=False, usando endDate: {end_date}")
+
+                try:
+                    inclusive_end = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_exclusive = (inclusive_end + timedelta(days=1)).strftime('%Y-%m-%d')
+                except ValueError:
+                    end_exclusive = end_date
+                collection = collection.filterDate(start_date, end_exclusive)
+                print(f"📅 NDVI filtro: {start_date} a {end_exclusive}")
+            else:
+                # Se não tem start_date, pega a mais recente
+                collection = collection.sort('system:time_start', False).limit(1)
+
+            try:
+                count = collection.size().getInfo()
+                if count == 0:
+                    print("⚠️ Nenhuma imagem Sentinel-2 disponível para este período/região")
+                    return None, None
+            except:
+                return None, None
+
+            image = collection.sort('system:time_start', False).first()
+
+            # 🔥 EXTRAI A DATA DA IMAGEM SENTINEL-2
+            ndvi_image_date = None
+            try:
+                timestamp = image.get('system:time_start').getInfo()
+                ndvi_image_date = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc).strftime(
+                    '%Y-%m-%dT%H:%M:%SZ')
+                print(f"📅 NDVI usando imagem Sentinel-2 de: {ndvi_image_date}")
+            except Exception as e:
+                print(f"⚠️ Erro ao extrair data do NDVI: {e}")
+                ndvi_image_date = None
+
+            # 🔥 CALCULA NDVI (Sentinel-2: B8 = NIR, B4 = Red)
+            ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')
+
+            # 🔥 CALCULA OS BUFFERS (mesmo código de antes)
+            buffer_distances = [buffer_distance * (i + 1) for i in range(num_buffers)]
+            ndvi_buffers = []
+
+            for i, dist in enumerate(buffer_distances):
+                buffer_geom = park_geom.buffer(dist)
+
+                if i > 0:
+                    prev_buffer = park_geom.buffer(buffer_distances[i - 1])
+                    buffer_geom = buffer_geom.difference(prev_buffer)
+
+                sampled = ndvi.sampleRegions(
+                    collection=ee.FeatureCollection([ee.Feature(buffer_geom)]),
+                    scale=10,
+                    geometries=True
+                )
+
+                pixels = sampled.getInfo()
+
+                ndvi_values = []
+                pixel_data = []
+
+                if pixels and 'features' in pixels:
+                    for feature in pixels['features']:
+                        props = feature.get('properties', {})
+                        ndvi_val = props.get('NDVI')
+                        if ndvi_val is not None:
+                            coords = feature.get('geometry', {}).get('coordinates', [])
+                            pixel_data.append({
+                                'lat': coords[1] if len(coords) > 1 else None,
+                                'lon': coords[0] if len(coords) > 0 else None,
+                                'ndvi': ndvi_val
+                            })
+                            ndvi_values.append(ndvi_val)
+
+                ndvi_buffers.append({
+                    'distance': dist,
+                    'buffer_index': i + 1,
+                    'pixels': pixel_data,
+                    'statistics': {
+                        'count': len(ndvi_values),
+                        'mean': sum(ndvi_values) / len(ndvi_values) if ndvi_values else None,
+                        'min': min(ndvi_values) if ndvi_values else None,
+                        'max': max(ndvi_values) if ndvi_values else None,
+                        'std': EarthEngineService._calculate_std(ndvi_values) if ndvi_values else None
+                    }
+                })
+
+                print(f'🌿 NDVI Buffer {i + 1}: {dist}m, média: {ndvi_buffers[-1]["statistics"]["mean"]}')
+
+            return ndvi_buffers, ndvi_image_date
+
+        except Exception as e:
+            print(f'❌ Erro ao calcular NDVI: {e}')
+            traceback.print_exc()
+            return None, None
+
+    @staticmethod
+    def _get_latest_sentinel_date(geometry):
+        """Busca a data mais recente do Sentinel-2 para a geometria"""
+        try:
+            park_geom = ee.Geometry(geometry)
+            collection = ee.ImageCollection("COPERNICUS/S2_SR")
+            collection = collection.filterBounds(park_geom)
+            collection = collection.sort('system:time_start', False).limit(1)
+
+            try:
+                count = collection.size().getInfo()
+                if count == 0:
+                    return None
+            except:
+                return None
+
+            image = collection.first()
+            timestamp = image.get('system:time_start').getInfo()
+            return datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        except:
+            return None

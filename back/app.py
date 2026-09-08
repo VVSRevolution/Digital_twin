@@ -599,6 +599,161 @@ def delete_analysis(park_id, analysis_id):
         }), 500
 
 
+@app.route('/api/parks/<int:park_id>/ndvi/<string:date>', methods=['GET'])
+def get_park_ndvi_by_date(park_id, date):
+    """
+    Retorna o NDVI de um parque para uma data específica
+    Data no formato UTC: YYYY-MM-DDTHH:MM:SSZ
+    """
+    try:
+        from models import Park, NDVIAnalysis
+        from datetime import datetime, timezone
+
+        # 🔥 VALIDA O FORMATO DA DATA
+        try:
+            # Verifica se a data está no formato UTC com Z
+            if not date.endswith('Z'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de data inválido. Use YYYY-MM-DDTHH:MM:SSZ'
+                }), 400
+
+            # Parse da data para validar
+            parsed_date = datetime.fromisoformat(date.replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': f'Formato de data inválido: {date}. Use YYYY-MM-DDTHH:MM:SSZ'
+            }), 400
+
+        # 🔥 VERIFICA SE O PARQUE EXISTE
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        # 🔥 BUSCA O NDVI MAIS PRÓXIMO DA DATA
+        # Primeiro tenta a data exata
+        ndvi = NDVIAnalysis.query.filter_by(park_id=park_id, image_date=date).first()
+
+        # Se não encontrar, busca o mais próximo anterior
+        if not ndvi:
+            ndvi = NDVIAnalysis.query.filter(
+                NDVIAnalysis.park_id == park_id,
+                NDVIAnalysis.image_date <= date
+            ).order_by(NDVIAnalysis.image_date.desc()).first()
+
+        # Se não encontrar anterior, busca o mais próximo posterior
+        if not ndvi:
+            ndvi = NDVIAnalysis.query.filter(
+                NDVIAnalysis.park_id == park_id,
+                NDVIAnalysis.image_date >= date
+            ).order_by(NDVIAnalysis.image_date.asc()).first()
+
+        if not ndvi:
+            return jsonify({
+                'success': False,
+                'error': f'NDVI não encontrado para a data {date}'
+            }), 404
+
+        return jsonify({
+            'success': True,
+            'park_id': park_id,
+            'park_name': park.name,
+            'requested_date': date,
+            'image_date': ndvi.image_date,
+            'satellite_name': ndvi.satellite_name,
+            'ndvi': ndvi.ndvi_data,
+            'created_at': ndvi.created_at.isoformat() if ndvi.created_at else None
+        })
+
+    except Exception as e:
+        print(f"❌ Erro ao buscar NDVI: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/parks/<int:park_id>/ndvi/list', methods=['GET'])
+def get_park_ndvi(park_id):
+    """Retorna todos os NDVI de um parque"""
+    try:
+        from models import Park, NDVIAnalysis
+
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        ndvis = NDVIAnalysis.query.filter_by(park_id=park_id).order_by(
+            NDVIAnalysis.image_date.desc()
+        ).all()
+
+        return jsonify({
+            'success': True,
+            'park_id': park_id,
+            'park_name': park.name,
+            'count': len(ndvis),
+            'ndvi_list': [n.to_dict() for n in ndvis]
+        })
+
+    except Exception as e:
+        print(f"❌ Erro ao buscar NDVI: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/parks/<int:park_id>/ndvi/latest', methods=['GET'])
+def get_park_ndvi_latest(park_id):
+    """Retorna o NDVI mais recente de um parque"""
+    try:
+        from models import Park, NDVIAnalysis
+
+        park = Park.query.get(park_id)
+        if not park:
+            return jsonify({
+                'success': False,
+                'error': 'Parque não encontrado'
+            }), 404
+
+        ndvi = NDVIAnalysis.query.filter_by(park_id=park_id).order_by(
+            NDVIAnalysis.image_date.desc()
+        ).first()
+
+        if not ndvi:
+            return jsonify({
+                'success': False,
+                'error': 'NDVI não encontrado para este parque'
+            }), 404
+
+        return jsonify({
+            'success': True,
+            'park_id': park_id,
+            'park_name': park.name,
+            'image_date': ndvi.image_date,
+            'satellite_name': ndvi.satellite_name,
+            'ndvi': ndvi.ndvi_data,
+            'created_at': ndvi.created_at.isoformat() if ndvi.created_at else None
+        })
+
+    except Exception as e:
+        print(f"❌ Erro ao buscar NDVI: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/park/search', methods=['POST'])
 def search_park():
     try:
