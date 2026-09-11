@@ -54,29 +54,30 @@
 
         <LayerControlsOverlay
             v-if="selectedParkId"
-            :parkId="selectedParkId"
-            :showStats="showStats"
-            :coolingData="coolingData"
-            :totalPixels="totalPixels"
-            :pixelOpacity="pixelOpacity"
-            :gradientMin="gradientMin"
-            :gradientMax="gradientMax"
-            v-model:showPixels="showPixels"
+            v-model:ndviOpacity="ndviOpacity"
             v-model:showNdvi="showNdvi"
+            v-model:showPixels="showPixels"
+            :coolingData="coolingData"
+            :gradientMax="gradientMax"
+            :gradientMin="gradientMin"
+            :parkId="selectedParkId"
+            :pixelOpacity="pixelOpacity"
+            :showStats="showStats"
+            :totalPixels="totalPixels"
+            @ndviDataLoaded="drawNdviOnMap"
+            @toggleNdviVisibility="toggleNdviVisibility"
             @togglePixels="togglePixels"
             @updatePixelOpacity="updatePixelOpacity"
-            @ndviDataLoaded="drawNdviOnMap"
-            @updateNdviOpacity="handleNdviOpacity"
         />
 
         <!-- CARD 3: ANÁLISE -->
         <AnalysisOverlay
-            :showStats="showStats"
             :coolingData="coolingData"
+            :gradientMax="gradientMax"
+            :gradientMin="gradientMin"
             :parkName="parkName"
             :pixelOpacity="pixelOpacity"
-            :gradientMin="gradientMin"
-            :gradientMax="gradientMax"
+            :showStats="showStats"
             :totalPixels="totalPixels"
         />
       </div>
@@ -114,7 +115,6 @@ import {drawBuffers} from "~/utils/buffer"
 import {XYZ} from "ol/source"
 import GeoJSON from "ol/format/GeoJSON"
 import {useNotifications} from '~/composables/useErrorHandler'
-import ParkSearchBar from "~/components/ParkSearchBar.vue"
 import type {CoolingAnalysisResult, ParkGeometry, SearchParkResult, SensorData} from '~/types'
 import {Overlay} from "ol";
 import {Polygon} from "ol/geom";
@@ -125,7 +125,6 @@ import ResultOverlay from "~/components/Overlays/ResultOverlay.vue";
 import AnalysisOverlay from "~/components/Overlays/AnalysisOverlay.vue";
 import MainMenuOverlay from "~/components/Overlays/MainMenuOverlay.vue";
 import LayerControlsOverlay from "~/components/Overlays/LayerControlsOverlay.vue";
-import {error} from "ol/console";
 import type VectorLayer from "ol/layer/Vector";
 import type {NDVIBuffer} from "~/types/ndvi";
 
@@ -171,9 +170,8 @@ const currentSatellite = ref<'arcgis' | 'google'>('arcgis')
 // ============================================================
 const selectedParkId = ref<number | null>(null)
 let ndviLayer: VectorLayer<any> | null = null
-let ndviOpacity = ref<number>(0.70)
+const ndviOpacity = ref<number>(0.70)
 let ndviDataCache: NDVIBuffer[] | null = null
-
 
 
 // ============================================================
@@ -1271,40 +1269,82 @@ function handleToggleSensors(show: boolean) {
 // ============================================================
 // 🔥 FUNÇÃO NDVI
 // ============================================================
-function handleNdviOpacity(value: number) {
-  ndviOpacity.value = value
+watch(ndviOpacity, (newValue) => {
   if (ndviLayer) {
-    ndviLayer.setOpacity(value)
+    ndviLayer.setOpacity(newValue)
+  }
+})
+
+function toggleNdviVisibility(visible: boolean) {
+  if (ndviLayer) {
+    ndviLayer.setVisible(visible)
+    // console.log(`🌿 NDVI visibilidade: ${visible ? 'ON' : 'OFF'}`)
   }
 }
 
+// 🔥 NOVA FUNÇÃO DE COR NDVI (mais visível)
+function getNdviColor(ndvi: number): string {
+  // Normaliza NDVI de [-0.1, 1.0] para [0, 1]
+  const t = Math.max(0, Math.min(1, (ndvi + 0.1) / 1.1))
+
+  let r: number, g: number, b: number
+
+  if (t < 0.2) {
+    // 🔴 Vermelho escuro → Vermelho (solo exposto / água)
+    const p = t / 0.2
+    r = Math.round(180 + 75 * p)
+    g = Math.round(30 + 30 * p)
+    b = Math.round(30)
+  } else if (t < 0.4) {
+    // 🟠 Vermelho → Laranja (vegetação muito esparsa)
+    const p = (t - 0.2) / 0.2
+    r = 255
+    g = Math.round(60 + 100 * p)
+    b = 30
+  } else if (t < 0.6) {
+    // 🟡 Laranja → Amarelo (vegetação esparsa)
+    const p = (t - 0.4) / 0.2
+    r = 255
+    g = Math.round(160 + 60 * p)
+    b = Math.round(30 - 30 * p)
+  } else if (t < 0.8) {
+    // 🟢 Amarelo → Verde claro (vegetação moderada)
+    const p = (t - 0.6) / 0.2
+    r = Math.round(255 - 100 * p)
+    g = Math.round(220 + 20 * p)
+    b = 0
+  } else {
+    // 🌲 Verde claro → Verde escuro (vegetação densa)
+    const p = (t - 0.8) / 0.2
+    r = Math.round(155 - 120 * p)
+    g = Math.round(240 - 80 * p)
+    b = Math.round(0 + 50 * p)
+  }
+
+  return `rgb(${r}, ${g}, ${b})`
+}
+
 async function drawNdviOnMap(ndviData: any) {
-  // Remove camada anterior
+  // 🔥 GUARDA EM CACHE SEMPRE
+  ndviDataCache = ndviData
+
+  // 🔥 SE FOR NULL, APENAS ESCONDE (não deleta)
+  if (!ndviData) {
+    if (ndviLayer) {
+      ndviLayer.setVisible(false)
+    }
+    return
+  }
+
+  // Remove camada anterior para redesenhar
   if (ndviLayer) {
     map.removeLayer(ndviLayer)
     ndviLayer = null
   }
 
-  // 🔥 GUARDA EM CACHE PARA USAR DEPOIS
-  ndviDataCache = ndviData
-
-  // 🔥 SÓ DESENHA SE TIVER DADOS E showNdvi ESTIVER ATIVO
-  if (!ndviData || !showNdvi.value) {
-    console.log('⚠️ NDVI não visível ou sem dados')
-    return
-  }
-
-  // 🔥 SÓ DESENHA SE ESTIVER VISÍVEL
-  if (!ndviData || !showNdvi.value) {
-    console.log('⚠️ NDVI não visível ou sem dados')
-    handleError(error, '⚠️ NDVI não visível ou sem dados')
-    return
-  }
-
   // 🔥 VERIFICA SE É ARRAY
   if (!Array.isArray(ndviData)) {
     console.warn('⚠️ ndviData não é um array:', ndviData)
-    handleError(error, '⚠️ ndviData não é um array')
     return
   }
 
@@ -1345,11 +1385,8 @@ async function drawNdviOnMap(ndviData: any) {
   const basePixelSizeDegrees = 0.00026
 
   points.forEach(p => {
-    const normalized = Math.max(0, Math.min(1, (p.ndvi + 0.1) / 1.1))
-    const r = Math.round(59 * (1 - normalized) + 22 * normalized)
-    const g = Math.round(130 * (1 - normalized) + 197 * normalized)
-    const b = Math.round(246 * (1 - normalized) + 94 * normalized)
-    const color = `rgb(${r}, ${g}, ${b})`
+    // 🔥 USA A NOVA FUNÇÃO DE COR
+    const color = getNdviColor(p.ndvi)
 
     const latRad = p.lat * Math.PI / 180
     const correctionFactor = Math.cos(latRad)
@@ -1378,7 +1415,7 @@ async function drawNdviOnMap(ndviData: any) {
     feature.setStyle(new Style({
       fill: new FillStyle({color}),
       stroke: new StrokeStyle({
-        color: 'rgba(255,255,255,0.1)',
+        color: 'rgba(255,255,255,0.15)',
         width: 0.3
       })
     }))
@@ -1392,12 +1429,12 @@ async function drawNdviOnMap(ndviData: any) {
     source: source,
     zIndex: 4,
     opacity: ndviOpacity.value,
+    visible: true  // 🔥 GARANTE QUE ESTÁ VISÍVEL AO REDESENHAR
   })
 
   map.addLayer(ndviLayer)
   console.log('✅ Camada NDVI adicionada ao mapa')
 }
-
 
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
@@ -1454,7 +1491,6 @@ onUnmounted(() => {
 .overlays-container::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.40);
 }
-
 
 
 /* TODOS OS COMPONENTES FLUTUANTES USAM A MESMA CLASSE */

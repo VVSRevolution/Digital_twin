@@ -2,11 +2,11 @@
   <div class="layer-controls-overlay overlay-wrapper">
     <CollapsibleCard
         :defaultExpanded="true"
-        icon="pi pi-layer"
+        icon="pi pi-th-large"
         title="Camadas"
     >
       <!-- 🔥 PIXELS DE TEMPERATURA -->
-      <div class="layer-section" v-if="coolingData?.buffers">
+      <div v-if="coolingData?.buffers" class="layer-section">
         <div class="layer-toggle">
           <div class="layer-toggle-left">
             <!-- 🔥 MUDA PARA TOGGLESWITCH -->
@@ -133,24 +133,21 @@
             {{ error }}
           </div>
 
-          <!-- LISTA DE DATAS -->
+          <!-- LISTA DE DATAS (SELECT) -->
           <div v-if="dateOptions.length > 0" class="ndvi-dates-list">
-            <Divider/>
             <div class="dates-header">
-              <span class="dates-title">📅 Datas disponíveis</span>
+              <span class="dates-title">📅 Data disponível</span>
               <Badge :value="dateOptions.length" severity="info"/>
             </div>
-            <div class="dates-grid">
-              <div
-                  v-for="date in dateOptions"
-                  :key="date.value"
-                  :class="{ 'selected': selectedDate === date.value }"
-                  class="date-chip"
-                  @click="selectDate(date.value)"
-              >
-                {{ date.label }}
-              </div>
-            </div>
+            <Select
+                v-model="selectedDate"
+                :options="dateOptions"
+                class="dates-select"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Selecione uma data"
+                @change="handleDateChange"
+            />
           </div>
         </template>
       </div>
@@ -162,11 +159,11 @@
 import {ref, watch} from 'vue'
 import {Temperature} from 'reicon-vue'
 import type {CoolingAnalysisResult} from '~/types'
-import { getNdviList, getLatestNdvi, getNdviByDate } from '~/services/ndviService'
-import { useTimeZone } from '~/composables/useTimeZone'
+import {getLatestNdvi, getNdviByDate, getNdviList} from '~/services/ndviService'
+import {useTimeZone} from '~/composables/useTimeZone'
 import type {NDVIBuffer} from "~/types/ndvi";
 
-const { utcToLocalFormatted } = useTimeZone()
+const {utcToLocalFormatted} = useTimeZone()
 
 // ============================================================
 // 🔥 PROPS
@@ -194,13 +191,13 @@ const emit = defineEmits<{
   (e: 'togglePixels'): void
   (e: 'updatePixelOpacity', value: number): void
   (e: 'ndviDataLoaded', data: NDVIBuffer[] | null): void
-  (e: 'updateNdviOpacity', value: number): void
+  (e: 'toggleNdviVisibility', visible: boolean): void
 }>()
 
 // ============================================================
 // 🔥 STATE
 // ============================================================
-const ndviOpacity = ref(0.70)
+const ndviOpacity = defineModel<number>('ndviOpacity', {default: 0.70})
 const ndviData = ref<NDVIBuffer[] | null>(null)
 const ndviTotalPixels = ref(0)
 const loadingNdvi = ref(false)
@@ -309,8 +306,8 @@ function handleOpacityChange(event: Event) {
   emit('updatePixelOpacity', value)
 }
 
-function handleToggleNdvi() {
-  if (showNdvi.value) {
+function handleToggleNdvi(value: boolean) {
+  if (value) {
     if (dateOptions.value.length === 0) {
       fetchNdviList()
     } else if (ndviData.value) {
@@ -319,7 +316,7 @@ function handleToggleNdvi() {
       loadLatestNdvi()
     }
   } else {
-    emit('ndviDataLoaded', null)
+    emit('toggleNdviVisibility', false)
   }
 }
 
@@ -327,12 +324,13 @@ function handleNdviOpacityChange(event: Event) {
   const target = event.target as HTMLInputElement
   const value = parseFloat(target.value)
   ndviOpacity.value = value / 100
-  emit('updateNdviOpacity', ndviOpacity.value)
 }
 
-function selectDate(date: string) {
-  selectedDate.value = date
-  loadNdvi()
+function handleDateChange(event: any) {
+  const date = event.value
+  if (date) {
+    loadNdvi()
+  }
 }
 
 // ============================================================
@@ -577,13 +575,7 @@ watch(() => props.parkId, (newParkId) => {
   height: 10px;
   border-radius: 4px;
   background: linear-gradient(to right,
-  #8b5cf6,
-  #6366f1,
-  #3b82f6,
-  #22c55e,
-  #16a34a,
-  #15803d,
-  #166534
+  #b41e1e, /* Vermelho escuro - solo/água */ #ff3c1e, /* Vermelho - solo exposto */ #ff7d1e, /* Laranja - vegetação muito esparsa */ #ffc81e, /* Amarelo - vegetação esparsa */ #dcf000, /* Amarelo-esverdeado - vegetação moderada */ #8cf000, /* Verde claro - vegetação boa */ #23b423 /* Verde escuro - vegetação densa */
   );
   border: 1px solid #e5e7eb;
   margin: 2px 0;
@@ -607,45 +599,28 @@ watch(() => props.parkId, (newParkId) => {
   color: #4b5563;
 }
 
-.dates-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-height: 120px;
-  overflow-y: auto;
+.dates-select {
+  width: 100%;
+  font-size: 12px;
 }
 
-.dates-grid::-webkit-scrollbar {
-  width: 3px;
+.dates-select :deep(.p-select-label) {
+  font-size: 12px;
+  padding: 6px 10px;
 }
 
-.dates-grid::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
+.dates-select :deep(.p-select-dropdown) {
+  width: 2rem;
 }
 
-.date-chip {
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
-  background: #f3f4f6;
-  color: #4b5563;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border: 1px solid transparent;
-  white-space: nowrap;
+.dates-select :deep(.p-select-option) {
+  font-size: 12px;
+  padding: 6px 10px;
 }
 
-.date-chip:hover {
-  background: #e5e7eb;
-  transform: scale(1.02);
-}
-
-.date-chip.selected {
+.dates-select :deep(.p-select-option.p-select-option-selected) {
   background: #dcfce7;
   color: #166534;
-  border-color: #22c55e;
 }
 
 /* STATUS */
@@ -679,15 +654,6 @@ watch(() => props.parkId, (newParkId) => {
 
   .layer-toggle {
     flex-wrap: wrap;
-  }
-
-  .dates-grid {
-    max-height: 80px;
-  }
-
-  .date-chip {
-    font-size: 10px;
-    padding: 1px 8px;
   }
 
   .opacity-value {

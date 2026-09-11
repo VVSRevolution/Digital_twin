@@ -3,7 +3,7 @@
   <div class="timeline-overlay">
     <!-- HEADER -->
     <div class="timeline-header" @click="toggleExpand">
-      <span>📊</span>
+      <span>📊 Analises</span>
       <span class="badge">{{ events.length }}</span>
       <span class="arrow">{{ isExpanded ? '▲' : '▼' }}</span>
     </div>
