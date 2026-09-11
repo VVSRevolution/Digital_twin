@@ -1382,7 +1382,7 @@ async function drawNdviOnMap(ndviData: any) {
   const source = new VectorSource()
   const features: any[] = []
 
-  const basePixelSizeDegrees = 0.00026
+  const basePixelSizeDegrees = 0.00009
 
   points.forEach(p => {
     // 🔥 USA A NOVA FUNÇÃO DE COR
