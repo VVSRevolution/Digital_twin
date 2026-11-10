@@ -4,7 +4,7 @@
     <CollapsibleCard
         :defaultExpanded="true"
         icon="pi pi-calendar"
-        title="Data/Hora dos Sensores"
+        title="Data/Hora Temperatura do Ar"
     >
       <div class="sensor-content">
         <!-- 🔥 CHECKBOX PARA ATIVAR/DESATIVAR SENSORES -->
@@ -65,6 +65,7 @@ const {localToUTC, utcToLocal} = useTimeZone()
 const emit = defineEmits<{
   (e: 'sensorsUpdated', sensors: SensorData[]): void
   (e: 'toggleSensors', show: boolean): void
+  (e: 'datetimeChanged', datetime: string | null): void
 }>()
 
 // ============================================================
@@ -116,6 +117,7 @@ async function loadSensors(datetime?: string) { // sempre espera UTC
 
 function onDateTimeChange() {
   const datetime = selectedDateTime.value
+  emit('datetimeChanged', datetime || null)
   if (datetime) {
     // 🔥 CONVERTE LOCAL -> UTC COM Z
     const utcString = localToUTC(datetime)

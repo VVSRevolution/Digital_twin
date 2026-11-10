@@ -87,6 +87,7 @@
           ref="sensorOverlayRef"
           @sensorsUpdated="handleSensorsUpdated"
           @toggleSensors="handleToggleSensors"
+          @datetimeChanged="handleDatetimeChanged"
       />
 
 
@@ -127,6 +128,9 @@ import MainMenuOverlay from "~/components/Overlays/MainMenuOverlay.vue";
 import LayerControlsOverlay from "~/components/Overlays/LayerControlsOverlay.vue";
 import type VectorLayer from "ol/layer/Vector";
 import type {NDVIBuffer} from "~/types/ndvi";
+import {fetchForecastBatch} from "~/services/weatherService";
+
+
 
 // ===== REFS =====
 const loading = ref(false)
@@ -152,6 +156,10 @@ const searchBarRef = ref<InstanceType<typeof MainMenuOverlay> | null>(null)
 const manualPoints = ref<Array<{ lat: number; lon: number }>>([])
 const showNdvi = ref(false)
 const {handleError, handleSuccess, handleInfo} = useNotifications()
+
+// ===== meterologia =====
+let forecastLayer: any = null
+let moveEndTimer: ReturnType<typeof setTimeout> | null = null
 
 // ===== VARIÁVEIS OPENLAYERS =====
 let map: any
@@ -796,7 +804,10 @@ onMounted(async () => {
       }
     }
   })
-
+  map.on('moveend', () => {
+    if (moveEndTimer) clearTimeout(moveEndTimer)
+    moveEndTimer = setTimeout(() => drawForecastOnViewport(), 2000)
+  })
   // 🔥 POINTERMOVE COM VERIFICAÇÃO DE showPixels
   map.on('pointermove', (evt: any) => {
     const overlay = tooltipOverlay.value
@@ -1435,7 +1446,164 @@ async function drawNdviOnMap(ndviData: any) {
   map.addLayer(ndviLayer)
   console.log('✅ Camada NDVI adicionada ao mapa')
 }
+// ============================================================
+// 🔥 FUNÇÃO Open-Meteo
+// ============================================================
 
+const forecastDatetime = ref<string | null>(null)
+
+function handleDatetimeChanged(datetime: string | null) {
+  forecastDatetime.value = datetime
+  drawForecastOnViewport()
+}
+
+let forecastRequestId = 0
+
+
+async function drawForecastOnViewport() {
+  const requestId = ++forecastRequestId
+
+  const view = map.getView()
+  const extent = view.calculateExtent(map.getSize())
+  const [minX, minY, maxX, maxY] = extent
+
+  // 🔥 DATA: do SensorOverlay ou agora
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const nowLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`
+  const target = forecastDatetime.value || nowLocal
+
+  // 🔥 DECIDE O TAMANHO DA CÉLULA ANTES DO FETCH
+  // > 16 dias → sazonal (36 km). Senão → determinístico (9 km).
+  const targetDate = new Date(target)
+  const diffDays = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  const isSeasonalDate = diffDays > 16
+
+  const CELL_SIZE_X_M = isSeasonalDate ? 36000 : 9000
+  const CELL_SIZE_Y_M = isSeasonalDate ? 36000 : 9000
+
+  const VectorLayer = (await import('ol/layer/Vector')).default
+  const VectorSource = (await import('ol/source/Vector')).default
+  const Feature = (await import('ol/Feature')).default
+  const Polygon = (await import('ol/geom/Polygon')).default
+  const Style = (await import('ol/style/Style')).default
+  const StrokeStyle = (await import('ol/style/Stroke')).default
+  const FillStyle = (await import('ol/style/Fill')).default
+  const Text = (await import('ol/style/Text')).default
+  const proj = await import('ol/proj')
+
+  const cells: Array<{ x: number; y: number; x2: number; y2: number; lat: number; lon: number }> = []
+
+  for (let x = minX; x < maxX; x += CELL_SIZE_X_M) {
+    for (let y = minY; y < maxY; y += CELL_SIZE_Y_M) {
+      const x2 = Math.min(x + CELL_SIZE_X_M, maxX)
+      const y2 = Math.min(y + CELL_SIZE_Y_M, maxY)
+      const cx = (x + x2) / 2
+      const cy = (y + y2) / 2
+      const lonLat = proj.toLonLat([cx, cy])
+      const lon = lonLat[0]
+      const lat = lonLat[1]
+      if (lon === undefined || lat === undefined) continue
+      cells.push({ x, y, x2, y2, lat, lon })
+    }
+  }
+
+  if (cells.length === 0) return
+
+  // 🔥 LIMITE DE SEGURANÇA
+  if (cells.length > 100) {
+    console.warn(`⚠️ Muitas células (${cells.length}), limitando a 100`)
+    cells.length = 100
+  }
+
+  // 🔥 CHAMA O SERVICE
+  const results = await fetchForecastBatch(
+      cells.map(c => c.lat),
+      cells.map(c => c.lon),
+      { targetDatetime: target }
+  )
+
+  // 🔥 DESCARTA RESPOSTA ANTIGA
+  if (requestId !== forecastRequestId) {
+    console.log('⏭️ Requisição antiga descartada')
+    return
+  }
+
+  // 🔥 REMOVE CAMADA ANTERIOR SÓ DEPOIS DO FETCH
+  if (forecastLayer) {
+    map.removeLayer(forecastLayer)
+    forecastLayer = null
+  }
+
+  const source = new VectorSource()
+  const features: any[] = []
+
+  cells.forEach((cell, i) => {
+    const fc = results[i]
+    let label = '—'
+    let strokeColor = 'rgba(90, 90, 90, 0.4)'
+    let dash = [6, 6]
+
+    // 🔥 SAZONAL: tendência + anomalia (marrom tracejado fino)
+    if (fc?.isSeasonal) {
+      strokeColor = 'rgba(120, 53, 15, 0.6)'
+      dash = [3, 6]
+
+      if (fc.trend === 'above') label = 'Acima da média'
+      else if (fc.trend === 'below') label = 'Abaixo da média'
+      else if (fc.trend === 'normal') label = 'Na média'
+      else if (fc.temperature_2m != null) label = `~${fc.temperature_2m.toFixed(0)}°C`
+      else label = 'Tendência indisponível'
+
+      if (fc.anomaly != null) {
+        label += ` (${fc.anomaly > 0 ? '+' : ''}${fc.anomaly.toFixed(1)}°C)`
+      }
+    }
+    // 🔥 DETERMINÍSTICO: temperatura exata
+    else if (fc?.temperature_2m != null) {
+      label = `${fc.temperature_2m.toFixed(1)}°C`
+      strokeColor = 'rgba(90, 90, 90, 0.4)'
+      dash = [6, 6]
+    }
+
+    const polygon = new Polygon([[
+      [cell.x, cell.y],
+      [cell.x, cell.y2],
+      [cell.x2, cell.y2],
+      [cell.x2, cell.y],
+      [cell.x, cell.y]
+    ]])
+
+    const feature = new Feature({ geometry: polygon })
+
+    feature.setStyle(new Style({
+      stroke: new StrokeStyle({
+        color: strokeColor,
+        width: 1,
+        lineDash: dash
+      }),
+      text: new Text({
+        text: label,
+        font: 'bold 11px "Titillium Web", sans-serif',
+        fill: new FillStyle({ color: '#1f2937' }),
+        stroke: new StrokeStyle({ color: 'white', width: 3 }),
+        textAlign: 'center',
+        textBaseline: 'middle'
+      })
+    }))
+
+    features.push(feature)
+  })
+
+  source.addFeatures(features)
+
+  forecastLayer = new VectorLayer({
+    source: source,
+    zIndex: 20
+  })
+
+  map.addLayer(forecastLayer)
+}
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
   if (searchTimeout) {
@@ -1453,6 +1621,9 @@ onUnmounted(() => {
   if (map) {
     map.setTarget(undefined)
     map.dispose()
+  }
+  if (forecastLayer) {
+    map?.removeLayer(forecastLayer)
   }
 })
 
