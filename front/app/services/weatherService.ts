@@ -21,7 +21,7 @@ interface CacheEntry {
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000
-const MAX_COORDS_PER_REQUEST = 50
+const MAX_COORDS_PER_REQUEST = 36
 
 const cache = new Map<string, CacheEntry>()
 let inFlight: Promise<ForecastCell[]> | null = null
@@ -41,8 +41,9 @@ function parseResults(
 ): ForecastCell[] {
     const results = Array.isArray(data) ? data : [data]
 
-    return results.map((r: any, i: number) => {
-        // 🔥 SAZONAL: média do ensemble + tendência
+    return lats.map((lat, i) => {
+        const r = results[i]
+
         if (isSeasonal) {
             const daily = r?.daily
             let value: number | null = null
@@ -69,7 +70,7 @@ function parseResults(
             }
 
             return {
-                latitude: lats[i]!,
+                latitude: lat,
                 longitude: lons[i]!,
                 temperature_2m: value,
                 time: null,
@@ -79,7 +80,6 @@ function parseResults(
             }
         }
 
-        // 🔥 DETERMINÍSTICO: hora exata
         let temp: number | null = null
         if (r?.hourly?.time && r?.hourly?.temperature_2m && targetHour) {
             const idx = r.hourly.time.indexOf(targetHour)
@@ -89,7 +89,7 @@ function parseResults(
         }
 
         return {
-            latitude: lats[i]!,
+            latitude: lat,
             longitude: lons[i]!,
             temperature_2m: temp,
             time: targetHour ?? r?.current?.time ?? null,
@@ -106,7 +106,6 @@ function buildUrl(
     const latStr = lats.map(v => v.toFixed(4)).join(',')
     const lonStr = lons.map(v => v.toFixed(4)).join(',')
 
-    // Sem data: previsão atual
     if (!targetDatetime) {
         return {
             url: `https://api.open-meteo.com/v1/forecast?latitude=${latStr}&longitude=${lonStr}&current=temperature_2m&timezone=auto`,
@@ -123,7 +122,6 @@ function buildUrl(
     const now = new Date()
     const diffDays = (target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
 
-    // Futuro próximo (até 16 dias): determinístico
     if (diffDays >= -1 && diffDays <= 16) {
         return {
             url: `https://api.open-meteo.com/v1/forecast?latitude=${latStr}&longitude=${lonStr}&start_date=${datePart}&end_date=${datePart}&hourly=temperature_2m&timezone=auto`,
@@ -132,7 +130,6 @@ function buildUrl(
         }
     }
 
-    // Passado: histórico de previsões (desde ~2021)
     if (diffDays < -1) {
         return {
             url: `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${latStr}&longitude=${lonStr}&start_date=${datePart}&end_date=${datePart}&hourly=temperature_2m&timezone=auto`,
@@ -141,7 +138,6 @@ function buildUrl(
         }
     }
 
-    // Futuro distante (> 16 dias): sazonal probabilístico
     return {
         url: `https://seasonal-api.open-meteo.com/v1/seasonal?latitude=${latStr}&longitude=${lonStr}&start_date=${datePart}&end_date=${datePart}&daily=temperature_2m_max&timezone=auto`,
         targetHour: null,
@@ -149,20 +145,11 @@ function buildUrl(
     }
 }
 
-export async function fetchForecastBatch(
+async function fetchForecastBatchSingle(
     lats: number[],
     lons: number[],
-    options: ForecastBatchOptions = {}
+    options: ForecastBatchOptions
 ): Promise<ForecastCell[]> {
-    if (lats.length === 0 || lats.length !== lons.length) return []
-
-    // Limita coordenadas por requisição
-    if (lats.length > MAX_COORDS_PER_REQUEST) {
-        const step = Math.ceil(lats.length / MAX_COORDS_PER_REQUEST)
-        lats = lats.filter((_, i) => i % step === 0).slice(0, MAX_COORDS_PER_REQUEST)
-        lons = lons.filter((_, i) => i % step === 0).slice(0, MAX_COORDS_PER_REQUEST)
-    }
-
     const target = options.targetDatetime ?? null
     const cacheKey = makeCacheKey(lats, lons, target)
 
@@ -225,13 +212,34 @@ export async function fetchForecastBatch(
         cache.set(cacheKey, { data: result, timestamp: Date.now() })
     }
 
-    // 🔥 INFORMA O TIPO DE PREVISÃO
-    if (result.length > 0) {
+    return result
+}
+
+export async function fetchForecastBatch(
+    lats: number[],
+    lons: number[],
+    options: ForecastBatchOptions = {}
+): Promise<ForecastCell[]> {
+    if (lats.length === 0 || lats.length !== lons.length) return []
+
+    // 🔥 DIVIDE EM LOTES DE 36
+    const allResults: ForecastCell[] = []
+
+    for (let i = 0; i < lats.length; i += MAX_COORDS_PER_REQUEST) {
+        const batchLats = lats.slice(i, i + MAX_COORDS_PER_REQUEST)
+        const batchLons = lons.slice(i, i + MAX_COORDS_PER_REQUEST)
+        const batchResult = await fetchForecastBatchSingle(batchLats, batchLons, options)
+        allResults.push(...batchResult)
+    }
+
+    // 🔥 INFORMA O TIPO DE PREVISÃO UMA VEZ
+    if (allResults.length > 0) {
         const { handleInfo } = useNotifications()
+        const isSeasonal = allResults[0]?.isSeasonal ?? false
+        const target = options.targetDatetime
+
         if (isSeasonal) {
             handleInfo('Previsão sazonal (probabilística, 36 km, ensemble SEAS5) — não é previsão determinística.')
-        } else if (target && !options.targetDatetime) {
-            handleInfo('Previsão atual (Open-Meteo, ~9 km).')
         } else if (target) {
             const diffDays = (new Date(target).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
             if (diffDays < -1) {
@@ -244,5 +252,5 @@ export async function fetchForecastBatch(
         }
     }
 
-    return result
+    return allResults
 }

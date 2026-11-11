@@ -87,6 +87,7 @@
           ref="sensorOverlayRef"
           @sensorsUpdated="handleSensorsUpdated"
           @toggleSensors="handleToggleSensors"
+          @toggleWeather="handleToggleWeather"
           @datetimeChanged="handleDatetimeChanged"
       />
 
@@ -1458,9 +1459,18 @@ function handleDatetimeChanged(datetime: string | null) {
 }
 
 let forecastRequestId = 0
+const weatherVisible = ref(true)
 
 
 async function drawForecastOnViewport() {
+  if (!weatherVisible.value) {
+    if (forecastLayer) {
+      map.removeLayer(forecastLayer)
+      forecastLayer = null
+    }
+    return
+  }
+
   const requestId = ++forecastRequestId
 
   const view = map.getView()
@@ -1473,14 +1483,29 @@ async function drawForecastOnViewport() {
   const nowLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`
   const target = forecastDatetime.value || nowLocal
 
-  // 🔥 DECIDE O TAMANHO DA CÉLULA ANTES DO FETCH
-  // > 16 dias → sazonal (36 km). Senão → determinístico (9 km).
+  // 🔥 DECIDE O TIPO DE PREVISÃO
   const targetDate = new Date(target)
   const diffDays = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
   const isSeasonalDate = diffDays > 16
 
-  const CELL_SIZE_X_M = isSeasonalDate ? 36000 : 9000
-  const CELL_SIZE_Y_M = isSeasonalDate ? 36000 : 9000
+  // 🔥 CRESCE A CÉLULA ATÉ CABER NO MÁXIMO DA API
+  const MAX_CELLS = 100
+  const baseCell = isSeasonalDate ? 36000 : 9000
+
+  const widthM = maxX - minX
+  const heightM = maxY - minY
+
+  let cellSize = baseCell
+  while (
+      Math.ceil(widthM / cellSize) * Math.ceil(heightM / cellSize) > MAX_CELLS
+      ) {
+    cellSize += baseCell
+  }
+
+  const CELL_SIZE_X_M = cellSize
+  const CELL_SIZE_Y_M = cellSize
+
+  console.log(`📊 Células estimadas: ${Math.ceil(widthM / cellSize) * Math.ceil(heightM / cellSize)}, cellSize: ${cellSize}`)
 
   const VectorLayer = (await import('ol/layer/Vector')).default
   const VectorSource = (await import('ol/source/Vector')).default
@@ -1510,11 +1535,7 @@ async function drawForecastOnViewport() {
 
   if (cells.length === 0) return
 
-  // 🔥 LIMITE DE SEGURANÇA
-  if (cells.length > 100) {
-    console.warn(`⚠️ Muitas células (${cells.length}), limitando a 100`)
-    cells.length = 100
-  }
+  console.log(`📊 Células geradas: ${cells.length}`)
 
   // 🔥 CHAMA O SERVICE
   const results = await fetchForecastBatch(
@@ -1522,6 +1543,8 @@ async function drawForecastOnViewport() {
       cells.map(c => c.lon),
       { targetDatetime: target }
   )
+
+  console.log(`📥 Resultados recebidos: ${results.length}`)
 
   // 🔥 DESCARTA RESPOSTA ANTIGA
   if (requestId !== forecastRequestId) {
@@ -1544,7 +1567,7 @@ async function drawForecastOnViewport() {
     let strokeColor = 'rgba(90, 90, 90, 0.4)'
     let dash = [6, 6]
 
-    // 🔥 SAZONAL: tendência + anomalia (marrom tracejado fino)
+    // 🔥 SAZONAL: tendência + anomalia
     if (fc?.isSeasonal) {
       strokeColor = 'rgba(120, 53, 15, 0.6)'
       dash = [3, 6]
@@ -1604,6 +1627,24 @@ async function drawForecastOnViewport() {
 
   map.addLayer(forecastLayer)
 }
+
+
+
+function handleToggleWeather(show: boolean) {
+  weatherVisible.value = show
+
+  if (show) {
+    drawForecastOnViewport()
+  } else {
+    // 🔥 INCREMENTA O requestId PARA DESCARTAR FETCH EM VOO
+    forecastRequestId++
+    if (forecastLayer) {
+      map.removeLayer(forecastLayer)
+      forecastLayer = null
+    }
+  }
+}
+
 // ===== LIMPA MAPA =====
 onUnmounted(() => {
   if (searchTimeout) {

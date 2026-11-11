@@ -4,14 +4,13 @@
     <CollapsibleCard
         :defaultExpanded="true"
         icon="pi pi-calendar"
-        title="Data/Hora Temperatura do Ar"
+        title="Temperatura do Ar"
     >
       <div class="sensor-content">
-        <!-- 🔥 CHECKBOX PARA ATIVAR/DESATIVAR SENSORES -->
+        <!-- 🔥 TOGGLE SENSORES -->
         <div class="sensor-toggle">
-          <Checkbox
+          <ToggleSwitch
               v-model="showSensors"
-              binary
               @update:model-value="onToggleSensors"
           />
           <label class="sensor-toggle-label">
@@ -24,6 +23,18 @@
               severity="info"
               size="small"
           />
+        </div>
+
+        <!-- 🔥 TOGGLE METEOROLOGIA -->
+        <div class="weather-toggle">
+          <ToggleSwitch
+              v-model="showWeather"
+              @update:model-value="onToggleWeather"
+          />
+          <label class="weather-toggle-label">
+            <i :class="{ 'weather-off': !showWeather }" class="pi pi-cloud"></i>
+            {{ showWeather ? 'Mostrar meteorologia no mapa' : 'Ocultar meteorologia' }}
+          </label>
         </div>
 
         <div class="datetime-control">
@@ -58,13 +69,13 @@ import {useTimeZone} from "~/composables/useTimeZone";
 const {handleError, handleSuccess, handleInfo} = useNotifications()
 const {localToUTC, utcToLocal} = useTimeZone()
 
-
 // ============================================================
 // 🔥 EMITS
 // ============================================================
 const emit = defineEmits<{
   (e: 'sensorsUpdated', sensors: SensorData[]): void
   (e: 'toggleSensors', show: boolean): void
+  (e: 'toggleWeather', show: boolean): void   // 🔥 NOVO
   (e: 'datetimeChanged', datetime: string | null): void
 }>()
 
@@ -75,6 +86,7 @@ const loading = ref(false)
 const lastUpdate = ref('')
 const sensors = ref<SensorData[]>([])
 const showSensors = ref(true)
+const showWeather = ref(true)
 
 const sensorCount = computed(() => sensors.value.length)
 
@@ -136,6 +148,10 @@ function onToggleSensors() {
   emit('toggleSensors', showSensors.value)
 }
 
+// 🔥 NOVO
+function onToggleWeather() {
+  emit('toggleWeather', showWeather.value)
+}
 
 function refreshSensors() {
   if (currentUtcDateTime.value) {
@@ -174,9 +190,22 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 6px 4px 10px 4px;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 8px;
 }
 
-.sensor-toggle-label {
+/* 🔥 TOGGLE METEOROLOGIA */
+.weather-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 10px 4px;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 8px;
+}
+
+.sensor-toggle-label,
+.weather-toggle-label {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -187,13 +216,23 @@ onMounted(() => {
   user-select: none;
 }
 
-.sensor-toggle-label i {
+.sensor-toggle-label i,
+.weather-toggle-label i {
   font-size: 16px;
   color: #6366f1;
 }
 
 .sensor-toggle-label .pi-eye-slash {
   color: #9ca3af;
+}
+.weather-toggle-label .pi-cloud {
+  color: #6366f1;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.weather-toggle-label .weather-off {
+  color: #9ca3af;
+  opacity: 0.5;
 }
 
 /* 🔥 DATETIME CONTROL */
@@ -202,15 +241,6 @@ onMounted(() => {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.datetime-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #4b5563;
 }
 
 .datetime-input {
@@ -227,7 +257,6 @@ onMounted(() => {
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
-
 
 /* RESPONSIVIDADE */
 @media (max-width: 480px) {
